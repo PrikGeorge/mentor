@@ -87,19 +87,20 @@ for key, source in files.items():
 
 for role, code_names, doc_names in [
     ('student', ['ListTask', 'GroupingTask'], ['student', 'homework']),
-    ('teacher', ['ListSolutions', 'GroupingSolution'], ['guide', 'run', 'verification'])
+    ('teacher', ['ListSolutions', 'GroupingSolution', 'ListTask', 'GroupingTask'], ['guide', 'run', 'verification', 'student', 'homework'])
 ]:
     with zipfile.ZipFile(DIST / 'downloads' / (role + '-lesson-2026-09-27.zip'), 'w', zipfile.ZIP_DEFLATED) as z:
         for key in code_names:
-            z.write(CONTENT / (key + '.java'), f'code/{role}/{key}.java')
+            code_role = 'teacher' if data['code'][key]['teacher'] else 'student'
+            z.write(CONTENT / (key + '.java'), f'code/{code_role}/{key}.java')
         for key in doc_names:
             # Downloaded documents contain plain references rather than unusable disk links.
             plain = re.sub(r'\[([^\]]+)\]\((?:<)?[A-Za-z]:[^)]+\)', r'\1', data['docs'][key]['raw'])
-            z.writestr(key + '.md', plain)
+            z.writestr(docs[key][0].name, plain)
         z.writestr('START.txt', 'Урок 27.09.2026, 12:00–13:00 МСК. JDK 17+.\n' +
             'Из этой папки: создайте build, затем выполните:\n' +
             f'javac --release 17 -encoding UTF-8 -d build code/{role}/*.java\n' +
-            '\n'.join('java -cp build ' + name for name in code_names) +
+            '\n'.join('java -cp build ' + name for name in code_names if data['code'][name]['teacher'] == (role == 'teacher')) +
             '\nЗаготовки ученика намеренно не проходят проверки до выполнения задания.\n')
 
 (DIST / 'content.js').write_text('window.MENTOR_CONTENT = ' + json.dumps(data, ensure_ascii=False).replace('</', '<\\/') + ';\n', encoding='utf-8')
