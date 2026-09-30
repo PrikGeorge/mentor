@@ -1,0 +1,21 @@
+server:
+  port: 8081
+  forward-headers-strategy: none
+spring:
+  config:
+    import: optional:configtree:${MENTOR_SECRETS_DIR:./.runtime/secrets/}
+  datasource:
+    url: ${MENTOR_DB_URL:jdbc:postgresql://127.0.0.1:5433/mentor}
+    username: ${MENTOR_DB_USER:mentor}
+    password: ""
+  session:
+    timeout: 8h
+    jdbc:
+      initialize-schema: never
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+mentor:
+  security:
+    production: ${MENTOR_PRODUCTION:false}
+    public-origin: ${MENTOR_PUBLIC_ORIGIN:}

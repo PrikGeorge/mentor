@@ -1,0 +1,627 @@
+openapi: 3.1.0
+info:
+  title: Mentor Platform API
+  version: 0.1.0
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /auth/session:
+    get:
+      operationId: getSession
+      security: []
+      description: Returns the current account and a CSRF token, including for anonymous clients. Session secrets are sent only in a host-only cookie.
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/WebClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [login, password]
+              properties:
+                login: { type: string, maxLength: 200 }
+                password: { type: string, description: Preserved exactly; no whitespace trimming. }
+      responses:
+        '200':
+          description: Authenticated session with rotated cookie and fresh CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/logout:
+    post:
+      operationId: logout
+      description: Requires CSRF; authenticated callers also pass their account ID. Anonymous logout remains idempotent.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/WebClient'
+        - name: X-Mentor-Account
+          in: header
+          required: false
+          schema: { type: string }
+      responses:
+        '204': { description: Session invalidated }
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/WebClient'
+        - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, description: 8–128 Unicode scalar values, up to 512 UTF-8 bytes, valid Unicode, spaces preserved. }
+      responses:
+        '200':
+          description: Session with updated authVersion; other sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/register:
+    post:
+      operationId: register
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/teachers:
+    get:
+      operationId: listTeachers
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/teacher-invitations:
+    get:
+      operationId: listTeacherInvitations
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      operationId: issueTeacherInvitation
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: []
+              properties: {}
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationIssue'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/teacher-invitations/{id}:
+    delete:
+      operationId: revokeTeacherInvitation
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/teachers/{id}/access:
+    patch:
+      operationId: changeTeacherAccess
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessChange'
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/workspaces/{id}/access:
+    patch:
+      operationId: changeWorkspaceAccess
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessChange'
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/teachers/{id}/password-reset:
+    post:
+      operationId: issueTeacherPasswordReset
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetIssue'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+  parameters:
+    CsrfToken:
+      name: X-CSRF-TOKEN
+      in: header
+      required: true
+      schema: { type: string }
+    WebClient:
+      name: X-Mentor-Client
+      in: header
+      required: true
+      schema: { type: string, const: web }
+    Account:
+      name: X-Mentor-Account
+      in: header
+      required: true
+      schema: { type: string }
+  responses:
+    Problem:
+      description: Structured application error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiProblem'
+    RateLimited:
+      description: Too many authentication requests
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiProblem'
+  schemas:
+    Actor:
+      type: object
+      additionalProperties: false
+      required: [userId, workspaceId, role, authVersion]
+      properties:
+        userId: { type: string }
+        workspaceId: { type: [string, 'null'] }
+        role: { type: string, enum: [ADMIN, TEACHER, STUDENT] }
+        authVersion: { type: integer, format: int64, minimum: 1 }
+    Session:
+      type: object
+      additionalProperties: false
+      required: [account, csrfToken]
+      properties:
+        account:
+          oneOf:
+            - $ref: '#/components/schemas/Actor'
+            - type: 'null'
+        csrfToken: { type: string }
+    ApiProblem:
+      type: object
+      additionalProperties: false
+      required: [status, code, message, fieldErrors, requestId]
+      properties:
+        status: { type: integer }
+        code: { type: string }
+        message: { type: string }
+        fieldErrors:
+          type: object
+          additionalProperties: { type: string }
+        requestId: { type: string }
+    Page:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: { type: array, items: {} }
+        page: { type: integer, minimum: 0, default: 0 }
+        size: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        total: { type: integer, format: int64, minimum: 0 }
+    TeacherView:
+      type: object
+      additionalProperties: false
+      required:
+      - userId
+      - login
+      - workspaceId
+      - accountDisabled
+      - workspaceDisabled
+      properties:
+        userId:
+          type: string
+        login:
+          type: string
+        workspaceId:
+          type: string
+        accountDisabled:
+          type: boolean
+        workspaceDisabled:
+          type: boolean
+    InvitationView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - state
+      - expiresAt
+      - createdAt
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          enum:
+          - pending
+          - used
+          - revoked
+          - expired
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    InvitationIssue:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - link
+      - expiresAt
+      properties:
+        id:
+          type: string
+        link:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    PasswordResetIssue:
+      type: object
+      additionalProperties: false
+      required:
+      - link
+      - expiresAt
+      properties:
+        link:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    AccessChange:
+      type: object
+      additionalProperties: false
+      required:
+      - disabled
+      properties:
+        disabled:
+          type: boolean
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - currentPassword
+      properties:
+        currentPassword:
+          type: string
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - token
+      - login
+      - password
+      properties:
+        token:
+          type: string
+        login:
+          type: string
+        password:
+          type: string
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - token
+      - password
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+    TeacherPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherView'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    InvitationPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitationView'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
