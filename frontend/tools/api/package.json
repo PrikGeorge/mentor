@@ -1,0 +1,7 @@
+{
+  "name": "@mentor/api-types",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": { "generate": "openapi-typescript ../../../contracts/openapi.yaml -o ../../src/app/api/schema.d.ts" },
+  "devDependencies": { "openapi-typescript": "7.13.0", "typescript": "5.9.3" }
+}
