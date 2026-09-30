@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info: {title: Mentor isolated runner protocol, version: 1.0.0}
+servers: [{url: /internal/v1}]
+security: [{workerToken: []}]
+paths:
+  /jobs/claim:
+    post:
+      operationId: claim
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClaimRequest'}
+      responses:
+        '200':
+          description: Immutable leased snapshot; lease is 30 seconds, heartbeat every 5 seconds, hard deadline at most 90 seconds.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobLease'}
+        '204': {description: No queued job}
+        '401': {description: Worker credential rejected}
+  /jobs/{id}/heartbeat:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LeaseRequest'}
+      responses:
+        '204': {description: "Lease renewed for 30 seconds, never past deadlineAt"}
+        '409': {description: Lease lost or deadline reached; stop execution and do not complete}
+        '401': {description: Worker credential rejected}
+  /jobs/{id}/complete:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: complete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CompleteRequest'}
+      responses:
+        '204': {description: Result stored or identical completion replayed}
+        '409': {description: Stale lease or different completion replay}
+        '400': {description: Invalid result}
+        '401': {description: Worker credential rejected}
+components:
+  securitySchemes:
+    workerToken: {type: http, scheme: bearer, description: Rotating worker-only secret file credential. No cookies. TLS or isolated loopback testing.}
+  schemas:
+    ClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [workerId]
+      properties:
+        workerId: {type: string, minLength: 1, maxLength: 100}
+    LeaseRequest:
+      type: object
+      additionalProperties: false
+      required: [leaseToken]
+      properties:
+        leaseToken: {type: string, minLength: 1}
+    CompleteRequest:
+      type: object
+      additionalProperties: false
+      required: [leaseToken, result]
+      properties:
+        leaseToken: {type: string, minLength: 1}
+        result: {$ref: '#/components/schemas/CheckResult'}
+    ExerciseRevision:
+      description: Preserve JSON scalar type; number 1 and string '1' are distinct revisions.
+      oneOf:
+        - {type: string}
+        - {type: number}
+    JobLease:
+      type: object
+      additionalProperties: false
+      required: [jobId, attemptId, leaseToken, leaseExpiresAt, deadlineAt, payload]
+      properties:
+        jobId: {type: string}
+        attemptId: {type: string}
+        leaseToken: {type: string}
+        leaseExpiresAt: {type: string, format: date-time}
+        deadlineAt: {type: string, format: date-time}
+        payload: {$ref: '#/components/schemas/JobPayload'}
+    JobPayload:
+      type: object
+      additionalProperties: false
+      required: [exerciseId, exerciseRevision, mode, files, exercise, environment, limits]
+      properties:
+        exerciseId: {type: string}
+        exerciseRevision: {$ref: '#/components/schemas/ExerciseRevision'}
+        mode: {type: string, enum: [run, submit]}
+        files:
+          type: object
+          minProperties: 1
+          maxProperties: 16
+          additionalProperties: {type: string}
+          description: Exact allowlisted source snapshot. Each file at most 128 KiB UTF-8, total at most 256 KiB.
+        exercise: {$ref: '#/components/schemas/ExerciseSnapshot'}
+        environment: {$ref: '#/components/schemas/EnvironmentSnapshot'}
+        limits: {$ref: '#/components/schemas/ResourceLimits'}
+    ExerciseSnapshot:
+      type: object
+      additionalProperties: false
+      required: [className, method, parameterTypes, sourceFiles, customTypes, tests]
+      properties:
+        className: {type: string}
+        method: {type: string}
+        parameterTypes: {type: array, items: {type: string}}
+        sourceFiles: {type: array, minItems: 1, maxItems: 16, uniqueItems: true, items: {type: string}}
+        customTypes:
+          type: object
+          additionalProperties: {$ref: '#/components/schemas/CustomType'}
+        tests:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Immutable selected tests; run contains sample tests, submit contains all tests.
+          items: {$ref: '#/components/schemas/TestCase'}
+    CustomType:
+      type: object
+      additionalProperties: false
+      required: [constructorTypes, fields]
+      properties:
+        constructorTypes: {type: array, items: {type: string}}
+        fields: {type: array, items: {type: string}}
+    TestCase:
+      type: object
+      additionalProperties: false
+      required: [name, args, expected, unchangedArguments]
+      properties:
+        name: {type: string, maxLength: 200}
+        args: {type: array, items: {}}
+        expected: {}
+        unchangedArguments: {type: array, uniqueItems: true, items: {type: integer, minimum: 0}}
+    EnvironmentSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, revision, imageDigest]
+      properties:
+        id: {type: string}
+        revision: {type: string}
+        imageDigest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: Immutable Docker image content ID prepared and approved by operator. Worker compares all three fields against its local manifest. No tag, shell, registry or dependency URL may be supplied by jobs.
+    ResourceLimits:
+      type: object
+      additionalProperties: false
+      required: [compileMs, caseMs, testsMs, jobMs, outputBytes, memoryMiB, compilerHeapMiB, jvmHeapMiB, cpus, pids, workMiB, tmpMiB]
+      description: Snapshot of allowed limits, never permission to exceed worker fixed ceilings. Version 1 requires these exact values.
+      properties:
+        compileMs: {type: integer, enum: [15000]}
+        caseMs: {type: integer, enum: [3000]}
+        testsMs: {type: integer, enum: [10000]}
+        jobMs: {type: integer, enum: [90000]}
+        outputBytes: {type: integer, enum: [65536]}
+        memoryMiB: {type: integer, enum: [512]}
+        compilerHeapMiB: {type: integer, enum: [256]}
+        jvmHeapMiB: {type: integer, enum: [128]}
+        cpus: {type: integer, enum: [1]}
+        pids: {type: integer, enum: [128]}
+        workMiB: {type: integer, enum: [96]}
+        tmpMiB: {type: integer, enum: [16]}
+    CheckResult:
+      type: object
+      additionalProperties: false
+      required: [status, passed, total, elapsedMs, tests]
+      description: Entire serialized result at most 32000 UTF-16 characters. Accepted requires total greater than zero and passed equal total. No host paths or private properties.
+      properties:
+        status: {type: string, enum: [accepted, wrong_answer, compile_error, runtime_error, time_limit, error, unavailable]}
+        passed: {type: integer, minimum: 0}
+        total: {type: integer, minimum: 0, maximum: 100}
+        elapsedMs: {type: integer, format: int64, minimum: 0}
+        diagnostics: {type: string}
+        tests: {type: array, items: {$ref: '#/components/schemas/TestResult'}}
+    TestResult:
+      type: object
+      additionalProperties: false
+      required: [name, status]
+      properties:
+        name: {type: string}
+        status: {type: string, enum: [accepted, wrong_answer, runtime_error, time_limit]}
+        expected: {}
+        actual: {}
+        message: {type: string}
+        stdout: {type: string}
