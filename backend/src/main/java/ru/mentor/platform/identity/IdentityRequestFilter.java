@@ -29,14 +29,15 @@ final class IdentityRequestFilter extends OncePerRequestFilter {
         try {
             checkOrigin(request);
             String path = request.getRequestURI();
-            if(path.startsWith("/api/v1/auth/")) {
+            if(path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/admin/")
+                || path.matches("/api/v1/workspaces/[^/]+/students/[^/]+/(access|password-reset|invitations(?:/[^/]+)?)")) {
                 response.setHeader("Cache-Control","no-store");
                 limits.admit(path,request.getMethod(),request.getRemoteAddr());
             }
             Actor actor = sessions.current(request);
             if(actor != null) {
                 SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(actor,null,List.of(new SimpleGrantedAuthority("ROLE_"+actor.role()))));
-                if(writing(request) && !path.equals("/api/v1/auth/login") && !actor.userId().equals(request.getHeader("X-Mentor-Account")))
+                if(writing(request) && !Set.of("/api/v1/auth/login","/api/v1/auth/register","/api/v1/auth/reset-password").contains(path) && !actor.userId().equals(request.getHeader("X-Mentor-Account")))
                     throw new ApiFailure(409,"ACCOUNT_CHANGED","Account changed. Refresh this tab.");
             }
             chain.doFilter(request,response);

@@ -3,15 +3,16 @@ info:
   title: Mentor Platform API
   version: 0.1.0
 servers:
-  - url: /api/v1
+- url: /api/v1
 security:
-  - sessionCookie: []
+- sessionCookie: []
 paths:
   /auth/session:
     get:
       operationId: getSession
       security: []
-      description: Returns the current account and a CSRF token, including for anonymous clients. Session secrets are sent only in a host-only cookie.
+      description: Returns the current account and a CSRF token, including for anonymous clients. Session secrets
+        are sent only in a host-only cookie.
       responses:
         '200':
           description: Current session
@@ -26,8 +27,8 @@ paths:
       operationId: login
       security: []
       parameters:
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
       requestBody:
         required: true
         content:
@@ -35,10 +36,16 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [login, password]
+              required:
+              - login
+              - password
               properties:
-                login: { type: string, maxLength: 200 }
-                password: { type: string, description: Preserved exactly; no whitespace trimming. }
+                login:
+                  type: string
+                  maxLength: 200
+                password:
+                  type: string
+                  description: Preserved exactly; no whitespace trimming.
       responses:
         '200':
           description: Authenticated session with rotated cookie and fresh CSRF token
@@ -60,14 +67,16 @@ paths:
       description: Requires CSRF; authenticated callers also pass their account ID. Anonymous logout remains idempotent.
       security: []
       parameters:
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/WebClient'
-        - name: X-Mentor-Account
-          in: header
-          required: false
-          schema: { type: string }
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - name: X-Mentor-Account
+        in: header
+        required: false
+        schema:
+          type: string
       responses:
-        '204': { description: Session invalidated }
+        '204':
+          description: Session invalidated
         '403':
           $ref: '#/components/responses/Problem'
         '409':
@@ -78,9 +87,9 @@ paths:
     post:
       operationId: changePassword
       parameters:
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/WebClient'
-        - $ref: '#/components/parameters/Account'
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
       requestBody:
         required: true
         content:
@@ -88,10 +97,18 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [currentPassword, newPassword]
+              required:
+              - currentPassword
+              - newPassword
               properties:
-                currentPassword: { type: string }
-                newPassword: { type: string, description: 8–128 Unicode scalar values, up to 512 UTF-8 bytes, valid Unicode, spaces preserved. }
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  description: 8–128 Unicode scalar values
+                  up to 512 UTF-8 bytes: null
+                  valid Unicode: null
+                  spaces preserved.: null
       responses:
         '200':
           description: Session with updated authVersion; other sessions revoked
@@ -387,6 +404,561 @@ paths:
           $ref: '#/components/responses/Problem'
         '429':
           $ref: '#/components/responses/RateLimited'
+  /workspaces/{workspaceId}/students:
+    get:
+      operationId: listStudents
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: audience
+        in: query
+        schema:
+          type: string
+          enum:
+          - student
+        description: Narrows teacher output to the public projection; grants no permissions.
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createStudent
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '201':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentInput'
+  /workspaces/{workspaceId}/students/{studentId}:
+    get:
+      operationId: getStudent
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: audience
+        in: query
+        schema:
+          type: string
+          enum:
+          - student
+        description: Narrows teacher output to the public projection; grants no permissions.
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateStudent
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentUpdateInput'
+  /workspaces/{workspaceId}/students/{studentId}/access:
+    get:
+      operationId: getStudentAccess
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentAccessView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: changeStudentAccess
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessChange'
+  /workspaces/{workspaceId}/students/{studentId}/invitations:
+    post:
+      operationId: issueStudentInvitation
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationIssue'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+  /workspaces/{workspaceId}/students/{studentId}/invitations/{id}:
+    delete:
+      operationId: revokeStudentInvitation
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '204':
+          description: Operation completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/password-reset:
+    post:
+      operationId: issueStudentPasswordReset
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '200':
+          description: Operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetIssue'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+  /workspaces/{workspaceId}/students/{studentId}/lessons:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    get:
+      operationId: listLessons
+      description: Exact workspace/profile membership required; ADMIN and foreign content return 404. Sort date,
+        time, createdAt, id descending. STUDENT always receives public projection; audience=student narrows an owning
+        TEACHER without changing Actor or permissions.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          description: Paged lessons in caller projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createLesson
+      description: Owning TEACHER only. Short four-field form; planned status, null bundleId, empty texts, metadata
+        revision 1 and each independent text revision 1 are server defaults. No historical studentReview or reviewNotes
+        is copied into the new lesson.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonCreateInput'
+      responses:
+        '201':
+          description: Created lesson; navigate to preparation only after this success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherLessonView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: getLesson
+      description: Exact workspace/profile/lesson membership required; caller projection enforced server-side.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Selected lesson in caller projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateLessonMetadata
+      description: Owning TEACHER only. Compare required metadata revision before writing and increment it on success.
+        Omitted short-form fields are preserved; texts and their revisions are untouched. Account mismatch or stale
+        metadata revision gives 409 before mutation.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonMetadataInput'
+      responses:
+        '200':
+          description: Saved metadata with new revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherLessonView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/texts/{kind}:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/Task3TextKind'
+    get:
+      operationId: getLessonText
+      description: Exact membership required. teacherNotes returns 404 to STUDENT and to an owning TEACHER requesting
+        audience=student, with no private text in the error. Read before editing to obtain this kind's independent
+        revision; LessonView.revision is only the metadata revision.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Markdown source and independent text revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonText'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: updateLessonText
+      description: Owning TEACHER only, independently of any read projection query. Compare this text kind's revision
+        and increment on success; other texts and metadata remain unchanged. Preserve Markdown whitespace exactly.
+        JSON request body greater than 4 MiB (4194304 bytes) is 413; text greater than 200000 UTF-16 units is 400.
+        Stale revision/account gives 409 before mutation.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonTextInput'
+      responses:
+        '200':
+          description: Saved source with new independent text revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonText'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/dashboard:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    get:
+      operationId: getStudentDashboard
+      description: Exact membership required; ADMIN/foreign profile return 404. Apply caller projection recursively
+        to student and focus.lesson. Compute across all lessons, never one page. Convert Moscow local date/time
+        to start instant and add duration to obtain end. Choose earliest start whose end >= now with date/time/createdAt/id
+        ascending tie order; upcoming=true includes the current lesson and exact end boundary. Otherwise choose
+        latest past lesson using descending equivalent order with upcoming=false. Empty profile has lessonCount=0
+        and focus=null. This does not certify whether a lesson was conducted.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Profile, total lesson count, and selected lesson in caller projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -398,17 +970,71 @@ components:
       name: X-CSRF-TOKEN
       in: header
       required: true
-      schema: { type: string }
+      schema:
+        type: string
     WebClient:
       name: X-Mentor-Client
       in: header
       required: true
-      schema: { type: string, const: web }
+      schema:
+        type: string
+        const: web
     Account:
       name: X-Mentor-Account
       in: header
       required: true
-      schema: { type: string }
+      schema:
+        type: string
+    Task3WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+    Task3StudentId:
+      name: studentId
+      in: path
+      required: true
+      schema:
+        type: string
+    Task3LessonId:
+      name: lessonId
+      in: path
+      required: true
+      schema:
+        type: string
+    Task3TextKind:
+      name: kind
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/TextKind'
+    Task3Audience:
+      name: audience
+      in: query
+      required: false
+      description: Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's
+        projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only
+        in UI and grants no student submission rights.
+      schema:
+        type: string
+        enum:
+        - student
+    Task3Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Task3Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
   responses:
     Problem:
       description: Structured application error
@@ -420,7 +1046,9 @@ components:
       description: Too many authentication requests
       headers:
         Retry-After:
-          schema: { type: integer, minimum: 1 }
+          schema:
+            type: integer
+            minimum: 1
       content:
         application/json:
           schema:
@@ -429,42 +1057,87 @@ components:
     Actor:
       type: object
       additionalProperties: false
-      required: [userId, workspaceId, role, authVersion]
+      required:
+      - userId
+      - workspaceId
+      - role
+      - authVersion
       properties:
-        userId: { type: string }
-        workspaceId: { type: [string, 'null'] }
-        role: { type: string, enum: [ADMIN, TEACHER, STUDENT] }
-        authVersion: { type: integer, format: int64, minimum: 1 }
+        userId:
+          type: string
+        workspaceId:
+          type:
+          - string
+          - 'null'
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - TEACHER
+          - STUDENT
+        authVersion:
+          type: integer
+          format: int64
+          minimum: 1
     Session:
       type: object
       additionalProperties: false
-      required: [account, csrfToken]
+      required:
+      - account
+      - csrfToken
       properties:
         account:
           oneOf:
-            - $ref: '#/components/schemas/Actor'
-            - type: 'null'
-        csrfToken: { type: string }
+          - $ref: '#/components/schemas/Actor'
+          - type: 'null'
+        csrfToken:
+          type: string
     ApiProblem:
       type: object
       additionalProperties: false
-      required: [status, code, message, fieldErrors, requestId]
+      required:
+      - status
+      - code
+      - message
+      - fieldErrors
+      - requestId
       properties:
-        status: { type: integer }
-        code: { type: string }
-        message: { type: string }
+        status:
+          type: integer
+        code:
+          type: string
+        message:
+          type: string
         fieldErrors:
           type: object
-          additionalProperties: { type: string }
-        requestId: { type: string }
+          additionalProperties:
+            type: string
+        requestId:
+          type: string
     Page:
       type: object
-      required: [items, page, size, total]
+      required:
+      - items
+      - page
+      - size
+      - total
       properties:
-        items: { type: array, items: {} }
-        page: { type: integer, minimum: 0, default: 0 }
-        size: { type: integer, minimum: 1, maximum: 100, default: 25 }
-        total: { type: integer, format: int64, minimum: 0 }
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+          minimum: 0
+          default: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+        total:
+          type: integer
+          format: int64
+          minimum: 0
     TeacherView:
       type: object
       additionalProperties: false
@@ -625,3 +1298,517 @@ components:
           type: integer
           format: int64
           minimum: 0
+    StudentInput:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        direction:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        goal:
+          type: string
+          maxLength: 1000
+          description: JavaScript trim; limit in UTF-16 code units.
+        schedule:
+          type: string
+          maxLength: 500
+          description: JavaScript trim; limit in UTF-16 code units.
+        notes:
+          type: string
+          maxLength: 5000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentRoadmap:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentReview:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+    StudentUpdateInput:
+      type: object
+      additionalProperties: false
+      required:
+      - revision
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        direction:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        goal:
+          type: string
+          maxLength: 1000
+          description: JavaScript trim; limit in UTF-16 code units.
+        schedule:
+          type: string
+          maxLength: 500
+          description: JavaScript trim; limit in UTF-16 code units.
+        notes:
+          type: string
+          maxLength: 5000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentRoadmap:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentReview:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+    TeacherStudentView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - userId
+      - revision
+      - createdAt
+      - name
+      - direction
+      - goal
+      - schedule
+      - notes
+      - studentRoadmap
+      - studentReview
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        userId:
+          type:
+          - string
+          - 'null'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        direction:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        goal:
+          type: string
+          maxLength: 1000
+          description: JavaScript trim; limit in UTF-16 code units.
+        schedule:
+          type: string
+          maxLength: 500
+          description: JavaScript trim; limit in UTF-16 code units.
+        notes:
+          type: string
+          maxLength: 5000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentRoadmap:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentReview:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+    PublicStudentView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - userId
+      - revision
+      - createdAt
+      - name
+      - direction
+      - goal
+      - schedule
+      - studentRoadmap
+      - studentReview
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        userId:
+          type:
+          - string
+          - 'null'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        direction:
+          type: string
+          maxLength: 120
+          description: JavaScript trim; limit in UTF-16 code units.
+        goal:
+          type: string
+          maxLength: 1000
+          description: JavaScript trim; limit in UTF-16 code units.
+        schedule:
+          type: string
+          maxLength: 500
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentRoadmap:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+        studentReview:
+          type: string
+          maxLength: 20000
+          description: JavaScript trim; limit in UTF-16 code units.
+    StudentView:
+      oneOf:
+      - $ref: '#/components/schemas/TeacherStudentView'
+      - $ref: '#/components/schemas/PublicStudentView'
+    StudentPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentView'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    StudentAccountView:
+      type: object
+      additionalProperties: false
+      required:
+      - userId
+      - login
+      - disabled
+      properties:
+        userId:
+          type: string
+        login:
+          type: string
+        disabled:
+          type: boolean
+    StudentAccessView:
+      type: object
+      additionalProperties: false
+      required:
+      - account
+      - invitation
+      properties:
+        account:
+          oneOf:
+          - $ref: '#/components/schemas/StudentAccountView'
+          - type: 'null'
+        invitation:
+          oneOf:
+          - $ref: '#/components/schemas/InvitationView'
+          - type: 'null'
+      description: Teacher only. Latest invitation metadata in any state; never contains raw token or link.
+    LessonRevision:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Starts at 1; optimistically incremented independently for metadata and each text kind.
+    LessonTitle:
+      type: string
+      minLength: 1
+      x-max-utf16-units: 200
+      description: Trimmed nonempty title; maximum 200 UTF-16 units, not Unicode code points.
+    LessonDate:
+      type: string
+      format: date
+      pattern: ^\d{4}-\d{2}-\d{2}$
+      description: Existing calendar date in YYYY-MM-DD, interpreted locally in Europe/Moscow.
+    LessonTime:
+      type: string
+      pattern: ^([01]\d|2[0-3]):[0-5]\d$
+      description: Moscow local HH:mm, 00:00 through 23:59.
+    LessonDuration:
+      type: integer
+      minimum: 15
+      maximum: 240
+      description: Whole minutes; retained for current/end selection.
+    LessonMarkdown:
+      type: string
+      x-max-utf16-units: 200000
+      description: Exact Markdown source, including indentation/trailing spaces; no trim. Maximum 200000 UTF-16
+        units (astral scalar counts as two), not OpenAPI maxLength code-point semantics. Empty string is valid.
+        No maxLength is substituted for the UTF-16 bound.
+    LessonCreateInput:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - date
+      - time
+      - duration
+      properties:
+        title:
+          $ref: '#/components/schemas/LessonTitle'
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        duration:
+          $ref: '#/components/schemas/LessonDuration'
+    LessonMetadataInput:
+      type: object
+      additionalProperties: false
+      required:
+      - revision
+      properties:
+        title:
+          $ref: '#/components/schemas/LessonTitle'
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        duration:
+          $ref: '#/components/schemas/LessonDuration'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+    TextKind:
+      type: string
+      enum:
+      - teacherNotes
+      - studentNotes
+      - reviewNotes
+    LessonText:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - markdown
+      - revision
+      properties:
+        kind:
+          $ref: '#/components/schemas/TextKind'
+        markdown:
+          $ref: '#/components/schemas/LessonMarkdown'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+    LessonTextInput:
+      type: object
+      additionalProperties: false
+      required:
+      - markdown
+      - revision
+      properties:
+        markdown:
+          $ref: '#/components/schemas/LessonMarkdown'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+    LessonView:
+      description: Explicit projections. Actual STUDENT and TEACHER audience=student receive PublicLessonView; owning
+        TEACHER normal reads receive TeacherLessonView. Private fields are absent, never null placeholders. No teacherNotes
+        or private content in errors. revision is metadata-only.
+      oneOf:
+      - $ref: '#/components/schemas/TeacherLessonView'
+      - $ref: '#/components/schemas/PublicLessonView'
+    TeacherLessonView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - studentId
+      - title
+      - date
+      - time
+      - timeZone
+      - duration
+      - status
+      - bundleId
+      - revision
+      - createdAt
+      - teacherNotes
+      - studentNotes
+      - reviewNotes
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        studentId:
+          type: string
+        title:
+          $ref: '#/components/schemas/LessonTitle'
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        timeZone:
+          type: string
+          const: Europe/Moscow
+        duration:
+          $ref: '#/components/schemas/LessonDuration'
+        status:
+          type: string
+          enum:
+          - planned
+          - prepared
+        bundleId:
+          type:
+          - string
+          - 'null'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+        createdAt:
+          type: string
+          format: date-time
+          description: UTC creation instant.
+        teacherNotes:
+          $ref: '#/components/schemas/LessonMarkdown'
+        studentNotes:
+          $ref: '#/components/schemas/LessonMarkdown'
+        reviewNotes:
+          $ref: '#/components/schemas/LessonMarkdown'
+    PublicLessonView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - studentId
+      - title
+      - date
+      - time
+      - timeZone
+      - duration
+      - status
+      - bundleId
+      - revision
+      - createdAt
+      - studentNotes
+      - reviewNotes
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        studentId:
+          type: string
+        title:
+          $ref: '#/components/schemas/LessonTitle'
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        timeZone:
+          type: string
+          const: Europe/Moscow
+        duration:
+          $ref: '#/components/schemas/LessonDuration'
+        status:
+          type: string
+          enum:
+          - planned
+          - prepared
+        bundleId:
+          type:
+          - string
+          - 'null'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+        createdAt:
+          type: string
+          format: date-time
+          description: UTC creation instant.
+        studentNotes:
+          $ref: '#/components/schemas/LessonMarkdown'
+        reviewNotes:
+          $ref: '#/components/schemas/LessonMarkdown'
+    LessonPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonView'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    DashboardFocus:
+      type: object
+      additionalProperties: false
+      required:
+      - lesson
+      - upcoming
+      properties:
+        lesson:
+          $ref: '#/components/schemas/LessonView'
+        upcoming:
+          type: boolean
+          description: True for next/current through exact end; false for latest past fallback.
+    Dashboard:
+      type: object
+      additionalProperties: false
+      description: Caller projection applied recursively; public dashboard has neither student.notes nor focus.lesson.teacherNotes.
+      required:
+      - student
+      - lessonCount
+      - focus
+      properties:
+        student:
+          $ref: '#/components/schemas/StudentView'
+        lessonCount:
+          type: integer
+          format: int64
+          minimum: 0
+        focus:
+          oneOf:
+          - $ref: '#/components/schemas/DashboardFocus'
+          - type: 'null'

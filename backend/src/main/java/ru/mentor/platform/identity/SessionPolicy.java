@@ -8,13 +8,15 @@ import ru.mentor.platform.shared.Actor;
 import ru.mentor.platform.shared.ApiFailure;
 import java.time.Clock;
 import java.time.Duration;
+import ru.mentor.platform.workspaces.WorkspaceService;
 
 @Component
 public class SessionPolicy {
     private static final String ACTOR = "mentor.actor", CREATED = "mentor.authCreated", SEEN = "mentor.authSeen";
     private final IdentityRepository identities;
     private final Clock clock;
-    public SessionPolicy(IdentityRepository identities,Clock clock) { this.identities = identities; this.clock = clock; }
+    private final WorkspaceService workspaces;
+    public SessionPolicy(IdentityRepository identities,Clock clock,WorkspaceService workspaces) { this.identities = identities; this.clock = clock; this.workspaces=workspaces; }
     public Actor current(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if(session == null) return null;
@@ -24,7 +26,7 @@ public class SessionPolicy {
         Long created = (Long) session.getAttribute(CREATED), seen = (Long) session.getAttribute(SEEN);
         long now = clock.millis();
         if(created == null || seen == null || now >= created + Duration.ofDays(7).toMillis() || now >= seen + Duration.ofHours(8).toMillis()
-            || account.isEmpty() || account.get().disabled() || account.get().authVersion() != actor.authVersion() || account.get().role() != actor.role()) {
+            || account.isEmpty() || !workspaces.resolve(account.get()).filter(actor::equals).isPresent()) {
             session.invalidate(); return null;
         }
         session.setAttribute(SEEN,now);

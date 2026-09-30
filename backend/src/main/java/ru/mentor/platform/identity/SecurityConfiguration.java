@@ -32,7 +32,7 @@ public class SecurityConfiguration {
             .requestCache(cache -> cache.disable())
             .csrf(config -> config.csrfTokenRepository(csrf).csrfTokenRequestHandler(handler))
             .formLogin(config -> config.disable()).httpBasic(config -> config.disable()).logout(config -> config.disable())
-            .authorizeHttpRequests(auth -> auth.requestMatchers("/api/v1/auth/session","/api/v1/auth/login","/api/v1/auth/logout").permitAll().anyRequest().authenticated())
+            .authorizeHttpRequests(auth -> auth.requestMatchers("/api/v1/auth/session","/api/v1/auth/login","/api/v1/auth/logout","/api/v1/auth/register","/api/v1/auth/reset-password").permitAll().anyRequest().authenticated())
             .exceptionHandling(config -> config.authenticationEntryPoint((request,response,failure) -> errors.write(request,response,ApiFailure.unauthorized()))
                 .accessDeniedHandler((request,response,failure) -> errors.write(request,response,new ApiFailure(403,"FORBIDDEN","Request forbidden."))))
             .addFilterBefore(filter,CsrfFilter.class).build();

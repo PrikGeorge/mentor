@@ -6,6 +6,8 @@ import ru.mentor.platform.shared.Actor;
 import ru.mentor.platform.shared.ApiFailure;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
+import ru.mentor.platform.shared.Page;
 
 @Repository
 public class IdentityRepository {
@@ -23,7 +25,8 @@ public class IdentityRepository {
     public Actor replacePassword(Actor actor,String encoded) {
         int changed = jdbc.update("UPDATE identity_account SET password_hash=?,auth_version=auth_version+1 WHERE id=? AND auth_version=? AND disabled=FALSE",encoded,actor.userId(),actor.authVersion());
         if(changed != 1) throw new ApiFailure(409,"ACCOUNT_CHANGED","Account changed. Sign in again.");
-        return findById(actor.userId()).orElseThrow(ApiFailure::unauthorized).actor();
+        var current=findById(actor.userId()).orElseThrow(ApiFailure::unauthorized);
+        return new Actor(current.id(),actor.workspaceId(),current.role(),current.authVersion());
     }
     public Actor createOrRestoreAdmin(String login,String encoded) {
         var existing = findByLogin(login);
@@ -41,4 +44,18 @@ public class IdentityRepository {
         jdbc.update("DELETE FROM SPRING_SESSION WHERE PRINCIPAL_NAME=? AND SESSION_ID<>?",userId,keepSessionId);
     }
     public void revokeAllSessions(String userId) { jdbc.update("DELETE FROM SPRING_SESSION WHERE PRINCIPAL_NAME=?",userId); }
+    public Account create(String login,String encoded,Actor.Role role){
+        String id=UUID.randomUUID().toString();jdbc.update("INSERT INTO identity_account(id,login,password_hash,role) VALUES (?,?,?,?)",id,login,encoded,role.name());return findById(id).orElseThrow();
+    }
+    public Account lock(String id){jdbc.queryForList("SELECT id FROM identity_account WHERE id=? FOR UPDATE",id);return findById(id).orElseThrow(ApiFailure::unauthorized);}
+    public void disable(String id,boolean disabled){jdbc.update("UPDATE identity_account SET disabled=?,auth_version=auth_version+1 WHERE id=?",disabled,id);revokeAllSessions(id);}
+    public void resetPassword(String id,String encoded,long version){
+        if(jdbc.update("UPDATE identity_account SET password_hash=?,auth_version=auth_version+1 WHERE id=? AND auth_version=?",encoded,id,version)!=1)throw new ApiFailure(409,"TOKEN_INVALID","Link is unavailable.");revokeAllSessions(id);
+    }
+    public record TeacherView(String userId,String login,String workspaceId,boolean accountDisabled,boolean workspaceDisabled){}
+    public Page<TeacherView> teachers(int page,int size){
+        new Page<>(List.of(),page,size,0);
+        var items=jdbc.query("SELECT a.id,a.login,w.id,a.disabled,w.disabled FROM identity_account a JOIN workspace w ON w.owner_user_id=a.id WHERE a.role='TEACHER' ORDER BY a.created_at,a.id LIMIT ? OFFSET ?",(r,n)->new TeacherView(r.getString(1),r.getString(2),r.getString(3),r.getBoolean(4),r.getBoolean(5)),size,(long)page*size);
+        return new Page<>(items,page,size,jdbc.queryForObject("SELECT count(*) FROM workspace",Long.class));
+    }
 }
