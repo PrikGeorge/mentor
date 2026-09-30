@@ -198,6 +198,287 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listStudents"];
+        put?: never;
+        post: operations["createStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStudent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateStudent"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStudentAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["changeStudentAccess"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueStudentInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["revokeStudentInvitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueStudentPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Exact workspace/profile membership required; ADMIN and foreign content return 404. Sort date, time, createdAt, id descending. STUDENT always receives public projection; audience=student narrows an owning TEACHER without changing Actor or permissions. */
+        get: operations["listLessons"];
+        put?: never;
+        /** @description Owning TEACHER only. Short four-field form; planned status, null bundleId, empty texts, metadata revision 1 and each independent text revision 1 are server defaults. No historical studentReview or reviewNotes is copied into the new lesson. */
+        post: operations["createLesson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Exact workspace/profile/lesson membership required; caller projection enforced server-side. */
+        get: operations["getLesson"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Owning TEACHER only. Compare required metadata revision before writing and increment it on success. Omitted short-form fields are preserved; texts and their revisions are untouched. Account mismatch or stale metadata revision gives 409 before mutation. */
+        patch: operations["updateLessonMetadata"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/texts/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                kind: components["parameters"]["Task3TextKind"];
+            };
+            cookie?: never;
+        };
+        /** @description Exact membership required. teacherNotes returns 404 to STUDENT and to an owning TEACHER requesting audience=student, with no private text in the error. Read before editing to obtain this kind's independent revision; LessonView.revision is only the metadata revision. */
+        get: operations["getLessonText"];
+        /** @description Owning TEACHER only, independently of any read projection query. Compare this text kind's revision and increment on success; other texts and metadata remain unchanged. Preserve Markdown whitespace exactly. JSON request body greater than 4 MiB (4194304 bytes) is 413; text greater than 200000 UTF-16 units is 400. Stale revision/account gives 409 before mutation. */
+        put: operations["updateLessonText"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Exact membership required; ADMIN/foreign profile return 404. Apply caller projection recursively to student and focus.lesson. Compute across all lessons, never one page. Convert Moscow local date/time to start instant and add duration to obtain end. Choose earliest start whose end >= now with date/time/createdAt/id ascending tie order; upcoming=true includes the current lesson and exact end boundary. Otherwise choose latest past lesson using descending equivalent order with upcoming=false. Empty profile has lessonCount=0 and focus=null. This does not certify whether a lesson was conducted. */
+        get: operations["getStudentDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/materials/{materialId}": {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        /** @description Authorize workspace, card, audience and applicable exact prepared lesson/bundle before returning content. ADMIN has no teaching-content override. */
+        get: operations["getMaterial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Same authorization as GET. No response body on success or failure. */
+        head: operations["headMaterial"];
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/materials/{materialId}/file": {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        /** @description Only download-kind records. Authorize before opening object bytes. No public storage key, redirect or presigned object URL. */
+        get: operations["downloadMaterial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Same authorization as download. Uses attached metadata without opening object bytes. No response body on any status. */
+        head: operations["headMaterialFile"];
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/materials": {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+                lessonId: components["parameters"]["MaterialLessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Only material rows attached to this exact lesson and visible in the caller projection. No raw/html/code/viewData in list items. */
+        get: operations["listLessonMaterials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/materials": {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Only this card's profile-bound rows; lessonId and bundleId are null. No fabricated lesson and no descendant lesson materials. */
+        get: operations["listProfileMaterials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -288,6 +569,342 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        StudentInput: {
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            name: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            direction?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            goal?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            schedule?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            notes?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentRoadmap?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentReview?: string;
+        };
+        StudentUpdateInput: {
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            name?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            direction?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            goal?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            schedule?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            notes?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentRoadmap?: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentReview?: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        TeacherStudentView: {
+            id: string;
+            workspaceId: string;
+            userId: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            name: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            direction: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            goal: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            schedule: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            notes: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentRoadmap: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentReview: string;
+        };
+        PublicStudentView: {
+            id: string;
+            workspaceId: string;
+            userId: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            name: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            direction: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            goal: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            schedule: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentRoadmap: string;
+            /** @description JavaScript trim; limit in UTF-16 code units. */
+            studentReview: string;
+        };
+        StudentView: components["schemas"]["TeacherStudentView"] | components["schemas"]["PublicStudentView"];
+        StudentPage: {
+            items: components["schemas"]["StudentView"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        StudentAccountView: {
+            userId: string;
+            login: string;
+            disabled: boolean;
+        };
+        /** @description Teacher only. Latest invitation metadata in any state; never contains raw token or link. */
+        StudentAccessView: {
+            account: components["schemas"]["StudentAccountView"] | null;
+            invitation: components["schemas"]["InvitationView"] | null;
+        };
+        /**
+         * Format: int64
+         * @description Starts at 1; optimistically incremented independently for metadata and each text kind.
+         */
+        LessonRevision: number;
+        /** @description Trimmed nonempty title; maximum 200 UTF-16 units, not Unicode code points. */
+        LessonTitle: string;
+        /**
+         * Format: date
+         * @description Existing calendar date in YYYY-MM-DD, interpreted locally in Europe/Moscow.
+         */
+        LessonDate: string;
+        /** @description Moscow local HH:mm, 00:00 through 23:59. */
+        LessonTime: string;
+        /** @description Whole minutes; retained for current/end selection. */
+        LessonDuration: number;
+        /** @description Exact Markdown source, including indentation/trailing spaces; no trim. Maximum 200000 UTF-16 units (astral scalar counts as two), not OpenAPI maxLength code-point semantics. Empty string is valid. No maxLength is substituted for the UTF-16 bound. */
+        LessonMarkdown: string;
+        LessonCreateInput: {
+            title: components["schemas"]["LessonTitle"];
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+            duration: components["schemas"]["LessonDuration"];
+        };
+        LessonMetadataInput: {
+            title?: components["schemas"]["LessonTitle"];
+            date?: components["schemas"]["LessonDate"];
+            time?: components["schemas"]["LessonTime"];
+            duration?: components["schemas"]["LessonDuration"];
+            revision: components["schemas"]["LessonRevision"];
+        };
+        /** @enum {string} */
+        TextKind: "teacherNotes" | "studentNotes" | "reviewNotes";
+        LessonText: {
+            kind: components["schemas"]["TextKind"];
+            markdown: components["schemas"]["LessonMarkdown"];
+            revision: components["schemas"]["LessonRevision"];
+        };
+        LessonTextInput: {
+            markdown: components["schemas"]["LessonMarkdown"];
+            revision: components["schemas"]["LessonRevision"];
+        };
+        /** @description Explicit projections. Actual STUDENT and TEACHER audience=student receive PublicLessonView; owning TEACHER normal reads receive TeacherLessonView. Private fields are absent, never null placeholders. No teacherNotes or private content in errors. revision is metadata-only. */
+        LessonView: components["schemas"]["TeacherLessonView"] | components["schemas"]["PublicLessonView"];
+        TeacherLessonView: {
+            id: string;
+            workspaceId: string;
+            studentId: string;
+            title: components["schemas"]["LessonTitle"];
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+            /** @constant */
+            timeZone: "Europe/Moscow";
+            duration: components["schemas"]["LessonDuration"];
+            /** @enum {string} */
+            status: "planned" | "prepared";
+            bundleId: string | null;
+            revision: components["schemas"]["LessonRevision"];
+            /**
+             * Format: date-time
+             * @description UTC creation instant.
+             */
+            createdAt: string;
+            teacherNotes: components["schemas"]["LessonMarkdown"];
+            studentNotes: components["schemas"]["LessonMarkdown"];
+            reviewNotes: components["schemas"]["LessonMarkdown"];
+        };
+        PublicLessonView: {
+            id: string;
+            workspaceId: string;
+            studentId: string;
+            title: components["schemas"]["LessonTitle"];
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+            /** @constant */
+            timeZone: "Europe/Moscow";
+            duration: components["schemas"]["LessonDuration"];
+            /** @enum {string} */
+            status: "planned" | "prepared";
+            bundleId: string | null;
+            revision: components["schemas"]["LessonRevision"];
+            /**
+             * Format: date-time
+             * @description UTC creation instant.
+             */
+            createdAt: string;
+            studentNotes: components["schemas"]["LessonMarkdown"];
+            reviewNotes: components["schemas"]["LessonMarkdown"];
+        };
+        LessonPage: {
+            items: components["schemas"]["LessonView"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        DashboardFocus: {
+            lesson: components["schemas"]["LessonView"];
+            /** @description True for next/current through exact end; false for latest past fallback. */
+            upcoming: boolean;
+        };
+        /** @description Caller projection applied recursively; public dashboard has neither student.notes nor focus.lesson.teacherNotes. */
+        Dashboard: {
+            student: components["schemas"]["StudentView"];
+            /** Format: int64 */
+            lessonCount: number;
+            focus: components["schemas"]["DashboardFocus"] | null;
+        };
+        /** @description Common authorized metadata. Profile rows have both lessonId and bundleId null; lesson rows have both strings. contentKey is a logical legacy selector, never an object-store key. */
+        MaterialMetadata: {
+            id: string;
+            workspaceId: string;
+            studentId: string;
+            lessonId: string | null;
+            bundleId: string | null;
+            /** @enum {string} */
+            audience: "teacher" | "student";
+            /** @enum {string} */
+            kind: "doc" | "code" | "view" | "download";
+            contentKey: string | null;
+            filename: string;
+            contentType: string;
+            title: string | null;
+        };
+        MaterialSummary: components["schemas"]["MaterialMetadata"];
+        MaterialPage: {
+            items: components["schemas"]["MaterialSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        MaterialView: components["schemas"]["DocMaterialView"] | components["schemas"]["CodeMaterialView"] | components["schemas"]["ViewMaterialView"] | components["schemas"]["DownloadMaterialView"];
+        DocMaterialView: components["schemas"]["MaterialMetadata"] & {
+            /** @constant */
+            kind?: "doc";
+            document: components["schemas"]["MaterialDocument"];
+        } & {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "doc";
+        };
+        CodeMaterialView: components["schemas"]["MaterialMetadata"] & {
+            /** @constant */
+            kind?: "code";
+            code: components["schemas"]["MaterialCode"];
+        } & {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "code";
+        };
+        ViewMaterialView: components["schemas"]["MaterialMetadata"] & {
+            /** @constant */
+            kind?: "view";
+            viewData: components["schemas"]["MaterialViewData"];
+        } & {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "view";
+        };
+        DownloadMaterialView: components["schemas"]["MaterialMetadata"] & {
+            /** @constant */
+            kind?: "download";
+            blob: components["schemas"]["BlobRef"];
+            /**
+             * Format: uri-reference
+             * @description Constructed same-origin /api/v1/workspaces/{workspaceId}/materials/{materialId}/file path. Never an external/presigned/storage URL.
+             */
+            downloadUrl: string;
+        } & {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "download";
+        };
+        BlobRef: {
+            id: string;
+            /** Format: int64 */
+            size: number;
+            sha256: string;
+        };
+        MaterialDocument: {
+            title: string;
+            /** @description Legacy intro HTML fragment */
+            intro: string;
+            /** @description Exact source text without trimming */
+            raw: string;
+            html: string;
+            /** @description Preserve order and literal section IDs including section-0 */
+            sections: components["schemas"]["MaterialSection"][];
+        };
+        MaterialSection: {
+            id: string;
+            title: string;
+            html: string;
+            studentParts?: number[];
+        };
+        MaterialCode: {
+            text: string;
+            /** @description Preserve legacy marker; true must not be returned in student projection even if inconsistent imported audience. */
+            teacher: boolean;
+            /** @description ID of separately authorized download material, not BlobRef.id or an object key */
+            materialId: string;
+            excerpt?: {
+                /** @description Zero-based first line */
+                start: number;
+                /** @description Exclusive ending line */
+                end: number;
+            };
+        };
+        /** @description Known legacy fields for one explicit audience/card/lesson binding. Omit fields outside that binding; never return teacher blocks or a students map to a student. descriptors/resources are filtered to authorized referenced documents. */
+        MaterialViewData: {
+            goalHtml?: string;
+            review?: {
+                metadataParagraphs: number;
+                priorities: {
+                    sectionId: string;
+                    label: string;
+                }[];
+            };
+            /** @description Teacher-only field */
+            lessonHtml?: string;
+            /** @description Teacher-only field */
+            reviewHtml?: string;
+            /** @description Teacher-only field */
+            profileFacts?: string;
+            descriptors?: {
+                [key: string]: string[];
+            };
+            resources?: string[][];
+            /** @description Teacher-only cards preserving legacy [codeKey,title,description] tuple */
+            answersCards?: string[][];
+        };
     };
     responses: {
         /** @description Structured application error */
@@ -309,14 +926,48 @@ export interface components {
                 "application/json": components["schemas"]["ApiProblem"];
             };
         };
+        /** @description Authorized material metadata page */
+        MaterialPageResponse: {
+            headers: {
+                "Cache-Control": components["headers"]["MaterialNoStore"];
+                "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["MaterialPage"];
+            };
+        };
     };
     parameters: {
         CsrfToken: string;
         WebClient: "web";
         Account: string;
+        Task3WorkspaceId: string;
+        Task3StudentId: string;
+        Task3LessonId: string;
+        Task3TextKind: components["schemas"]["TextKind"];
+        /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+        Task3Audience: "student";
+        Task3Page: number;
+        Task3Size: number;
+        MaterialWorkspaceId: string;
+        MaterialStudentId: string;
+        MaterialLessonId: string;
+        MaterialId: string;
+        /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+        MaterialAudience: "student";
+        MaterialPageNumber: number;
+        MaterialPageSize: number;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        MaterialNoStore: "no-store";
+        MaterialNoSniff: "nosniff";
+        /** @description Attachment with normalized ASCII filename and UTF-8 filename*. Never includes a physical path or control characters. */
+        MaterialDisposition: string;
+        /** @description Measured attached file bytes, not caller-provided Content-Length */
+        MaterialLength: number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -718,6 +1369,773 @@ export interface operations {
             403: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listStudents: {
+        parameters: {
+            query?: {
+                /** @description Narrows teacher output to the public projection; grants no permissions. */
+                audience?: "student";
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    createStudent: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentInput"];
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    getStudent: {
+        parameters: {
+            query?: {
+                /** @description Narrows teacher output to the public projection; grants no permissions. */
+                audience?: "student";
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    updateStudent: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    getStudentAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentAccessView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    changeStudentAccess: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessChange"];
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    issueStudentInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationIssue"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    revokeStudentInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+                studentId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    issueStudentPasswordReset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetIssue"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    listLessons: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paged lessons in caller projection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    createLesson: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LessonCreateInput"];
+            };
+        };
+        responses: {
+            /** @description Created lesson; navigate to preparation only after this success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherLessonView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+        };
+    };
+    getLesson: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Selected lesson in caller projection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateLessonMetadata: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LessonMetadataInput"];
+            };
+        };
+        responses: {
+            /** @description Saved metadata with new revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherLessonView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+        };
+    };
+    getLessonText: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                kind: components["parameters"]["Task3TextKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Markdown source and independent text revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonText"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateLessonText: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                kind: components["parameters"]["Task3TextKind"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LessonTextInput"];
+            };
+        };
+        responses: {
+            /** @description Saved source with new independent text revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonText"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+        };
+    };
+    getStudentDashboard: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile, total lesson count, and selected lesson in caller projection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    getMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized material */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialView"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    headMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized material exists; no body */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    "Content-Type"?: "application/json";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid query; no body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required; no body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource unavailable; no body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Service unavailable; no body */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    downloadMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attached file with its validated stored media type */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    "Content-Disposition": components["headers"]["MaterialDisposition"];
+                    "Content-Length": components["headers"]["MaterialLength"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    headMaterialFile: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized attached file metadata */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    "Content-Disposition": components["headers"]["MaterialDisposition"];
+                    "Content-Length": components["headers"]["MaterialLength"];
+                    /** @description Validated attached file media type */
+                    "Content-Type"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid query; no body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required; no body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource unavailable; no body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Service unavailable; no body */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listLessonMaterials: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+                lessonId: components["parameters"]["MaterialLessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MaterialPageResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listProfileMaterials: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MaterialPageResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
         };
     };
 }

@@ -5,7 +5,7 @@ import type { components, paths } from '../api/schema';
 
 export type Actor = components['schemas']['Actor'];
 export type SessionView = components['schemas']['Session'];
-type Method = 'get' | 'post' | 'patch' | 'delete';
+type Method = 'get' | 'post' | 'patch' | 'put' | 'delete';
 type PathFor<M extends Method> = { [P in keyof paths]: paths[P][M] extends undefined ? never : P }[keyof paths];
 type Operation<P extends keyof paths, M extends Method> = NonNullable<paths[P][M]>;
 type Json<C> = C extends { content: { 'application/json': infer T } } ? T : void;
@@ -27,6 +27,9 @@ export class PlatformApi {
   }
   delete<P extends PathFor<'delete'>>(path: P, options: Options = {}): Observable<Success<Operation<P, 'delete'>>> {
     return this.send('DELETE', path, undefined, options);
+  }
+  put<P extends PathFor<'put'>>(path: P, body: Body<Operation<P, 'put'>>, options: Options = {}): Observable<Success<Operation<P, 'put'>>> {
+    return this.send('PUT', path, body, options);
   }
   private send<T>(method: string, path: string, body: unknown, options: Options): Observable<T> {
     const resolved = path.replace(/\{([^}]+)\}/g, (_match, key: string) => {

@@ -3,23 +3,27 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { SessionStore } from '../core/session.store';
+import { DatePipe } from '@angular/common';
+import { WorkspaceContext } from './workspace-context';
+import { StudentNavigationComponent } from '../student/student-navigation.component';
 
-@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, RouterLinkActive], template: `
+@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, RouterLinkActive, DatePipe, StudentNavigationComponent], template: `
   <a class="skip" href="#main">К содержимому</a>
   @if (session.actor(); as actor) {
-    <aside class="sidebar" [class.open]="menuOpen()" id="sidebar"><a class="brand" routerLink="/" (click)="menuOpen.set(false)"><span class="monogram">м.</span><span>Наставник<small>Личный кабинет</small></span></a>
+    <aside class="sidebar" [class.open]="menuOpen()" id="sidebar"><button class="sidebar-close" (click)="menuOpen.set(false)" aria-label="Закрыть меню">Закрыть ×</button><a class="brand" routerLink="/" (click)="menuOpen.set(false)"><span class="monogram">{{selection.current()?.learner?selection.current()!.student.name.slice(0,1):'м.'}}</span><span>{{selection.current()?.learner?selection.current()!.student.name:'Наставник'}}<small>{{selection.current()?.learner?selection.current()!.student.direction:'Личный кабинет'}}</small></span></a>
       <nav aria-label="Главное меню">
         @if (actor.role === 'ADMIN') { <a routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Преподаватели</a> }
         @if (actor.role === 'TEACHER') { <a routerLink="/teacher/students" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Мои ученики</a> }
         @if (actor.role === 'STUDENT') { <a routerLink="/learn" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Мои занятия</a> }
         <a routerLink="/account/password" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Сменить пароль</a>
-      </nav><div class="sidebar-foot">{{ roleLabels[actor.role] }}</div>
+      </nav><mentor-student-navigation [selection]="selection.current()" (click)="menuOpen.set(false)"/><div class="sidebar-foot">{{ roleLabels[actor.role] }}</div>
     </aside>
   }
   <div class="workspace" [class.auth-screen]="!session.actor()"><header class="topbar">
     @if (session.actor(); as actor) {
       <button class="menu-button" (click)="menuOpen.set(!menuOpen())" aria-controls="sidebar" [attr.aria-expanded]="menuOpen()" aria-label="Меню">☰</button>
-      <span class="breadcrumb">Кабинет наставника</span><div class="auth-topbar"><span class="auth-identity">{{ roleLabels[actor.role] }}</span><button class="auth-control" (click)="signOut()" [disabled]="signingOut()">Выйти</button></div>
+      @if(selection.current()?.lesson;as lesson){<div class="lesson-header"><h1>{{lesson.title}}</h1><p><a [routerLink]="selection.current()!.base" [queryParams]="selection.current()!.preview?{preview:'student'}:{}">{{selection.current()!.student.name}}</a> · {{lesson.date|date:'dd.MM.yyyy'}} · {{lesson.time}} МСК · {{lesson.duration}} мин</p></div>}
+      @else{<span class="breadcrumb">{{selection.current()?.student?.name||'Кабинет наставника'}}</span>}<div class="auth-topbar"><span class="auth-identity">{{ roleLabels[actor.role] }}</span><button class="auth-control" (click)="signOut()" [disabled]="signingOut()">Выйти</button></div>
     }
   </header><main id="main" tabindex="-1">
     @if (preview()) { <p class="callout" role="status">Предпросмотр кабинета ученика · только чтение</p> }
@@ -30,6 +34,7 @@ import { SessionStore } from '../core/session.store';
 })
 export class ShellComponent {
   readonly session = inject(SessionStore);
+  readonly selection = inject(WorkspaceContext);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly menuOpen = signal(false);
