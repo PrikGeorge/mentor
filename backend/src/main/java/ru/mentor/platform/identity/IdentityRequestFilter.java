@@ -58,7 +58,8 @@ final class IdentityRequestFilter extends OncePerRequestFilter {
         if(writing(request)) {
             if(!expected.equals(request.getHeader("Origin")) || "cross-site".equals(request.getHeader("Sec-Fetch-Site")) || !"web".equals(request.getHeader("X-Mentor-Client"))) forbidden();
             String type = request.getContentType();
-            if(request.getRequestURI().startsWith("/api/v1/auth/") && (type==null || !type.toLowerCase(Locale.ROOT).matches("application/json(?:\\s*;.*)?")))
+            if(request.getRequestURI().startsWith("/api/v1/auth/") && !request.getRequestURI().equals("/api/v1/auth/logout")
+                && (type==null || !type.toLowerCase(Locale.ROOT).matches("application/json(?:\\s*;.*)?")))
                 throw new ApiFailure(415,"INVALID_INPUT","Send application/json.");
         }
     }

@@ -78,6 +78,69 @@ class SessionIntegrationTest extends PostgresTest {
         return json.readTree(response.body());
     }
 
+    private HttpRequest.Builder bodylessLogout(String csrf, String account) {
+        var builder = HttpRequest.newBuilder(URI.create(origin + "/api/v1/auth/logout"))
+            .header("Origin", origin).header("X-Mentor-Client", "web").POST(HttpRequest.BodyPublishers.noBody());
+        if(csrf != null) builder.header("X-CSRF-TOKEN", csrf);
+        if(account != null) builder.header("X-Mentor-Account", account);
+        return builder;
+    }
+
+    @Test void authenticatedLogoutAcceptsNoBodyAndNoContentTypeAndRevokesSession() throws Exception {
+        HttpClient client = client(); JsonNode actor = login(client);
+        var request = bodylessLogout(actor.get("csrfToken").asText(), "synthetic-admin").build();
+        assertTrue(request.headers().firstValue("Content-Type").isEmpty());
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(204, response.statusCode(), response.body());
+        assertEquals("", response.body());
+        assertEquals(0, context.getBean(JdbcTemplate.class).queryForObject(
+            "SELECT count(*) FROM SPRING_SESSION WHERE PRINCIPAL_NAME='synthetic-admin'", Integer.class));
+        assertTrue(session(client).get("account").isNull());
+    }
+
+    @Test void anonymousLogoutAcceptsNoBodyAndNoContentTypeAndInvalidatesSession() throws Exception {
+        HttpClient client = client(); String csrf = session(client).get("csrfToken").asText();
+        var request = bodylessLogout(csrf, null).build();
+        assertTrue(request.headers().firstValue("Content-Type").isEmpty());
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(204, response.statusCode(), response.body());
+        assertEquals("", response.body());
+        assertEquals(0, context.getBean(JdbcTemplate.class).queryForObject("SELECT count(*) FROM SPRING_SESSION", Integer.class));
+        assertTrue(session(client).get("account").isNull());
+    }
+
+    @Test void bodylessLogoutRetainsCsrfAccountOriginAndClientProtection() throws Exception {
+        HttpClient anonymous = client(); String anonymousCsrf = session(anonymous).get("csrfToken").asText();
+        assertEquals(403, anonymous.send(bodylessLogout(null, null).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(403, anonymous.send(bodylessLogout(anonymousCsrf + "bad", null).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        HttpClient authenticated = client(); String csrf = login(authenticated).get("csrfToken").asText();
+        assertEquals(403, authenticated.send(bodylessLogout(null, "synthetic-admin").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(403, authenticated.send(bodylessLogout(csrf + "bad", "synthetic-admin").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        for(String account : new String[]{null, "old-tab-account"}) {
+            var rejected = authenticated.send(bodylessLogout(csrf, account).build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(409, rejected.statusCode(), rejected.body());
+            assertEquals("ACCOUNT_CHANGED", json.readTree(rejected.body()).get("code").asText());
+        }
+        assertEquals(403, authenticated.send(bodylessLogout(csrf, "synthetic-admin").setHeader("Origin", "https://attacker.invalid").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(403, authenticated.send(bodylessLogout(csrf, "synthetic-admin").setHeader("X-Mentor-Client", "other").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(403, authenticated.send(bodylessLogout(csrf, "synthetic-admin").header("Sec-Fetch-Site", "cross-site").build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals("synthetic-admin", session(authenticated).get("account").get("userId").asText());
+    }
+
+    @Test void jsonPayloadAuthRoutesStillRequireJsonContentType() throws Exception {
+        HttpClient client = client(); String csrf = session(client).get("csrfToken").asText();
+        var loginRequest = HttpRequest.newBuilder(URI.create(origin + "/api/v1/auth/login"))
+            .header("Origin", origin).header("X-Mentor-Client", "web").header("X-CSRF-TOKEN", csrf)
+            .POST(HttpRequest.BodyPublishers.noBody()).build();
+        assertEquals(415, client.send(loginRequest, HttpResponse.BodyHandlers.ofString()).statusCode());
+        csrf = login(client).get("csrfToken").asText();
+        var passwordRequest = HttpRequest.newBuilder(URI.create(origin + "/api/v1/auth/change-password"))
+            .header("Origin", origin).header("X-Mentor-Client", "web").header("X-CSRF-TOKEN", csrf)
+            .header("X-Mentor-Account", "synthetic-admin").header("Content-Type", "text/plain")
+            .POST(HttpRequest.BodyPublishers.ofString("synthetic")).build();
+        assertEquals(415, client.send(passwordRequest, HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
+
     @Test void anonymousCsrfLoginRotationAndLogoutShareOnePolicy() throws Exception {
         HttpClient client = client();
         var anonymous = get(client, "/auth/session");
