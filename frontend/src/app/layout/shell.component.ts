@@ -42,7 +42,9 @@ export class ShellComponent {
   constructor() {
     effect(() => { this.session.generation(); this.menuOpen.set(false); this.error.set(''); });
     this.router.events.pipe(filter(event => event instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.publicRoute.set(/^\/(login|register|reset-password|account\/password)(?:[/?#]|$)/.test(this.router.url));
+      let activeRoute = this.router.routerState.snapshot.root;
+      while (activeRoute.firstChild) activeRoute = activeRoute.firstChild;
+      this.publicRoute.set(activeRoute.data['missing'] === true || /^\/(login|register|reset-password|account\/password)(?:[/?#]|$)/.test(this.router.url));
       this.preview.set(this.session.actor()?.role === 'TEACHER' && this.router.parseUrl(this.router.url).queryParams['preview'] === 'student');
     });
   }

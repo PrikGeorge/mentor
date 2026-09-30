@@ -14,7 +14,7 @@ export class LegacyRouteAdapter {
     const base = actor.role === 'TEACHER' ? '/teacher/students' : '/learn/students';
     if (parts.length <= 2) return this.router.createUrlTree([base, ...parts.slice(1)], { queryParams: this.preview(url, actor) });
     const profile = new Set(actor.role === 'TEACHER' ? ['profile','roadmap','projects','review','career','journal','goal','lessons'] : ['goal','lessons','roadmap','review']);
-    if (parts[2] !== 'lessons' || parts.length < 4) {
+    if (parts[2] !== 'lessons' || parts.length < 4 || (parts.length === 4 && /^section-\d+$/.test(parts[3]))) {
       if (!profile.has(parts[2]) || parts.length > 4 || (parts[3] && !/^section-\d+$/.test(parts[3]))) return missing();
       return this.router.createUrlTree([base, parts[1], parts[2]], { fragment: parts[3] || undefined, queryParams: this.preview(url, actor) });
     }

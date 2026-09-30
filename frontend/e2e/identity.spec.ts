@@ -71,3 +71,16 @@ test('administrator page at 390px wraps long logins and issues manual links', as
   expect(await page.locator('[name="issuedLink"]').evaluate((input: HTMLInputElement) => input.selectionStart === 0 && input.selectionEnd === input.value.length)).toBe(true);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
 });
+
+for (const path of ['/not-found', '/unknown/synthetic-page']) {
+  test(`anonymous error page stays visible at ${path} and recovers to login`, async ({ page }) => {
+    await page.route('**/api/v1/auth/session', route => route.fulfill({ json: { account: null, csrfToken: 'synthetic' } }));
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Страница не найдена' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'В кабинет', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.getByRole('link', { name: 'В кабинет', exact: true }).click();
+    await expect(page).toHaveURL('/login');
+    await expect(page.getByRole('heading', { name: 'Вход', exact: true })).toBeVisible();
+  });
+}
