@@ -27,6 +27,15 @@ class ContainerExecutionTest {
         assertEquals("accepted",status(executor.execute(lease(manifest,"json-task",code))));
         assertTrue(manifest.environments().get("java21-jackson").imageDigest().matches("sha256:[a-f0-9]{64}"));
     }
+    @Test void nestedPackageSourcesCompileThroughTheReadOnlyMount() throws Exception {
+        var job=lease(manifest,"list-task",LIST);
+        job.getPayload().setFiles(Map.of("demo/nested/ListTask.java","package demo.nested; "+LIST));
+        job.getPayload().getExercise().setSourceFiles(Set.of("demo/nested/ListTask.java"));
+        job.getPayload().getExercise().setClassName("demo.nested.ListTask");
+        var result=executor.execute(job);
+        assertEquals("accepted",status(result),JSON.writeValueAsString(result));
+        assertEquals(6,result.getPassed());
+    }
     @Test void mutationIsWrongEvenWhenReturnedAnswerIsCorrect() throws Exception {
         var result=executor.execute(lease(manifest,"list-task",listCode("source.sort(Integer::compareTo); return source.stream().filter(n -> n>=minimum).toList();")));
         assertEquals("wrong_answer",status(result));

@@ -3,7 +3,6 @@ package ru.mentor.runner;
 import ru.mentor.runner.protocol.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.security.SecureRandom;
@@ -24,7 +23,7 @@ public final class ContainerExecutor implements AutoCloseable {
     public synchronized CheckResult execute(JobLease supplied) {
         long started=System.currentTimeMillis();
         CheckResult result=new CheckResult(CheckResult.StatusEnum.ERROR,0,0,0L,new ArrayList<>());
-        Path input=null; String container=null;
+        SourceStaging input=null; String container=null;
         cancelled.set(false);
         try {
             // Generated transport DTOs are mutable; execution owns a deep snapshot before its first side effect.
@@ -35,13 +34,11 @@ public final class ContainerExecutor implements AutoCloseable {
             validate(payload);
             var env=manifest.environments().get(payload.getEnvironment().getId());
             if(env==null || !env.revision().equals(payload.getEnvironment().getRevision()) || !env.imageDigest().equals(payload.getEnvironment().getImageDigest()) || !env.imageDigest().matches("sha256:[a-f0-9]{64}")) return result.status(CheckResult.StatusEnum.UNAVAILABLE).diagnostics("Окружение не подготовлено оператором.");
-            input=Files.createTempDirectory("mentor-runner-input-");
-            Path sources=Files.createDirectory(input.resolve("src"));
-            for(var entry:payload.getFiles().entrySet()) { Path file=sources.resolve(entry.getKey()); Files.createDirectories(file.getParent()); Files.writeString(file,entry.getValue()); }
+            input=SourceStaging.create(payload.getFiles());
             container="mentor-job-"+UUID.randomUUID(); activeName=container;
             List<String> command=new ArrayList<>(List.of("docker","run","-d","--rm","--pull","never","--name",container,"--label",LABEL+"=true","--label",LABEL+".worker="+workerId,"--label",LABEL+".expires="+deadline));
             command.addAll(FLAGS);
-            command.addAll(List.of("--mount","type=bind,source="+input.toAbsolutePath()+",target=/input,readonly",env.imageDigest(),Long.toString(deadline)));
+            command.addAll(List.of("--mount","type=bind,source="+input.input().toAbsolutePath()+",target=/input,readonly",env.imageDigest(),Long.toString(deadline)));
             var launched=processes.run(command,null,null,remaining(deadline,10000),65536);
             checkCancelled();
             if(!launched.successful()) return result.status(CheckResult.StatusEnum.UNAVAILABLE).diagnostics("Не удалось запустить контейнер проверки.");
@@ -80,7 +77,7 @@ public final class ContainerExecutor implements AutoCloseable {
             boolean interrupted=Thread.interrupted();
             if(container!=null) remove(container);
             activeName=null;
-            if(input!=null) try { EnvironmentBuilder.deleteTree(input); } catch(Exception ignored) {}
+            if(input!=null) try { input.close(); } catch(Exception ignored) {}
             result.setElapsedMs(System.currentTimeMillis()-started);
             if(interrupted) Thread.currentThread().interrupt();
         }
