@@ -1,0 +1,22 @@
+[
+  {
+    "id": "java21",
+    "title": "Java 21 · стандартная библиотека",
+    "javaVersion": 21,
+    "dockerImage": "eclipse-temurin:21-jdk-jammy",
+    "dependencies": [],
+    "annotationProcessors": []
+  },
+  {
+    "id": "java21-jackson",
+    "title": "Java 21 · Jackson 2.18.3",
+    "javaVersion": 21,
+    "dockerImage": "eclipse-temurin:21-jdk-jammy",
+    "dependencies": [
+      {"groupId":"com.fasterxml.jackson.core","artifactId":"jackson-databind","version":"2.18.3","sha256":"510bdda75a7a6186c5bf33b851239488a1450906ae5757121f2e1cc48a7e108f","transitive":false},
+      {"groupId":"com.fasterxml.jackson.core","artifactId":"jackson-core","version":"2.18.3","sha256":"056bc4d3e5e53ce821450fa97b3f9e0f8dde125cf6da6884353bb1f09582e1d9","transitive":true},
+      {"groupId":"com.fasterxml.jackson.core","artifactId":"jackson-annotations","version":"2.18.3","sha256":"8aa5740d80b5a5025508b41bbadbaa1fb3772267c628b2e30681a4f45f8b8931","transitive":true}
+    ],
+    "annotationProcessors": []
+  }
+]

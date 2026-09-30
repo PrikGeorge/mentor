@@ -16,11 +16,11 @@ public class GroupingTask {
         }
     }
 
-    // One DUPLICATE line per book with at least two occurrences.
-    // Sort book IDs and unique reader IDs ascending. Preserve loans.
+    // Одна строка DUPLICATE для каждой книги, которая встретилась хотя бы дважды.
+    // ID книг и уникальные ID читателей отсортировать по возрастанию. Не изменять loans.
     static List<String> duplicateReport(List<Loan> loans) {
-        // TODO: count occurrences per book and collect that book's reader IDs.
-        // TODO: build the report only after reading all loans.
+        // TODO: посчитать вхождения каждой книги и собрать ID связанных с ней читателей.
+        // TODO: сформировать отчёт только после обработки всех записей loans.
         throw new UnsupportedOperationException("TODO: implement duplicateReport");
     }
 

@@ -223,7 +223,7 @@ for (int i = 0; i < names.size(); i++) {
     System.out.println(names.get(i));
 }
 
-// 2. Enhanced for (foreach) — самый частый
+// 2. Расширенный цикл for (foreach) — самый частый
 for (String name : names) {
     System.out.println(name);
 }
@@ -231,16 +231,16 @@ for (String name : names) {
 // 3. forEach с лямбдой
 names.forEach(name -> System.out.println(name));
 
-// 4. forEach с method reference
+// 4. forEach со ссылкой на метод
 names.forEach(System.out::println);
 
-// 5. Iterator
+// 5. Перебор через Iterator
 Iterator<String> it = names.iterator();
 while (it.hasNext()) {
     System.out.println(it.next());
 }
 
-// 6. Stream API
+// 6. Обработка через Stream API
 names.stream().forEach(System.out::println);
 ```
 
@@ -467,10 +467,10 @@ scores.merge("Аня", 50, Integer::sum);   // Нет ключа, добавит
 // compute — вычислить новое значение
 scores.compute("Миша", (k, v) -> v == null ? 0 : v + 10);
 
-// getOrDefault
+// Получение значения или значения по умолчанию: getOrDefault
 int score = scores.getOrDefault("Вася", 0);
 
-// replace
+// Замена существующего значения: replace
 scores.replace("Миша", 200);  // Заменить, если ключ есть
 scores.replace("Миша", 150, 200);  // Заменить, если ключ есть И значение = 150
 ```
@@ -728,7 +728,7 @@ Comparator<Person> reversed = Comparator
     .comparingInt((Person p) -> p.age)
     .reversed();
 
-// null-safe
+// Сравнение с учётом null
 Comparator<Person> nullSafe = Comparator
     .comparing(Person::getName, Comparator.nullsLast(String::compareTo));
 ```
@@ -780,7 +780,7 @@ map.put(key, "Значение");
 key.age = 30;  // Изменили ключ!
 System.out.println(map.get(key));  // null! Не найдёт, hashCode изменился
 
-// Используй immutable ключи (String, Integer, записи)
+// Используй неизменяемые ключи (String, Integer, записи)
 ```
 
 ### ConcurrentModificationException

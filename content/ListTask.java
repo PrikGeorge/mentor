@@ -2,7 +2,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ListTask {
-    // Keep numbers >= minimum, sorted ascending. Do not change source.
+    // Оставить числа >= minimum и отсортировать по возрастанию. Не изменять source.
     static List<Integer> select(List<Integer> source, int minimum) {
         List<Integer> result = source.stream()
                 .filter(number -> number >= minimum)

@@ -1,0 +1,43 @@
+[
+  {
+    "id":"list-task","revision":1,"title":"Список: фильтрация без изменения исходных данных",
+    "statement":"Исправьте метод select: оставьте числа не меньше minimum и верните их в порядке возрастания. Повторы сохраняются. Исходный список source менять нельзя. Метод может оставаться package-private; main нужен только для самостоятельных примеров и не участвует в проверке.",
+    "environmentId":"java21","starterFiles":["ListTask.java"],
+    "className":"ListTask","method":"select","parameterTypes":["java.util.List","int"],
+    "tests":[
+      {"name":"Числа с повторами","sample":true,"args":[[7,2,5,2],2],"expected":[2,2,5,7],"unchangedArguments":[0]},
+      {"name":"Нет подходящих чисел","sample":true,"args":[[7,2,5,2],10],"expected":[],"unchangedArguments":[0]},
+      {"name":"Один результат","args":[[7,2,5,2],6],"expected":[7],"unchangedArguments":[0]},
+      {"name":"Пустой список","args":[[],0],"expected":[],"unchangedArguments":[0]},
+      {"name":"Отрицательные числа и граница","args":[[-3,0,-1,-3,2],-3],"expected":[-3,-3,-1,0,2],"unchangedArguments":[0]},
+      {"name":"Все одинаковые","args":[[4,4,4],4],"expected":[4,4,4],"unchangedArguments":[0]}
+    ]
+  },
+  {
+    "id":"grouping-task","revision":1,"title":"Группировка выдач книг",
+    "statement":"Реализуйте duplicateReport. Для каждой книги, которая встретилась хотя бы дважды, верните одну строку DUPLICATE book=<id> readers=[<id>, ...]. Даже две выдачи одному читателю считаются повтором. Книги и уникальные читатели сортируются по возрастанию. Не изменяйте loans или поля Loan. Сохраните класс Loan с полями bookId и readerId и конструктором Loan(int, int). Проверка вызывает duplicateReport напрямую.",
+    "environmentId":"java21","starterFiles":["GroupingTask.java"],
+    "className":"GroupingTask","method":"duplicateReport","parameterTypes":["java.util.List"],
+    "customTypes":{"GroupingTask$Loan":{"constructorTypes":["int","int"],"fields":["bookId","readerId"]}},
+    "tests":[
+      {"name":"Один читатель дважды","sample":true,"args":[[{"bookId":40,"readerId":9},{"bookId":40,"readerId":9}]],"expected":["DUPLICATE book=40 readers=[9]"],"unchangedArguments":[0]},
+      {"name":"Читатели в обратном порядке","sample":true,"args":[[{"bookId":40,"readerId":9},{"bookId":40,"readerId":2}]],"expected":["DUPLICATE book=40 readers=[2, 9]"],"unchangedArguments":[0]},
+      {"name":"Несколько книг","args":[[{"bookId":70,"readerId":5},{"bookId":40,"readerId":9},{"bookId":70,"readerId":5},{"bookId":40,"readerId":2},{"bookId":90,"readerId":1}]],"expected":["DUPLICATE book=40 readers=[2, 9]","DUPLICATE book=70 readers=[5]"],"unchangedArguments":[0]},
+      {"name":"Одна выдача","args":[[{"bookId":40,"readerId":9}]],"expected":[],"unchangedArguments":[0]},
+      {"name":"Пустой список","args":[[]],"expected":[],"unchangedArguments":[0]},
+      {"name":"Три выдачи и уникальные читатели","args":[[{"bookId":2,"readerId":3},{"bookId":2,"readerId":1},{"bookId":2,"readerId":3},{"bookId":1,"readerId":8},{"bookId":1,"readerId":4}]],"expected":["DUPLICATE book=1 readers=[4, 8]","DUPLICATE book=2 readers=[1, 3]"],"unchangedArguments":[0]}
+    ]
+  },
+  {
+    "id":"json-task","revision":1,"title":"JSON: имя читателя с Jackson",
+    "statement":"Учебный пример окружения с готовыми зависимостями. В demo.JsonTask реализуйте readerName: разберите JSON с Jackson ObjectMapper и верните reader.name. Если имя отсутствует, верните пустую строку. Доступна только зафиксированная версия Jackson 2.18.3. Вспомогательный файл ReaderFields.java доступен во вкладке редактора.",
+    "environmentId":"java21-jackson","starterFiles":["demo/JsonTask.java","demo/ReaderFields.java"],
+    "className":"demo.JsonTask","method":"readerName","parameterTypes":["java.lang.String"],
+    "tests":[
+      {"name":"Имя читателя","sample":true,"args":["{\"reader\":{\"name\":\"Михаэль\"}}"],"expected":"Михаэль"},
+      {"name":"Пустое имя","args":["{\"reader\":{\"name\":\"\"}}"],"expected":""},
+      {"name":"Нет читателя","args":["{}"],"expected":""},
+      {"name":"Экранированные символы","args":["{\"reader\":{\"name\":\"Иван \\\"Книга\\\"\"}}"],"expected":"Иван \"Книга\""}
+    ]
+  }
+]

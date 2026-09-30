@@ -1,0 +1,29 @@
+.auth-topbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-left:auto;font-size:12px}
+.auth-identity{color:var(--muted);white-space:nowrap}
+.auth-control{border:0;background:transparent;color:var(--green);font-size:12px;font-weight:650;padding:7px 3px}
+.auth-control:hover{text-decoration:underline;text-underline-offset:3px}
+.auth-action-error{color:#8a3d2b}
+body.auth-screen .sidebar,body.auth-screen .topbar,body.auth-screen .site-footer{display:none}
+body.auth-screen .workspace{margin-left:0}
+body.auth-screen main{max-width:none;min-height:100vh;padding:32px 18px;display:grid;place-items:center;background:radial-gradient(circle at 85% 10%,#e4eccd,transparent 37%),var(--paper)}
+.auth-layout{width:min(100%,470px)}
+.auth-card{background:var(--white);border:1px solid #d7ddcd;border-radius:16px;box-shadow:0 18px 48px #173d3710;padding:clamp(25px,5vw,42px)}
+.auth-card h1{font-size:clamp(30px,5vw,38px);margin-bottom:12px}
+.auth-description{color:var(--muted);line-height:1.6;margin:0 0 27px;font-size:14px}
+.auth-card form{display:grid;gap:17px}
+.auth-field{display:grid;gap:7px;font-size:13px;font-weight:650}
+.auth-field input{width:100%;border:1px solid #bdcabc;border-radius:8px;background:#fff;padding:12px 13px;font-size:16px;color:var(--ink)}
+.auth-password{position:relative}
+.auth-password .auth-field input{padding-right:96px}
+.auth-password>button{position:absolute;right:8px;bottom:7px;border:0;background:transparent;color:var(--green);padding:8px;font-size:12px;font-weight:650}
+.auth-card form>.btn{margin-top:5px;width:100%;font-size:14px}
+.auth-card form button:disabled{opacity:.6;cursor:wait}
+.auth-error{border-left:3px solid #a34b32;background:#fff1e9;color:#743824;margin:0;padding:10px 12px;font-size:13px;line-height:1.5}
+.auth-links{font-size:13px;margin:23px 0 0;text-align:center;color:var(--green)}
+.auth-links a{text-decoration:underline;text-underline-offset:3px}
+@media(max-width:740px){.topbar,.student-cabinet .topbar{height:auto;min-height:54px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}.topbar .breadcrumb{flex:1;min-width:0}.auth-topbar{flex-basis:100%;gap:7px}.auth-identity{margin-right:auto;white-space:normal;font-size:11px;max-width:calc(100% - 105px)}.auth-control{font-size:11px}.auth-action-error{font-size:11px}}
+.account-access{padding:24px;margin:22px 0;}
+.account-access .doc-tools{margin-top:12px;}
+.account-access .form-field input{width:100%;min-width:0;}
+.account-access .account-reset-form{max-width:480px;margin-top:18px;}
+@media(max-width:600px){.account-access{padding:20px;margin:18px 0;}}

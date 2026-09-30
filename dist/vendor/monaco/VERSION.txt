@@ -1,0 +1,2 @@
+monaco-editor 0.52.2
+https://www.npmjs.com/package/monaco-editor/v/0.52.2

@@ -3,3 +3,6 @@ __pycache__/
 *.tar.gz
 *.tar
 *.log
+data/
+.runtime/
+private/materials/
