@@ -592,6 +592,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
     patch:
       operationId: changeStudentAccess
       parameters:
@@ -621,6 +623,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       requestBody:
         required: true
         content:
@@ -661,6 +665,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       requestBody:
         required: true
         content:
@@ -704,6 +710,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /workspaces/{workspaceId}/students/{studentId}/password-reset:
     post:
       operationId: issueStudentPasswordReset
@@ -738,6 +746,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       requestBody:
         required: true
         content:
@@ -2191,31 +2201,31 @@ components:
       properties:
         name:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         direction:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         goal:
           type: string
-          maxLength: 1000
+          x-max-utf16-units: 1000
           description: JavaScript trim; limit in UTF-16 code units.
         schedule:
           type: string
-          maxLength: 500
+          x-max-utf16-units: 500
           description: JavaScript trim; limit in UTF-16 code units.
         notes:
           type: string
-          maxLength: 5000
+          x-max-utf16-units: 5000
           description: JavaScript trim; limit in UTF-16 code units.
         studentRoadmap:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
         studentReview:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
     StudentUpdateInput:
       type: object
@@ -2225,31 +2235,31 @@ components:
       properties:
         name:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         direction:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         goal:
           type: string
-          maxLength: 1000
+          x-max-utf16-units: 1000
           description: JavaScript trim; limit in UTF-16 code units.
         schedule:
           type: string
-          maxLength: 500
+          x-max-utf16-units: 500
           description: JavaScript trim; limit in UTF-16 code units.
         notes:
           type: string
-          maxLength: 5000
+          x-max-utf16-units: 5000
           description: JavaScript trim; limit in UTF-16 code units.
         studentRoadmap:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
         studentReview:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
         revision:
           type: integer
@@ -2289,31 +2299,31 @@ components:
           format: date-time
         name:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         direction:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         goal:
           type: string
-          maxLength: 1000
+          x-max-utf16-units: 1000
           description: JavaScript trim; limit in UTF-16 code units.
         schedule:
           type: string
-          maxLength: 500
+          x-max-utf16-units: 500
           description: JavaScript trim; limit in UTF-16 code units.
         notes:
           type: string
-          maxLength: 5000
+          x-max-utf16-units: 5000
           description: JavaScript trim; limit in UTF-16 code units.
         studentRoadmap:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
         studentReview:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
     PublicStudentView:
       type: object
@@ -2348,27 +2358,27 @@ components:
           format: date-time
         name:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         direction:
           type: string
-          maxLength: 120
+          x-max-utf16-units: 120
           description: JavaScript trim; limit in UTF-16 code units.
         goal:
           type: string
-          maxLength: 1000
+          x-max-utf16-units: 1000
           description: JavaScript trim; limit in UTF-16 code units.
         schedule:
           type: string
-          maxLength: 500
+          x-max-utf16-units: 500
           description: JavaScript trim; limit in UTF-16 code units.
         studentRoadmap:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
         studentReview:
           type: string
-          maxLength: 20000
+          x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
     StudentView:
       oneOf:
