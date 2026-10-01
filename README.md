@@ -6,6 +6,8 @@
 
 После подготовки конфигурации и готовых образов откройте `Start-Mentor.cmd`. Повторный запуск открывает тот же кабинет. На Windows нужны PowerShell 7.2+, Docker Desktop с Linux engine и доступом из WSL Ubuntu. Node.js и Python для запуска собранной платформы не нужны.
 
+Ярлык находит PowerShell в `PATH`, `C:\Program Files\PowerShell\7` или `%LOCALAPPDATA%\Programs\PowerShell\7`. Последний вариант позволяет запускать кабинет из Проводника без изменения `PATH` и без открытого Codex.
+
 Настройки по умолчанию: `.runtime/platform/compose.env`. Они создаются при первоначальной подготовке, содержат пути к приватным secrets и не входят в Git. Адрес кабинета берётся из этих настроек. Для другого контура:
 
 ```powershell
