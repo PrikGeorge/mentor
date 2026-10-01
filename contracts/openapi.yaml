@@ -1531,6 +1531,169 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/PracticeExerciseId'
+    get:
+      operationId: listPracticeAttempts
+      description: Read paged historical attempt summaries for this exact workspace/student/lesson/exercise tuple.
+        Ordinary current lesson authorization permits the actual owner STUDENT and owning TEACHER; ADMIN and foreign
+        content return 404. Active account/workspace/membership remain required. Stable historical assignment ownership
+        is sufficient after assignment deactivation, explicit-empty assignment sets, or loss/change of the current
+        catalog. Do not require an active assignment or prepared material bundle. A known historical assignment
+        with no attempts returns an empty page; a nonexistent assignment returns 404. Sort createdAt descending,
+        then id descending. No files, private checker properties, internal job/lease identifiers or environment
+        image details are returned. Each summary includes its bounded public per-test result when terminal. audience=student
+        only narrows projection and never changes Actor or write permission.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          description: Historical attempt page, without submitted source snapshots.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: enqueuePracticeAttempt
+      description: Actual owning STUDENT only; teacher preview never grants enqueue rights. Require browser Origin/client,
+        CSRF and matching X-Mentor-Account before mutation. Account mismatch returns 409 ACCOUNT_CHANGED. Accept
+        exactly exerciseRevision/mode/files with all declared filenames; invalid body/header/source returns 400
+        INVALID_INPUT. New attempts require active assignment, current typed exercise revision, compatible saved
+        draft, and atomic queue capacity. Outdated exercise or draft returns 409 EXERCISE_REVISION_CONFLICT; reset
+        the draft explicitly first. Unavailable/inactive assignment for a new key returns 404. Atomically persist
+        one attempt and immutable code/exercise/tests/environment/resource snapshot. New environmentRevision is
+        non-null. Idempotency scope is account plus stable assignment plus exact key. Same key and canonically identical
+        typed revision/mode/exact source returns the existing attempt; changed payload returns 409 IDEMPOTENCY_CONFLICT.
+        Identical accepted replay remains possible after assignment removal or catalog publication while the current
+        student retains history access, and does not consume queue capacity. Every successful new enqueue or identical
+        replay returns 202, including replay of a terminal attempt, with current jobState/result and canonical detail
+        Location. Keep keys for retained attempt history. Queue overflow returns 429 QUEUE_FULL without persisting
+        an attempt, job or key reservation; identical committed replay bypasses a newly full queue. Assignment removal/session
+        invalidation after 202 does not cancel accepted work. Enqueue does not save, reset or archive the draft.
+        The raw JSON body limit is 1605632 bytes, including chunked input and all accepted JSON media types; larger
+        bodies return 413. Source limits remain 16 declared files, 131072 UTF-8 bytes each and 262144 in total.
+        No user-supplied environment/checker/command fields are accepted. Poll with GET on Location; no separate
+        poll endpoint exists.
+      x-max-request-body-bytes: 1605632
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      - $ref: '#/components/parameters/AttemptIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttemptEnqueue'
+      responses:
+        '202':
+          description: Durable accepted attempt or identical replay, with current state and exact source.
+          headers:
+            Location:
+              description: Same-origin relative canonical /api/v1/.../attempts/{attemptId} detail URL.
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attempt'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          description: QUEUE_FULL; no new attempt, job or key reservation was committed.
+          headers:
+            Retry-After:
+              description: Optional suggested retry delay in seconds; not a completion estimate.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiProblem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts/{attemptId}:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/PracticeExerciseId'
+    - $ref: '#/components/parameters/PracticeAttemptId'
+    get:
+      operationId: getPracticeAttempt
+      description: 'Read or poll one attempt with its immutable exact submitted files. Authorize current actor,
+        workspace/student/lesson and stored historical assignment on every request, matching every path component.
+        Current active assignment/catalog is not required; account/workspace blocking closes access immediately.
+        Owning teacher and actual owner student may read; ADMIN and foreign tuples return 404. audience=student
+        preserves Actor. Return 200 with the current state on every authorized poll: queued/running has result null,
+        completed/failed has a bounded public result. A first infrastructure failure retains public running while
+        a private reserved slot awaits retry; do not expose private failure receipts or lease details. completed
+        includes unsuccessful student verdicts; failed means exhausted infrastructure execution. Terminal state/result
+        is immutable. Missing imported environment information remains null; new attempts always retain their pin.
+        Reading old files does not authorize rerunning them or change drafts/archives.'
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Exact attempt detail and current poll state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attempt'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -1669,6 +1832,24 @@ components:
         type: string
     SubmissionId:
       name: submissionId
+      in: path
+      required: true
+      schema:
+        type: string
+    AttemptIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Case-sensitive untrimmed ASCII token, reused with the same exact payload after response loss.
+        UUIDs are suitable. Missing, duplicate, empty or invalid values return 400 INVALID_INPUT. Scope is account
+        plus stable assignment; retain for the lifetime of attempt history.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9._:-]{1,128}$(?![\s\S])
+    PracticeAttemptId:
+      name: attemptId
       in: path
       required: true
       schema:
@@ -3279,6 +3460,224 @@ components:
           maximum: 100
         total:
           type: integer
+          minimum: 0
+    Mode:
+      type: string
+      enum:
+      - run
+      - submit
+      description: run selects the published sample tests; submit selects all published tests.
+    JobState:
+      type: string
+      enum:
+      - queued
+      - running
+      - completed
+      - failed
+      description: queued/running have no public final result; a private pending infrastructure retry stays running.
+        completed is terminal for every student verdict, including a failed check; failed is terminal infrastructure
+        exhaustion. Neither state discloses internal job/lease identifiers.
+    AttemptEnqueue:
+      type: object
+      additionalProperties: false
+      required:
+      - exerciseRevision
+      - mode
+      - files
+      properties:
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        mode:
+          $ref: '#/components/schemas/Mode'
+        files:
+          $ref: '#/components/schemas/SourceFiles'
+    PublicResultValue:
+      type:
+      - string
+      - number
+      - boolean
+      - 'null'
+      description: Legacy-compatible scalar presentation value. Structured expected/actual output is rendered as
+        a bounded, sanitized JSON string, never an arbitrary nested public checker object. Finite JSON numbers,
+        booleans and null retain their scalar type. All strings count toward the complete serialized CheckResult
+        ceiling and undergo host-path sanitization.
+    PublicTestResult:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - status
+      properties:
+        name:
+          type: string
+          x-max-utf16-units: 200
+        status:
+          type: string
+          enum:
+          - accepted
+          - wrong_answer
+          - runtime_error
+          - time_limit
+        expected:
+          $ref: '#/components/schemas/PublicResultValue'
+        actual:
+          $ref: '#/components/schemas/PublicResultValue'
+        message:
+          type: string
+        stdout:
+          type: string
+      description: Explicit safe per-test projection, in execution order. No args, mutation rules, customTypes,
+        class/method metadata, nonce, host paths or private checker properties. Optional text/value content may
+        be shortened or omitted to meet the whole-result limit without changing verdicts.
+    CheckResult:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - passed
+      - total
+      - elapsedMs
+      - tests
+      properties:
+        status:
+          type: string
+          enum:
+          - accepted
+          - wrong_answer
+          - compile_error
+          - runtime_error
+          - time_limit
+          - error
+          - unavailable
+        passed:
+          type: integer
+          minimum: 0
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+          maximum: 100
+        elapsedMs:
+          type: integer
+          format: int64
+          minimum: 0
+        diagnostics:
+          type: string
+        tests:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PublicTestResult'
+      x-max-serialized-utf16-units: 32000
+      description: Bounded explicit public result, not a runner payload or persistence entity. The entire serialized
+        result, including field names, delimiters and JSON escaping, must fit 32000 UTF-16 units. All returned text
+        is host-path-sanitized and Unicode-safe; preserve ordinary URLs and relative Java filenames. passed must
+        not exceed total. accepted requires total>0, passed=total and a verified trusted harness result; matching
+        counters alone do not establish success. Partial test detail is valid for compile/runtime/time failure.
+        Projection/truncation never changes counters or fabricates acceptance. Internal live result validation is
+        separate from this public schema.
+    AttemptSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - exerciseId
+      - exerciseRevision
+      - environmentRevision
+      - mode
+      - jobState
+      - result
+      - createdAt
+      properties:
+        id:
+          type: string
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        environmentRevision:
+          type:
+          - string
+          - 'null'
+          description: Pinned build revision; null only for imported history lacking environment metadata.
+        mode:
+          $ref: '#/components/schemas/Mode'
+        jobState:
+          $ref: '#/components/schemas/JobState'
+        result:
+          oneOf:
+          - $ref: '#/components/schemas/CheckResult'
+          - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+      description: Historical public attempt without files. Pending result is null; terminal result is present.
+        New environmentRevision is non-null. Source appears only in detail/enqueue replies.
+    Attempt:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - exerciseId
+      - exerciseRevision
+      - environmentRevision
+      - mode
+      - jobState
+      - files
+      - result
+      - createdAt
+      properties:
+        id:
+          type: string
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        environmentRevision:
+          type:
+          - string
+          - 'null'
+          description: Pinned build revision; null only for imported history lacking environment metadata.
+        mode:
+          $ref: '#/components/schemas/Mode'
+        jobState:
+          $ref: '#/components/schemas/JobState'
+        files:
+          $ref: '#/components/schemas/SourceFiles'
+        result:
+          oneOf:
+          - $ref: '#/components/schemas/CheckResult'
+          - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+      description: Exact immutable accepted source and current state; bare response, not an attempt wrapper. Pending
+        result is null; terminal result is present. No account, worker, lease, test-definition or environment image/manifest
+        fields are exposed. Historical files retain their original declaration/revision and are not validated against
+        today's catalog just to read them.
+    AttemptPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttemptSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
           minimum: 0
   headers:
     MaterialNoStore:
