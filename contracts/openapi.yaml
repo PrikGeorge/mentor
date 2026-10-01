@@ -1704,6 +1704,47 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/history:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: listPracticeHistory
+      description: Discover every exercise with a saved draft, attempt or draft archive in this exact lesson, including
+        removed assignments and unavailable definitions. Current owning STUDENT or owning TEACHER only; ADMIN and
+        foreign content return 404. The current lesson/card/workspace/account must remain accessible. No active
+        assignment, current catalog or prepared bundle is required. Sort exerciseId ascending; page starts at zero.
+        Empty untouched assignments are omitted. This index returns identifiers and existence flags only, never
+        files or exercise definitions; existing authorized per-exercise draft/attempt/archive APIs provide immutable
+        detail. active describes the historical assignment row and alone does not authorize execution. audience=student
+        never changes Actor or grants writes. Read-only and no-store.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          description: Historical exercise discovery page.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeHistoryPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -3688,6 +3729,49 @@ components:
         total:
           type: integer
           format: int64
+          minimum: 0
+    PracticeHistoryEntry:
+      type: object
+      additionalProperties: false
+      required:
+      - exerciseId
+      - active
+      - hasDraft
+      - hasAttempts
+      - hasArchives
+      properties:
+        exerciseId:
+          type: string
+        active:
+          type: boolean
+        hasDraft:
+          type: boolean
+        hasAttempts:
+          type: boolean
+        hasArchives:
+          type: boolean
+    PracticeHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeHistoryEntry'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
           minimum: 0
   headers:
     MaterialNoStore:
