@@ -9,7 +9,7 @@
     "start": "ng serve --port 4201 --proxy-config proxy.conf.json",
     "build": "ng build",
     "test": "ng test",
-    "test:ui": "playwright test",
+    "test:ui": "node tools/playwright.mjs",
     "api:generate": "npm run generate --workspace @mentor/api-types"
   },
   "engines": {

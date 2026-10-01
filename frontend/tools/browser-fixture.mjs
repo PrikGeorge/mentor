@@ -36,8 +36,10 @@ try {
     const ready = JSON.parse(await readFile(readyPath, 'utf8'));
     await writeFile(path.join(runtime, 'proxy.json'), JSON.stringify({ '/api/**': { target: ready.backendOrigin, secure: false, changeOrigin: false } }));
     console.log(`Synthetic browser runtime: ${runtime}`);
+    const playwrightEnvironment = { ...process.env, MENTOR_BROWSER_FIXTURE: readyPath };
+    delete playwrightEnvironment.NO_COLOR;
     const playwright = spawn(process.execPath, [path.join(frontend, 'node_modules/@playwright/test/cli.js'), 'test', '--config', 'playwright.integration.config.ts', ...process.argv.slice(2)], {
-        cwd: frontend, windowsHide: true, stdio: 'inherit', env: { ...process.env, MENTOR_BROWSER_FIXTURE: readyPath },
+        cwd: frontend, windowsHide: true, stdio: 'inherit', env: playwrightEnvironment,
     });
     process.exitCode = await new Promise((resolve, reject) => { playwright.once('error', reject); playwright.once('exit', code => resolve(code ?? 1)); });
 } finally {
