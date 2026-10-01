@@ -1348,6 +1348,189 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: listHomework
+      description: Authorized lesson history, createdAt descending then id descending. Actual student sees only
+        their own lesson. Teacher preview retains teacher Actor; all returned fields are student-visible.
+      parameters:
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          description: Homework submission history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeworkPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: submitHomework
+      description: Actual owning STUDENT only. Each successful upload creates a new submission; teacher preview
+        never submits. Exactly one nonempty ZIP, Java, TXT, Markdown or PDF file, at most 20 MiB. Multipart request
+        at most 21 MiB. Reject duplicate or unknown parts. Recheck authority before transactional attach; no201
+        before commit. Never unpack or execute uploaded projects.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  x-max-bytes: 20971520
+                  description: Nonempty. Safe filename up to180 UTF-16 units; forbid paths, Windows device names
+                    and special/control characters, leading dot or trailing dot/space. ZIP requires a recognized
+                    four-byte header without unpacking.
+                comment:
+                  type: string
+                  default: ''
+                  x-max-utf16-units: 10000
+                  description: JavaScript-compatible trimmed text; bound checked before trim.
+                repositoryUrl:
+                  type: string
+                  default: ''
+                  x-max-utf16-units: 2000
+                  description: JavaScript-compatible trimmed empty string or HTTPS URL with hostname and without
+                    userinfo. Never fetched by server.
+      responses:
+        '201':
+          description: New committed submission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/file:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/SubmissionId'
+    get:
+      operationId: downloadHomework
+      description: Authorize exact lesson and submission before opening bytes. No redirect or presigned object URL;
+        no-store, nosniff, attachment and CSP default-src 'none'; sandbox.
+      responses:
+        '200':
+          description: Uploaded file
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+            Content-Disposition:
+              $ref: '#/components/headers/MaterialDisposition'
+            Content-Length:
+              $ref: '#/components/headers/MaterialLength'
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    head:
+      operationId: headHomeworkFile
+      description: Same rights as GET, attached measured metadata without opening BlobStore. No body on any response.
+      responses:
+        '200':
+          description: Authorized file metadata
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+            Content-Disposition:
+              $ref: '#/components/headers/MaterialDisposition'
+            Content-Length:
+              $ref: '#/components/headers/MaterialLength'
+            Content-Type:
+              schema:
+                type: string
+                const: application/octet-stream
+        '401':
+          description: Authentication required; no body
+        '404':
+          description: Resource unavailable; no body
+        '503':
+          description: Service unavailable; no body
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/review:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/SubmissionId'
+    patch:
+      operationId: reviewHomework
+      description: Owning teacher reviews this exact lesson submission; stale revision409 leaves prior feedback
+        unchanged. Success increments revision and sets reviewedAt. Separate from the lesson's reviewNotes.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomeworkReviewInput'
+      responses:
+        '200':
+          description: Reviewed submission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -1480,6 +1663,12 @@ components:
         type: string
     PracticeArchiveId:
       name: archiveId
+      in: path
+      required: true
+      schema:
+        type: string
+    SubmissionId:
+      name: submissionId
       in: path
       required: true
       schema:
@@ -2997,6 +3186,99 @@ components:
         total:
           type: integer
           format: int64
+          minimum: 0
+    Submission:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - filename
+      - size
+      - createdAt
+      - comment
+      - repositoryUrl
+      - status
+      - feedback
+      - revision
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+          x-max-utf16-units: 180
+        size:
+          type: integer
+          minimum: 1
+          maximum: 20971520
+        createdAt:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          x-max-utf16-units: 10000
+        repositoryUrl:
+          type: string
+          x-max-utf16-units: 2000
+        status:
+          type: string
+          enum:
+          - submitted
+          - reviewed
+          - needs_revision
+        feedback:
+          type: string
+          x-max-utf16-units: 20000
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Omitted before the first review.
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+    HomeworkReviewInput:
+      type: object
+      additionalProperties: false
+      required:
+      - revision
+      - status
+      - feedback
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - reviewed
+          - needs_revision
+        feedback:
+          type: string
+          x-max-utf16-units: 20000
+          description: JavaScript-compatible trimmed text; bound checked before trim.
+    HomeworkPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Submission'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
           minimum: 0
   headers:
     MaterialNoStore:
