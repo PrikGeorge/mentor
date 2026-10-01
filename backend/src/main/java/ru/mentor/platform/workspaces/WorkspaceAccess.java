@@ -19,5 +19,9 @@ public class WorkspaceAccess {
     public void lockTeacher(Actor actor,String workspaceId){
         if(!workspaces.lockActive(workspaceId))throw missing();requireTeacher(actor,workspaceId);
     }
+    /** Caller must hold a transaction; serialize member writes with workspace pause/revocation. */
+    public void lockMember(Actor actor,String workspaceId){
+        if(!workspaces.lockActive(workspaceId))throw missing();requireMember(actor,workspaceId);
+    }
     public static ApiFailure missing(){return new ApiFailure(404,"NOT_FOUND","Resource unavailable.");}
 }
