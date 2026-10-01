@@ -1,0 +1,85 @@
+package ru.mentor.platform.homework;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import ru.mentor.platform.files.BlobService;
+import ru.mentor.platform.lessons.*;
+import ru.mentor.platform.students.StudentService;
+import ru.mentor.platform.workspaces.WorkspaceAccess;
+import ru.mentor.platform.shared.*;
+import java.io.*;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+@Service
+public class HomeworkService {
+    public static final long MAXIMUM_FILE=20971520;
+    public record Download(Submission submission,BlobService.BlobRef blob) {}
+    private final HomeworkRepository repository;
+    private final BlobService blobs;
+    private final LessonService lessons;
+    private final StudentService students;
+    private final WorkspaceAccess access;
+    private final Clock clock;
+    private final TransactionTemplate transaction;
+    public HomeworkService(HomeworkRepository repository,BlobService blobs,LessonService lessons,StudentService students,WorkspaceAccess access,Clock clock,PlatformTransactionManager manager){
+        this.repository=repository;this.blobs=blobs;this.lessons=lessons;this.students=students;this.access=access;this.clock=clock;this.transaction=new TransactionTemplate(manager);
+    }
+    private void reader(Actor actor,LessonRef lesson){lessons.requireReader(actor,lesson.workspaceId(),lesson.studentId(),lesson.id());}
+    private void student(Actor actor,LessonRef lesson){reader(actor,lesson);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can submit homework.");}
+    private void lock(Actor actor,LessonRef lesson){access.lockMember(actor,lesson.workspaceId());students.lockCard(lesson.workspaceId(),lesson.studentId());reader(actor,lesson);}
+    public Page<Submission> list(Actor actor,LessonRef lesson,int page,int size){reader(actor,lesson);new Page<>(List.of(),page,size,0);return new Page<>(repository.list(lesson,page,size),page,size,repository.count(lesson));}
+    public Submission submit(Actor actor,LessonRef lesson,InputStream input,String filename,String comment,String repositoryUrl)throws IOException {
+        return submit(actor,lesson,input,filename,comment,repositoryUrl,null);
+    }
+    public Submission submit(Actor actor,LessonRef lesson,InputStream input,String filename,String comment,String repositoryUrl,Long expectedSize)throws IOException {
+        student(actor,lesson);String name=filename(filename),note=form(comment,10000),url=repositoryUrl(repositoryUrl);
+        if(input==null||(expectedSize!=null&&expectedSize<=0))throw new IllegalArgumentException("Nonempty file required.");
+        if(expectedSize!=null&&expectedSize>MAXIMUM_FILE)throw oversized();
+        try(var source=new PushbackInputStream(bounded(input),4)){
+            byte[] prefix=source.readNBytes(4);if(prefix.length==0)throw new IllegalArgumentException("Nonempty file required.");
+            if(name.toLowerCase(Locale.ROOT).endsWith(".zip")&&!zip(prefix))throw new IllegalArgumentException("Invalid ZIP signature.");
+            source.unread(prefix);
+            var staged=blobs.stage(actor,lesson,source,MAXIMUM_FILE,expectedSize);
+            return transaction.execute(status->{
+                lock(actor,lesson);student(actor,lesson);
+                var blob=blobs.attach(actor,lesson,staged,name,"application/octet-stream");
+                var submission=new Submission(UUID.randomUUID().toString(),name,blob.size(),clock.instant().truncatedTo(ChronoUnit.MICROS),note,url,ReviewStatus.submitted,"",null,1);
+                repository.insert(lesson,submission,blob.id());return submission;
+            });
+        } catch(TooLarge failure){throw oversized();}
+    }
+    public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback){
+        String text=form(feedback,20000);if(revision<1||status==null||status==ReviewStatus.submitted)throw new IllegalArgumentException("Invalid review.");
+        return transaction.execute(tx->{
+            lock(actor,lesson);if(actor.role()!=Actor.Role.TEACHER)throw new ApiFailure(403,"FORBIDDEN","Only the teacher can review homework.");
+            var existing=repository.find(lesson,id,true).orElseThrow(WorkspaceAccess::missing).submission();
+            if(existing.revision()!=revision)throw new ApiFailure(409,"REVISION_CONFLICT","Review changed. Refresh before saving.");
+            var changed=new Submission(existing.id(),existing.filename(),existing.size(),existing.createdAt(),existing.comment(),existing.repositoryUrl(),status,text,clock.instant().truncatedTo(ChronoUnit.MICROS),Math.addExact(revision,1));
+            repository.review(lesson,changed);return changed;
+        });
+    }
+    public Download download(Actor actor,LessonRef lesson,String id){reader(actor,lesson);var stored=repository.find(lesson,id,false).orElseThrow(WorkspaceAccess::missing);return new Download(stored.submission(),blobs.describe(actor,lesson,stored.blobId()));}
+    public InputStream open(Actor actor,LessonRef lesson,String id)throws IOException {reader(actor,lesson);var stored=repository.find(lesson,id,false).orElseThrow(WorkspaceAccess::missing);return blobs.open(actor,lesson,stored.blobId());}
+    private static String filename(String value){
+        if(value==null||value.isEmpty()||value.length()>180||!wellFormed(value)||!value.equals(trim(value))||value.chars().anyMatch(c->c<32||c==127||"\\/<>:\"|?*".indexOf(c)>=0)||value.startsWith(".")||value.endsWith(".")||value.endsWith(" ")||value.matches("(?i)^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\..*)?$"))throw new IllegalArgumentException("Unsafe filename.");
+        int dot=value.lastIndexOf('.');if(dot<0||!Set.of("zip","java","txt","md","pdf").contains(value.substring(dot+1).toLowerCase(Locale.ROOT)))throw new IllegalArgumentException("Unsupported homework file.");return value;
+    }
+    private static String repositoryUrl(String value){
+        String url=form(value,2000);if(url.isEmpty())return url;
+        URI parsed=URI.create(url);if(!"https".equalsIgnoreCase(parsed.getScheme())||parsed.getHost()==null||parsed.getHost().isEmpty()||parsed.getRawUserInfo()!=null)throw new IllegalArgumentException("HTTPS repository URL required.");return url;
+    }
+    private static String form(String value,int maximum){if(value==null)value="";if(value.length()>maximum||value.indexOf(0)>=0||!wellFormed(value))throw new IllegalArgumentException("Invalid form text.");return trim(value);}
+    private static boolean wellFormed(String value){return StandardCharsets.UTF_8.newEncoder().canEncode(value);}
+    // ECMAScript trim, matching the existing plain form fields; limits apply before trimming.
+    private static String trim(String value){int start=0,end=value.length();while(start<end&&space(value.charAt(start)))start++;while(end>start&&space(value.charAt(end-1)))end--;return value.substring(start,end);}
+    private static boolean space(char c){return c=='\t'||c=='\n'||c=='\u000b'||c=='\f'||c=='\r'||c=='\u2028'||c=='\u2029'||c=='\ufeff'||Character.getType(c)==Character.SPACE_SEPARATOR;}
+    private static boolean zip(byte[] p){return p.length==4&&p[0]==0x50&&p[1]==0x4b&&((p[2]==3&&p[3]==4)||(p[2]==5&&p[3]==6)||(p[2]==7&&p[3]==8));}
+    private static InputStream bounded(InputStream source){return new FilterInputStream(source){long count;private int measured(int n)throws IOException {if(n>0&&(count+=n)>MAXIMUM_FILE)throw new TooLarge();return n;}public int read()throws IOException {int value=in.read();if(value>=0)measured(1);return value;}public int read(byte[] b,int off,int len)throws IOException{return measured(in.read(b,off,(int)Math.min(len,MAXIMUM_FILE-count+1)));}};}
+    private static class TooLarge extends IOException {}
+    private static ApiFailure oversized(){return new ApiFailure(413,"INVALID_INPUT","Homework file exceeds its byte limit.");}
+}

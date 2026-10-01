@@ -2,6 +2,11 @@ server:
   port: 8081
   forward-headers-strategy: none
 spring:
+  servlet:
+    multipart:
+      max-file-size: 20971520B
+      max-request-size: 22020096B
+      file-size-threshold: 0B
   config:
     import: optional:configtree:${MENTOR_SECRETS_DIR:./.runtime/secrets/}
   datasource:

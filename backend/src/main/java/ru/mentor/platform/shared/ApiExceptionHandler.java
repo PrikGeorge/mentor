@@ -7,6 +7,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import tools.jackson.databind.ObjectMapper;
@@ -29,6 +31,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public void contentType(Exception ignored,HttpServletRequest request,HttpServletResponse response) throws IOException {
         write(request,response,new ApiFailure(415,"INVALID_INPUT","Send application/json."));
+    }
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public void uploadTooLarge(Exception ignored,HttpServletRequest request,HttpServletResponse response) throws IOException {
+        write(request,response,new ApiFailure(413,"INVALID_INPUT","Multipart upload exceeds its byte limit."));
+    }
+    @ExceptionHandler(MultipartException.class)
+    public void multipart(Exception ignored,HttpServletRequest request,HttpServletResponse response) throws IOException {
+        write(request,response,new ApiFailure(400,"INVALID_INPUT","Invalid multipart request."));
     }
     @ExceptionHandler({NoResourceFoundException.class,HttpRequestMethodNotSupportedException.class})
     public void unavailable(Exception ignored,HttpServletRequest request,HttpServletResponse response) throws IOException {
