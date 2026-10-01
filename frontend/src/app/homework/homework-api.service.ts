@@ -53,7 +53,7 @@ export function validateHomework(file: File | null, comment: string, repositoryU
     if (!file) return 'Выберите файл работы.';
     if (!file.size || file.size > 20971520) return 'Файл должен быть непустым и не больше 20 МиБ.';
     const name = file.name;
-    if (!name || name.length > 180 || /[\u0000-\u001f\u007f\\/<>:"|?*]/.test(name) || /^\.|[. ]$/.test(name) || /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) return 'Недопустимое имя файла.';
+    if (!name || name !== name.trim() || name.length > 180 || /[\u0000-\u001f\u007f\\/<>:"|?*]/.test(name) || /^\.|[. ]$/.test(name) || /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) return 'Недопустимое имя файла.';
     if (!/\.(zip|java|txt|md|pdf)$/i.test(name)) return 'Допустимы ZIP, Java, TXT, Markdown или PDF.';
     if (comment.length > 10000) return 'Комментарий должен быть не больше 10 000 символов.';
     if (repositoryUrl.length > 2000) return 'Адрес репозитория должен быть не больше 2 000 символов.';

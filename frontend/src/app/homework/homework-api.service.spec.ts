@@ -11,6 +11,12 @@ describe('Homework multipart transport',()=>{
  beforeEach(()=>TestBed.configureTestingModule({providers:[provideRouter([]),provideHttpClient(withInterceptors([sessionInterceptor])),provideHttpClientTesting()]}));
  afterEach(()=>{TestBed.inject(HttpTestingController).verify();TestBed.resetTestingModule();});
  function api(){const http=TestBed.inject(HttpTestingController);TestBed.inject(SessionStore).load().subscribe();http.expectOne('/api/v1/auth/session').flush({account:{userId:'student',workspaceId:'w1',role:'STUDENT',authVersion:1},csrfToken:'test-token'});return{http,api:TestBed.inject(HomeworkApi)};}
+ it.each([' work.java','\u00a0work.java','work.java\ufeff'])('rejects surrounding filename whitespace before upload: %s',name=>{
+  const {http,api:service}=api();let error:Error|undefined;
+  service.submit(lesson,new File(['code'],name),'','').subscribe({error:failure=>error=failure});
+  http.expectNone('/api/v1/workspaces/w1/students/s1/lessons/l1/homework');
+  expect(error?.message).toBe('Недопустимое имя файла.');
+ });
  it('uses one browser-boundary multipart file and emits success only for the final response',()=>{
   const{http,api:service}=api(),file=new File(['code'],'work.java');let result:Submission|undefined;service.submit(lesson,file,' comment ',' https://example.com/project ').subscribe(value=>result=value);
   const request=http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/homework');expect(request.request.method).toBe('POST');expect(request.request.body).toBeInstanceOf(FormData);const form=request.request.body as FormData;expect(form.getAll('file')).toHaveLength(1);expect((form.get('file') as File).name).toBe(file.name);expect((form.get('file') as File).size).toBe(file.size);expect(form.get('comment')).toBe('comment');expect(form.get('repositoryUrl')).toBe('https://example.com/project');expect(request.request.headers.has('Content-Type')).toBe(false);expect(request.request.headers.get('X-Mentor-Account')).toBe('student');expect(request.request.headers.get('X-CSRF-TOKEN')).toBe('test-token');expect(request.request.reportProgress).toBe(true);
