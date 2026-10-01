@@ -1,0 +1,12 @@
+**
+!frontend/
+!frontend/dist/
+!frontend/dist/mentor/
+!frontend/dist/mentor/browser/
+!frontend/dist/mentor/browser/**
+!frontend/dist/mentor/3rdpartylicenses.txt
+!frontend/licenses/
+!frontend/licenses/**
+!infra/
+!infra/proxy/
+!infra/proxy/Caddyfile

@@ -1,0 +1,118 @@
+name: ${MENTOR_COMPOSE_PROJECT:-mentor-platform}
+services:
+  postgres:
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mentor
+      POSTGRES_USER: mentor
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U mentor -d mentor"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: &bounded_logs
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  backend:
+    image: mentor-platform-backend:${MENTOR_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: infra/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      MENTOR_DB_URL: jdbc:postgresql://postgres:5432/mentor
+      MENTOR_DB_USER: mentor
+      MENTOR_SECRETS_DIR: /run/secrets/
+      MENTOR_PUBLIC_ORIGIN: ${MENTOR_PUBLIC_ORIGIN:-http://127.0.0.1:4174}
+      MENTOR_PRODUCTION: ${MENTOR_PRODUCTION:-false}
+      MENTOR_BLOBS_TYPE: local
+      MENTOR_BLOBS_LOCAL_ROOT: /var/lib/mentor/objects
+      MENTOR_BLOBS_SPOOL_ROOT: /var/lib/mentor/spool
+      MENTOR_RUNNER_TOKEN_FILE: /run/mentor-worker/worker-credential
+      # Trust this edge only, not every address in a private network.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Mentor-Client-IP
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Mentor-Client-Proto
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: ${MENTOR_PROXY_IP_REGEX:-172[.]28[.]80[.]2}
+    secrets:
+      - source: database_password
+        target: spring.datasource.password
+    volumes:
+      - objects:/var/lib/mentor/objects
+      - spool:/var/lib/mentor/spool
+      # Directory mount lets an atomic credential-file replacement take effect.
+      - ${MENTOR_WORKER_SECRETS_DIR:-../.runtime/platform/worker-secrets}:/run/mentor-worker:ro
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      database:
+      web:
+        ipv4_address: ${MENTOR_BACKEND_IP:-172.28.80.3}
+      jobs:
+    logging: *bounded_logs
+
+  web:
+    image: mentor-platform-web:${MENTOR_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: infra/frontend/Dockerfile
+    restart: unless-stopped
+    depends_on: [backend]
+    environment:
+      MENTOR_SITE_ADDRESS: ${MENTOR_SITE_ADDRESS:-:80}
+      MENTOR_BACKEND_UPSTREAM: backend:8081
+    ports:
+      - "${MENTOR_BIND_ADDRESS:-127.0.0.1}:${MENTOR_HTTP_PORT:-4174}:80"
+      - "${MENTOR_BIND_ADDRESS:-127.0.0.1}:${MENTOR_HTTPS_PORT:-8443}:443"
+    volumes:
+      - web_data:/data
+      - web_config:/config
+    networks:
+      web:
+        ipv4_address: ${MENTOR_PROXY_IP:-172.28.80.2}
+    logging: *bounded_logs
+
+  # Enable on a private interface only; the public web service denies /internal.
+  job-gateway:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    profiles: [runner]
+    restart: unless-stopped
+    depends_on: [backend]
+    environment:
+      MENTOR_JOB_ADDRESS: ${MENTOR_JOB_ADDRESS:-https://localhost:8443}
+    ports:
+      - "${MENTOR_JOB_BIND_ADDRESS:-127.0.0.1}:${MENTOR_JOB_PORT:-8444}:8443"
+    volumes:
+      - ./proxy/Jobs.Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${MENTOR_JOB_TLS_DIRECTORY:-../.runtime/platform/tls}:/run/mentor-tls:ro
+    networks: [jobs]
+    logging: *bounded_logs
+
+secrets:
+  database_password:
+    file: ${MENTOR_DB_PASSWORD_FILE:-../.runtime/platform/secrets/spring.datasource.password}
+volumes:
+  postgres:
+  objects:
+  spool:
+  web_data:
+  web_config:
+networks:
+  database: { internal: true }
+  jobs: { internal: true }
+  web:
+    ipam:
+      config:
+        - subnet: ${MENTOR_WEB_SUBNET:-172.28.80.0/24}

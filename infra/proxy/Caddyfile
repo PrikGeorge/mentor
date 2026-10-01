@@ -1,0 +1,43 @@
+{
+	admin off
+}
+
+{$MENTOR_SITE_ADDRESS::80} {
+	root * /srv
+	encode zstd gzip
+
+	# Legacy source/download URLs must never fall through to the Angular shell.
+	@private path_regexp private (?i)^/(internal|private|data|content|code|training|downloads|lib|src|backend|runner|infra|contracts|node_modules|\.git|\.runtime|\.superpowers)(/|$)|^/api/(materials|downloads)(/|$)
+	handle @private {
+		header Cache-Control "no-store"
+		respond "Not found" 404
+	}
+
+	@api path /api/v1 /api/v1/*
+	handle @api {
+		reverse_proxy {$MENTOR_BACKEND_UPSTREAM:backend:8081} {
+			header_up Host {http.request.hostport}
+			header_up -Forwarded
+			header_up -X-Forwarded-Host
+			# The dedicated header is trusted only from this edge's exact private IP.
+			header_up X-Mentor-Client-IP {http.request.remote.host}
+			header_up X-Mentor-Client-Proto {http.request.scheme}
+		}
+	}
+
+	handle /api/* {
+		header Cache-Control "no-store"
+		respond "Not found" 404
+	}
+
+	handle {
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy no-referrer
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+			Cache-Control "no-cache"
+		}
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,16 @@
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$MENTOR_JOB_ADDRESS:https://localhost:8443} {
+	tls /run/mentor-tls/server.crt /run/mentor-tls/server.key
+	@jobs path /internal/v1/jobs/*
+	handle @jobs {
+		# Preserve browser markers so the backend rejects browser requests itself.
+		reverse_proxy {$MENTOR_BACKEND_UPSTREAM:backend:8081}
+	}
+	handle {
+		respond "Not found" 404
+	}
+}

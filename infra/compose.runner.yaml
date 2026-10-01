@@ -1,0 +1,37 @@
+# Run on the dedicated Linux execution host, independently of compose.platform.
+name: ${MENTOR_RUNNER_PROJECT:-mentor-runner}
+services:
+  runner:
+    image: mentor-platform-runner:${MENTOR_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: infra/runner-service/Dockerfile
+    restart: unless-stopped
+    init: true
+    command:
+      - --service
+      - ${MENTOR_JOB_SERVICE:?Set the private HTTPS URL ending in /internal/v1}
+      - --worker
+      - ${MENTOR_WORKER_ID:-worker-1}
+      - --credential
+      - /run/mentor-secrets/worker-credential
+      - --manifest
+      - /run/mentor-config/environments.json
+    environment:
+      # Bind exactly the same absolute path on this host and in the container.
+      JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=${MENTOR_RUNNER_SCRATCH:-/var/lib/mentor-runner/jobs} -Djavax.net.ssl.trustStore=/run/mentor-config/truststore.p12
+    group_add:
+      - ${MENTOR_DOCKER_SOCKET_GID:?Set the GID of the dedicated host Docker socket}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${MENTOR_RUNNER_SCRATCH:-/var/lib/mentor-runner/jobs}:${MENTOR_RUNNER_SCRATCH:-/var/lib/mentor-runner/jobs}
+      - ${MENTOR_RUNNER_CONFIG:?Set the absolute runner configuration directory}:/run/mentor-config:ro
+      - ${MENTOR_RUNNER_SECRETS:?Set the absolute runner secrets directory}:/run/mentor-secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
