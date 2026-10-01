@@ -68,8 +68,10 @@ public final class MaterialConverter {
             if(owners.size()!=1)throw invalid("Cannot establish teacher view ownership: "+field);
             grouped.computeIfAbsent(owners.iterator().next(),b->JSON.createObjectNode()).put(field,html);
         }
+        Set<Binding> answerOwners=new HashSet<>();
         if(teacher.has("answersCards"))for(var card:teacher.get("answersCards")){
             Material owner=code.get(card.get(0).asText());if(owner==null||!owner.audience().equals("teacher"))throw invalid("Unbound teacher answer card.");
+            answerOwners.add(binding(owner));
             ((ArrayNode)grouped.computeIfAbsent(binding(owner),b->JSON.createObjectNode()).withArray("answersCards")).add(card.deepCopy());
         }
         if(teacher.has("descriptors"))for(var entry:teacher.get("descriptors").properties()){
@@ -77,8 +79,13 @@ public final class MaterialConverter {
             ((ObjectNode)grouped.computeIfAbsent(binding(owner),b->JSON.createObjectNode()).withObject("descriptors")).set(entry.getKey(),entry.getValue().deepCopy());
         }
         if(teacher.has("resources"))for(var entry:teacher.get("resources")){
-            Material owner=docs.get(entry.get(0).asText());if(owner==null)throw invalid("Unbound teacher resource.");
-            ((ArrayNode)grouped.computeIfAbsent(binding(owner),b->JSON.createObjectNode()).withArray("resources")).add(entry.deepCopy());
+            Binding owner;
+            if(entry.get(0).asText().equals("answers")){
+                // Legacy answers is a virtual view. Its referenced teacher code supplies the only valid scope.
+                if(answerOwners.size()!=1)throw invalid("Cannot establish teacher answers resource ownership.");
+                owner=answerOwners.iterator().next();
+            }else {Material document=docs.get(entry.get(0).asText());if(document==null)throw invalid("Unbound teacher resource.");owner=binding(document);}
+            ((ArrayNode)grouped.computeIfAbsent(owner,b->JSON.createObjectNode()).withArray("resources")).add(entry.deepCopy());
         }
         List<Material> out=new ArrayList<>();for(var group:grouped.entrySet()){
             var b=group.getKey();String id="import-view-"+UUID.nameUUIDFromBytes((b.student()+"/"+b.lesson()+"/"+b.bundle()).getBytes(StandardCharsets.UTF_8));
