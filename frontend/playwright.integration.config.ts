@@ -8,6 +8,8 @@ const runtime = path.dirname(fixturePath);
 const port = new URL(ready.browserOrigin).port;
 export default defineConfig({
     testDir: './integration', workers: 1, fullyParallel: false, timeout: 60_000,
+    testMatch: ['task11.spec.ts', 'task12.spec.ts', 'task13.spec.ts'],
+    projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
     outputDir: path.join(runtime, 'browser-results'), reporter: 'list',
     use: { baseURL: ready.browserOrigin, viewport: { width: 1280, height: 900 }, trace: 'off' },
     webServer: {

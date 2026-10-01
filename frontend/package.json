@@ -10,6 +10,8 @@
     "build": "ng build",
     "test": "ng test",
     "test:ui": "node tools/playwright.mjs",
+    "e2e": "node tools/browser-fixture.mjs",
+    "e2e:practice": "node tools/playwright.mjs --config playwright.practice.config.ts",
     "api:generate": "npm run generate --workspace @mentor/api-types"
   },
   "engines": {
