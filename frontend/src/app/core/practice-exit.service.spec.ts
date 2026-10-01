@@ -1,0 +1,9 @@
+import { TestBed } from '@angular/core/testing';
+import { PracticeExit, ExitParticipant } from './practice-exit.service';
+describe('Explicit unsaved-practice exit', () => {
+    afterEach(() => TestBed.resetTestingModule());
+    function owner() { const participant: ExitParticipant = { valid: () => true, dirty: () => true, pause: vi.fn(), save: vi.fn().mockResolvedValue(true), export: vi.fn().mockReturnValue(true), discard: vi.fn() }; const exit = TestBed.inject(PracticeExit); exit.register(participant); return { exit, participant }; }
+    it('freezes autosave and offers choices before allowing logout/navigation', async () => { const { exit, participant } = owner(); let allowed: unknown; const pending = exit.ask().then(value => allowed = value); await Promise.resolve(); expect(exit.open()).toBe(true); expect(allowed).toBeUndefined(); expect(participant.pause).toHaveBeenCalledWith(true); await exit.choose('cancel'); await pending; expect(allowed).toBe(false); expect(participant.pause).toHaveBeenLastCalledWith(false); });
+    it('failed saving retains the dialog/code until export or explicit discard', async () => { const { exit, participant } = owner(); vi.mocked(participant.save).mockResolvedValue(false); let allowed: unknown; const pending = exit.ask().then(value => allowed = value); await exit.choose('save'); expect(allowed).toBeUndefined(); expect(exit.open()).toBe(true); await exit.choose('export'); await pending; expect(allowed).toBe(true); expect(participant.export).toHaveBeenCalledOnce(); });
+    it('does not call old-account saving/export callbacks after ownership changes', async () => { const { exit, participant } = owner(); let valid = true; participant.valid = () => valid; const pending = exit.ask(); valid = false; await exit.choose('save'); expect(await pending).toBe(false); expect(participant.save).not.toHaveBeenCalled(); expect(participant.export).not.toHaveBeenCalled(); });
+});

@@ -719,6 +719,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Discover every exercise with a saved draft, attempt or draft archive in this exact lesson, including removed assignments and unavailable definitions. Current owning STUDENT or owning TEACHER only; ADMIN and foreign content return 404. The current lesson/card/workspace/account must remain accessible. No active assignment, current catalog or prepared bundle is required. Sort exerciseId ascending; page starts at zero. Empty untouched assignments are omitted. This index returns identifiers and existence flags only, never files or exercise definitions; existing authorized per-exercise draft/attempt/archive APIs provide immutable detail. active describes the historical assignment row and alone does not authorize execution. audience=student never changes Actor or grants writes. Read-only and no-store. */
+        get: operations["listPracticeHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1384,6 +1405,19 @@ export interface components {
             page: number;
             size: number;
             /** Format: int64 */
+            total: number;
+        };
+        PracticeHistoryEntry: {
+            exerciseId: string;
+            active: boolean;
+            hasDraft: boolean;
+            hasAttempts: boolean;
+            hasArchives: boolean;
+        };
+        PracticeHistoryPage: {
+            items: components["schemas"]["PracticeHistoryEntry"][];
+            page: number;
+            size: number;
             total: number;
         };
     };
@@ -3195,6 +3229,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Attempt"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listPracticeHistory: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Historical exercise discovery page. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeHistoryPage"];
                 };
             };
             400: components["responses"]["Problem"];

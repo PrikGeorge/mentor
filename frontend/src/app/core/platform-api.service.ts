@@ -9,9 +9,9 @@ type Method = 'get' | 'post' | 'patch' | 'put' | 'delete';
 type PathFor<M extends Method> = { [P in keyof paths]: paths[P][M] extends undefined ? never : P }[keyof paths];
 type Operation<P extends keyof paths, M extends Method> = NonNullable<paths[P][M]>;
 type Json<C> = C extends { content: { 'application/json': infer T } } ? T : void;
-type Success<O> = O extends { responses: infer R } ? R extends { 200: infer C } ? Json<C> : R extends { 201: infer C } ? Json<C> : void : never;
+type Success<O> = O extends { responses: infer R } ? R extends { 200: infer C } ? Json<C> : R extends { 201: infer C } ? Json<C> : R extends { 202: infer C } ? Json<C> : void : never;
 type Body<O> = O extends { requestBody: infer B } ? Json<B> : never;
-type Options = { context?: HttpContext; pathParams?: Record<string, string>; query?: Record<string, string | number> };
+type Options = { headers?: Record<string,string>; context?: HttpContext; pathParams?: Record<string, string>; query?: Record<string, string | number> };
 
 @Injectable({ providedIn: 'root' })
 export class PlatformApi {
@@ -37,6 +37,6 @@ export class PlatformApi {
       if (!value) throw new Error(`Missing path parameter: ${key}`);
       return encodeURIComponent(value);
     });
-    return this.http.request<T>(method, `/api/v1${resolved}`, { body, context: options.context, params: new HttpParams({ fromObject: options.query }) });
+    return this.http.request<T>(method, `/api/v1${resolved}`, { body, headers: options.headers, context: options.context, params: new HttpParams({ fromObject: options.query }) });
   }
 }

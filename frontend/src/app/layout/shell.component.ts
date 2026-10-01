@@ -1,21 +1,23 @@
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { SessionStore } from '../core/session.store';
 import { DatePipe } from '@angular/common';
 import { WorkspaceContext } from './workspace-context';
 import { StudentNavigationComponent } from '../student/student-navigation.component';
+import {PracticeExit} from '../core/practice-exit.service';
+import {PracticeExitDialog} from '../core/practice-exit-dialog.component';
 
-@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, RouterLinkActive, DatePipe, StudentNavigationComponent], template: `
-  <a class="skip" href="#main">К содержимому</a>
+@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, RouterLinkActive, DatePipe, StudentNavigationComponent,PracticeExitDialog], template: `
+  <mentor-practice-exit/><a class="skip" href="#main">К содержимому</a>
   @if (session.actor(); as actor) {
     <aside class="sidebar" [class.open]="menuOpen()" id="sidebar"><button class="sidebar-close" (click)="menuOpen.set(false)" aria-label="Закрыть меню">Закрыть ×</button><a class="brand" [class.learner-brand]="learnerContext()" routerLink="/" (click)="menuOpen.set(false)"><span class="monogram">{{selection.current()?.learner?selection.current()!.student.name.slice(0,1):'м.'}}</span><span>{{selection.current()?.learner?selection.current()!.student.name:'Наставник'}}<small>{{selection.current()?.learner?selection.current()!.student.direction:'Личный кабинет'}}</small></span></a>
       <nav aria-label="Главное меню">
-        @if (actor.role === 'ADMIN') { <a routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Преподаватели</a> }
-        @if (actor.role === 'TEACHER') { <a routerLink="/teacher/students" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Мои ученики</a> }
-        @if (actor.role === 'STUDENT') { <a routerLink="/learn" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Мои занятия</a> }
-        <a routerLink="/account/password" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Сменить пароль</a>
+        @if (actor.role === 'ADMIN') { <a routerLink="/admin/teachers" routerLinkActive="active" [ariaCurrentWhenActive]="current('/admin/teachers')?'page':undefined" (click)="menuOpen.set(false)">Преподаватели</a> }
+        @if (actor.role === 'TEACHER') { <a routerLink="/teacher/students" routerLinkActive="active" [ariaCurrentWhenActive]="current('/teacher/students')?'page':undefined" (click)="menuOpen.set(false)">Мои ученики</a> }
+        @if (actor.role === 'STUDENT') { <a routerLink="/learn" routerLinkActive="active" [ariaCurrentWhenActive]="current('/learn')?'page':undefined" (click)="menuOpen.set(false)">Мои занятия</a> }
+        <a routerLink="/account/password" routerLinkActive="active" [ariaCurrentWhenActive]="current('/account/password')?'page':undefined" (click)="menuOpen.set(false)">Сменить пароль</a>
       </nav><mentor-student-navigation [selection]="selection.current()" (click)="menuOpen.set(false)"/><div class="sidebar-foot">{{ roleLabels[actor.role] }}</div>
     </aside>
   }
@@ -34,9 +36,11 @@ import { StudentNavigationComponent } from '../student/student-navigation.compon
 })
 export class ShellComponent {
   readonly session = inject(SessionStore);
+  private readonly practiceExit=inject(PracticeExit);
   readonly selection = inject(WorkspaceContext);
   readonly learnerContext = computed(() => this.session.actor()?.role === 'STUDENT' || this.selection.current()?.learner === true);
   private readonly router = inject(Router);
+  private readonly navigation=toSignal(this.router.events.pipe(filter(event=>event instanceof NavigationEnd)));
   private readonly destroyRef = inject(DestroyRef);
   readonly menuOpen = signal(false);
   readonly signingOut = signal(false);
@@ -54,8 +58,11 @@ export class ShellComponent {
       this.preview.set(this.session.actor()?.role === 'TEACHER' && this.router.parseUrl(this.router.url).queryParams['preview'] === 'student');
     });
   }
-  signOut(): void {
+  current(path:string){this.navigation();return this.router.isActive(this.router.createUrlTree([path]),{paths:'exact',queryParams:'ignored',fragment:'ignored',matrixParams:'ignored'});}
+  async signOut(): Promise<void> {
     if (this.signingOut()) return;
+    const owner=this.session.generation();
+    if(!await this.practiceExit.ask()||owner!==this.session.generation())return;
     this.signingOut.set(true);
     this.session.signOut().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.signingOut.set(false); void this.router.navigate(['/login']); },
