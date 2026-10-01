@@ -12,6 +12,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class JobLeaseTest extends AttemptHttpTest {
+    @Test void ordinaryResultTextAndWholeUrlsRemainExactBesideFilesystemUris()throws Exception {
+        var f=fixture("lease-uri-preserve");publish(f,source());assign(f,0,"list-task");var attempt=data(enqueue(f,"uri-preserve",code("source")),202);var lease=claim();var result=(ObjectNode)result(lease,"accepted");
+        String ordinary="profile:active https://example.com/profile:settings https://example.com/file:notes http://example.com/file:/notes?q=profile:active https://example.com/input/src/Profile.java demo/Profile.java:5";
+        String input=ordinary+" file:/srv/secret jar:file:///srv/secret.jar!/pkg/Foo.class";String expected=ordinary+" [path] [path]";
+        result.put("diagnostics",input);var test=(ObjectNode)result.get("tests").get(0);for(String field:List.of("expected","actual","message","stdout"))test.put(field,input);assertEquals(204,complete(lease,result).statusCode());
+        for(var user:List.of(f.teacher(),f.learner()))for(String path:List.of(attempts(f)+"/"+attempt.get("id").asText(),attempts(f))){
+            var response=data(get(user.client(),path),200);var projected=(response.has("items")?response.get("items").get(0):response).get("result");assertEquals(expected,projected.get("diagnostics").asText());for(String field:List.of("expected","actual","message","stdout"))assertEquals(expected,projected.get("tests").get(0).get(field).asText());assertTrue(json.writeValueAsString(projected).length()<=32000);
+        }
+    }
     @Test void filesystemUrisAreRedactedAcrossEveryPublicTextField()throws Exception {
         var f=fixture("lease-file-uri");publish(f,source());assign(f,0,"list-task");var attempt=data(enqueue(f,"file-uri",code("source")),202);var lease=claim();var result=(ObjectNode)result(lease,"accepted");
         String unsafe="file:///srv/runner/secret file://host/share/secret file:/srv/runner/secret FILE:///C:/private/secret file:\\C:\\private\\secret jar:file:///srv/private/secret.jar!/pkg/Foo.class";

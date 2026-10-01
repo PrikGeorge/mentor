@@ -26,11 +26,16 @@ public class ResultProjection {
     private Object scalar(JsonNode n,int budget){if(n==null)return ABSENT;if(n.isNull())return null;if(n.isBoolean())return n.asBoolean();if(n.isNumber())return n.decimalValue();return text(n.isString()?n:PracticeJson.MAPPER.valueToTree(PracticeJson.MAPPER.writeValueAsString(n)),budget);}
     static String text(JsonNode n,int budget){if(n==null||n.isNull())return null;String text=n.asText();
         // Keep ordinary URLs and relative Java locations; remove host filesystem roots in diagnostics/output.
-        text=text.replace("/input/src/","");
-        // Filesystem URIs, including single-slash, drive, UNC and nested jar:file forms, are never public URLs.
-        text=text.replaceAll("(?i:file):[^\\s\"'<>]+","[path]");
-        var matcher=java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*://[^\\s\"'<>]+|(?<![A-Za-z0-9._/\\\\:-])(?:[A-Za-z]:[\\\\/]|\\\\\\\\|/)[^\\s\"'<>]+").matcher(text);var safe=new StringBuffer();
-        while(matcher.find())matcher.appendReplacement(safe,java.util.regex.Matcher.quoteReplacement(matcher.group().matches("[A-Za-z][A-Za-z0-9+.-]*://.*")?matcher.group():"[path]"));matcher.appendTail(safe);text=safe.toString();
+        // Scan whole tokens once: actual filesystem schemes precede URLs at the same position,
+        // while a complete ordinary URL wins over file: or /input/src/ text inside its path.
+        var matcher=java.util.regex.Pattern.compile(
+            "(?<![A-Za-z0-9+._/\\\\:-])(?i:(?:[A-Za-z][A-Za-z0-9+.-]*:)*file:)[\\\\/][^\\s\"'<>]+"
+            +"|(?<url>[A-Za-z][A-Za-z0-9+.-]*://[^\\s\"'<>]+)"
+            +"|(?<![A-Za-z0-9._/\\\\:-])(?:[A-Za-z]:[\\\\/]|\\\\\\\\|/)[^\\s\"'<>]+").matcher(text);var safe=new StringBuffer();
+        while(matcher.find()){
+            String location=matcher.group();String replacement=matcher.group("url")!=null?location:location.startsWith("/input/src/")?location.substring("/input/src/".length()):"[path]";
+            matcher.appendReplacement(safe,java.util.regex.Matcher.quoteReplacement(replacement));
+        }matcher.appendTail(safe);text=safe.toString();
         int end=Math.min(budget,text.length());if(end>0&&end<text.length()&&Character.isHighSurrogate(text.charAt(end-1)))end--;return text.substring(0,end);
     }
 }
