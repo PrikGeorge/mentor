@@ -7,6 +7,20 @@ import path from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 const frontend = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const root = path.dirname(frontend);
+const requested = process.argv.slice(2);
+// Each suite creates accounts rapidly. Separate real runtimes preserve production rate limits
+// and prevent one suite's identities, material seed or throttling state affecting another.
+if (!requested.some(argument => argument.includes('.spec.'))) {
+    let failed = false;
+    for (const suite of ['task11.spec.ts', 'task12.spec.ts', 'task13.spec.ts', 'tenant-isolation.spec.ts']) {
+        const laneProcess = spawn(process.execPath, [fileURLToPath(import.meta.url), suite, ...requested], {
+            cwd: frontend, windowsHide: true, stdio: 'inherit', env: process.env,
+        });
+        const code = await new Promise((resolve, reject) => { laneProcess.once('error', reject); laneProcess.once('exit', code => resolve(code ?? 1)); });
+        failed ||= code !== 0;
+    }
+    process.exit(failed ? 1 : 0);
+}
 const lane = path.join(root, '.runtime', 'browser-fixtures');
 await mkdir(lane, { recursive: true });
 const runtime = await mkdtemp(path.join(lane, 'synthetic-'));
@@ -16,8 +30,11 @@ const port = server.address().port;
 await new Promise(resolve => server.close(resolve));
 if (port === 4173) throw new Error('Reserved live port');
 const browserOrigin = `http://127.0.0.1:${port}`;
-const dependencies = (await readFile(path.join(root, '.runtime', 'browser-fixture-classpath.txt'), 'utf8')).trim();
-const classpath = [path.join(root, 'backend/target/test-classes'), path.join(root, 'backend/target/classes'), dependencies].join(path.delimiter);
+// A copied test class tree lets the integration lane remain immutable while a separate Maven lane runs.
+const classRoot = process.env.MENTOR_BROWSER_CLASS_ROOT ? path.resolve(process.env.MENTOR_BROWSER_CLASS_ROOT) : path.join(root, 'backend/target');
+const dependencyFile = process.env.MENTOR_BROWSER_CLASSPATH_FILE || path.join(root, '.runtime', 'browser-fixture-classpath.txt');
+const dependencies = (await readFile(dependencyFile, 'utf8')).trim();
+const classpath = [path.join(classRoot, 'test-classes'), path.join(classRoot, 'classes'), dependencies].join(path.delimiter);
 const log = await open(path.join(runtime, 'backend.log'), 'w');
 const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java') : 'java';
 const backend = spawn(java, ['-Xmx768m', '-cp', classpath, 'ru.mentor.platform.support.BrowserFixture', runtime, browserOrigin], { cwd: root, windowsHide: true, stdio: ['ignore', log.fd, log.fd] });
