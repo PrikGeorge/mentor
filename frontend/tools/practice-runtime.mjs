@@ -28,7 +28,7 @@ const server=createServer(async(req,res)=>{
    upstream.on('error',()=>{if(!res.headersSent)res.writeHead(502);res.end('Synthetic backend unavailable');});req.on('aborted',()=>upstream.destroy());res.on('close',()=>upstream.destroy());req.pipe(upstream);return;
   }
   if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}
-  let file=path.resolve(assets,'.'+pathname);if(!file.startsWith(assets+path.sep)){res.writeHead(404);res.end();return;}
+  let file=path.resolve(assets,'.'+pathname);if(file!==assets&&!file.startsWith(assets+path.sep)){res.writeHead(404);res.end();return;}
   try{if(!(await stat(file)).isFile())throw new Error('not file');}catch{
    if(pathname==='/'||/^\/(login|register|reset-password|account|teacher|learn|admin|not-found)(\/|$)/.test(pathname))file=path.join(assets,'index.html');else{res.writeHead(404);res.end();return;}
   }

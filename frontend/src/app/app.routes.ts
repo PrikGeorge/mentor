@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
-import {inject} from '@angular/core';
-import {PracticeExit} from './core/practice-exit.service';
+import { inject } from '@angular/core';
+import { PracticeExit } from './core/practice-exit.service';
 import { AuthPageComponent } from './auth/auth-page.component';
 import { TeachersPageComponent } from './admin/teachers-page.component';
 import { NavigationPageComponent } from './layout/navigation-page.component';
@@ -9,12 +9,12 @@ import { StudentsPageComponent } from './students/students-page.component';
 import { StudentPageComponent } from './students/student-page.component';
 import { DashboardComponent } from './student/dashboard.component';
 const lessonRoutes: Routes = [
-    ...[':studentId/lessons/:lessonId/:audience/practice/:detail',':studentId/lessons/:lessonId/:audience/practice'].map(path=>({path,loadComponent:()=>import('./practice/practice-page.component').then(module=>module.PracticePageComponent),canDeactivate:[()=>inject(PracticeExit).ask()]})),
-    { path: ':studentId/lessons/:lessonId/:audience/:section/:detail', loadComponent:()=>import('./lessons/lesson-page.component').then(module=>module.LessonPageComponent) },
-    { path: ':studentId/lessons/:lessonId/:audience/:section', loadComponent:()=>import('./lessons/lesson-page.component').then(module=>module.LessonPageComponent) },
-    { path: ':studentId/lessons/:lessonId', loadComponent:()=>import('./lessons/lesson-page.component').then(module=>module.LessonPageComponent) },
+    ...[':studentId/lessons/:lessonId/:audience/practice/:detail', ':studentId/lessons/:lessonId/:audience/practice'].map(path => ({ path, loadComponent: () => import('./practice/practice-page.component').then(module => module.PracticePageComponent), canDeactivate: [() => inject(PracticeExit).ask()] })),
+    { path: ':studentId/lessons/:lessonId/:audience/:section/:detail', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
+    { path: ':studentId/lessons/:lessonId/:audience/:section', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
+    { path: ':studentId/lessons/:lessonId', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
 ];
-const profileRoutes: Routes = [{ path: ':studentId/materials/:detail', component: StudentPageComponent, data: { section: 'materials' } }, ...['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal', 'materials'].map(section => ({ path: ':studentId/' + section, component: StudentPageComponent, data: { section } }))];
+const profileRoutes: Routes = [{ path: ':studentId/materials/:detail', component: StudentPageComponent, data: { section: 'materials' } }, ...['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal', 'core', 'course', 'materials'].map(section => ({ path: ':studentId/' + section, component: StudentPageComponent, data: { section } }))];
 export const routes: Routes = [
     { path: '', pathMatch: 'full', component: NavigationPageComponent, canActivate: [homeGuard] },
     { path: 'login', component: AuthPageComponent },

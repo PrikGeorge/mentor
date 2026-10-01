@@ -1,7 +1,7 @@
 import { Component, input, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
-import {toSignal} from '@angular/core/rxjs-interop';
-import {filter} from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 import type { WorkspaceSelection } from '../layout/workspace-context';
 @Component({ selector: 'mentor-student-navigation', imports: [RouterLink, RouterLinkActive], template: `
   @if (selection(); as context) {
@@ -10,6 +10,7 @@ import type { WorkspaceSelection } from '../layout/workspace-context';
     <nav [attr.aria-label]="context.learner?'Кабинет ученика':'Карточка ученика'">
       <a [routerLink]="context.base" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [ariaCurrentWhenActive]="current(context.base)?'page':undefined">{{context.learner?'Главная':'Занятия'}}</a>
       @if(context.learner) {<a [routerLink]="context.base+'/lessons'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/lessons')?'page':undefined">Занятия</a><a [routerLink]="context.base+'/goal'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/goal')?'page':undefined">Моя цель</a>}
+      @if(!context.learner){<a [routerLink]="context.base+'/profile'" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/profile')?'page':undefined">Навыки и наблюдения</a><a [routerLink]="context.base+'/projects'" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/projects')?'page':undefined">Учебные проекты</a>}
       <a [routerLink]="context.base+'/roadmap'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/roadmap')?'page':undefined">Маршрут обучения</a>
       @if(!context.lesson){<a [routerLink]="context.base+'/materials'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [ariaCurrentWhenActive]="current(context.base+'/materials')?'page':undefined">Материалы</a>}
     </nav>
@@ -18,9 +19,9 @@ import type { WorkspaceSelection } from '../layout/workspace-context';
     </nav>}
   }` })
 export class StudentNavigationComponent {
-    private readonly router=inject(Router);
-    private readonly navigation=toSignal(this.router.events.pipe(filter(event=>event instanceof NavigationEnd)));
-    current(path:string){this.navigation();return this.router.isActive(this.router.createUrlTree([path]),{paths:'exact',queryParams:'ignored',fragment:'ignored',matrixParams:'ignored'});}
+    private readonly router = inject(Router);
+    private readonly navigation = toSignal(this.router.events.pipe(filter(event => event instanceof NavigationEnd)));
+    current(path: string) { this.navigation(); return this.router.isActive(this.router.createUrlTree([path]), { paths: 'exact', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored' }); }
     readonly selection = input<WorkspaceSelection | null>(null);
     readonly studentSections = [['tasks', 'Задания'], ['practice', 'Тренажёр'], ['materials', 'Материалы'], ['homework', 'Домашняя работа'], ['review', 'Ревью']];
     readonly teacherSections = [['plan', 'План'], ['guide', 'Сценарий преподавателя'], ['practice', 'Тренажёр'], ['review', 'Ревью'], ['answers', 'Эталоны'], ['materials', 'Материалы']];
