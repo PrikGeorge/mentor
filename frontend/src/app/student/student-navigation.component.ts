@@ -9,6 +9,7 @@ import type { WorkspaceSelection } from '../layout/workspace-context';
       <a [routerLink]="context.base" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" ariaCurrentWhenActive="page">{{context.learner?'Главная':'Занятия'}}</a>
       @if(context.learner) {<a [routerLink]="context.base+'/lessons'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" ariaCurrentWhenActive="page">Занятия</a><a [routerLink]="context.base+'/goal'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" ariaCurrentWhenActive="page">Моя цель</a>}
       <a [routerLink]="context.base+'/roadmap'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" ariaCurrentWhenActive="page">Маршрут обучения</a>
+      @if(!context.lesson){<a [routerLink]="context.base+'/materials'" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" ariaCurrentWhenActive="page">Материалы</a>}
     </nav>
     @if(context.lesson;as lesson){<p class="nav-label">ЗАНЯТИЕ · {{lesson.date}}</p><nav aria-label="Разделы занятия">
       @for(section of context.learner?studentSections:teacherSections;track section[0]) {<a [routerLink]="context.base+'/lessons/'+lesson.id+'/'+(context.learner?'student':'teacher')+'/'+section[0]" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" ariaCurrentWhenActive="page">{{section[1]}}</a>}

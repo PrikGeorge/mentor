@@ -12,7 +12,7 @@ const lessonRoutes: Routes = [
     { path: ':studentId/lessons/:lessonId/:audience/:section', component: LessonPageComponent },
     { path: ':studentId/lessons/:lessonId', component: LessonPageComponent },
 ];
-const profileRoutes: Routes = ['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal'].map(section => ({ path: ':studentId/' + section, component: StudentPageComponent, data: { section } }));
+const profileRoutes: Routes = [{ path: ':studentId/materials/:detail', component: StudentPageComponent, data: { section: 'materials' } }, ...['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal', 'materials'].map(section => ({ path: ':studentId/' + section, component: StudentPageComponent, data: { section } }))];
 export const routes: Routes = [
     { path: '', pathMatch: 'full', component: NavigationPageComponent, canActivate: [homeGuard] },
     { path: 'login', component: AuthPageComponent },

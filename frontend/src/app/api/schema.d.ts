@@ -479,6 +479,246 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/exercises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** @description Page of current published public exercise projections, ordered by exercise ID ascending. An owning TEACHER sees the workspace catalog. An actual STUDENT sees only distinct exercises actively assigned to that student's own accessible lessons. ADMIN and foreign workspace access return 404. audience=student narrows readable fields without changing Actor; a teacher workspace catalog has no selected student and is not filtered as an arbitrary student's assignments. No private checker, tests, custom types, image, build, processor, or filesystem metadata is returned. */
+        get: operations["listExercises"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Ordinary exact lesson/card/workspace read authorization is required; no material bundle or prepared status is required. ADMIN and foreign content return 404. Return active assignments in saved order, each with the current public exercise and a draft summary without source files. audience=student only narrows the owning teacher's read projection; it never authorizes draft saves, resets, or student attempts. The revision is the assignment-set counter, independent of lesson metadata, exercise revisions, and drafts. */
+        get: operations["getLessonPractice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Owning TEACHER only. Atomically compare the assignment-set revision, validate all exercise IDs within this workspace, replace the ordered active set, and increment the counter once on every successful PUT, including an explicit empty list. Duplicate IDs, unknown fields, invalid placement, or more than 100 assignments return 400. Unknown or foreign catalog exercises return 404. Stale revision or X-Mentor-Account mismatch returns 409 before mutation. Deactivation preserves the stable assignment ID, drafts, archives, and accepted attempts; reactivation reuses that same ID. A placement change retains ID. */
+        put: operations["replacePracticeAssignments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        /** @description The actual owner STUDENT and owning TEACHER may read after ordinary lesson authorization; ADMIN and foreign content return 404. Return an existing saved draft unchanged, including its original exercise revision and source, even after deactivation or loss of the current catalog. Otherwise an active assignment with an available current definition projects its exact starter files, current typed exercise revision, revision 0, and updatedAt null without inserting a row. With neither saved content nor an active definition return 404. audience=student preserves Actor and grants no write or reset permission. */
+        get: operations["getPracticeDraft"];
+        /** @description Actual owning STUDENT only; owning teacher preview saves/resets return 403. Require an active assignment, current typed exercise revision, and matching draft counter (0 if no stored draft). The submitted filenames must equal the complete declared set. Compare assignment/current catalog inside the save transaction so concurrent publication cannot relabel old code. A saved draft from another typed exercise revision requires explicit resetForRevision equal to the current revision. A supplied resetForRevision must match the current typed revision even if the saved draft is not outdated. Atomically archive exact prior files, exercise revision, counter, and timestamp before saving submitted new files and incrementing the draft counter. Never substitute templates server-side. Same-revision saves do not create archives. Stale counters return 409 REVISION_CONFLICT; exercise/reset mismatch returns 409 EXERCISE_REVISION_CONFLICT. Account mismatch returns 409 before mutation. Invalid fields/source return 400 INVALID_INPUT. The JSON body limit is 1605632 bytes on this code-body route only; larger bodies return 413. Source limits remain 16 declared files, 131072 UTF-8 bytes per file, and 262144 UTF-8 bytes in total. */
+        put: operations["savePracticeDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/draft-archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Read saved history after current lesson/card membership and exact historical assignment ownership checks. Actual owner STUDENT and owning TEACHER may read; ADMIN and foreign content return 404. Removed assignments or unavailable current catalog entries do not block history. Optional exerciseId filters only within authorized historical rows. Order by original updatedAt descending, then archive ID descending, including imported archives whose archivedAt is null. Ordinary list items contain no source files. */
+        get: operations["listDraftArchives"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/draft-archives/{archiveId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                archiveId: components["parameters"]["PracticeArchiveId"];
+            };
+            cookie?: never;
+        };
+        /** @description Return exact archived source and original metadata to its actual owner STUDENT or owning TEACHER after current lesson/card and historical assignment ownership checks. ADMIN and foreign content return 404. No active assignment or current catalog is required. Do not reinterpret historical files against a newer declaration. Reads never enqueue or execute source. audience=student never changes Actor or grants writes. */
+        get: operations["getDraftArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Authorized lesson history, createdAt descending then id descending. Actual student sees only their own lesson. Teacher preview retains teacher Actor; all returned fields are student-visible. */
+        get: operations["listHomework"];
+        put?: never;
+        /** @description Actual owning STUDENT only. Each successful upload creates a new submission; teacher preview never submits. Exactly one nonempty ZIP, Java, TXT, Markdown or PDF file, at most 20 MiB. Multipart request at most 21 MiB. Reject duplicate or unknown parts. Recheck authority before transactional attach; no201 before commit. Never unpack or execute uploaded projects. */
+        post: operations["submitHomework"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        /** @description Authorize exact lesson and submission before opening bytes. No redirect or presigned object URL; no-store, nosniff, attachment and CSP default-src 'none'; sandbox. */
+        get: operations["downloadHomework"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Same rights as GET, attached measured metadata without opening BlobStore. No body on any response. */
+        head: operations["headHomeworkFile"];
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Owning teacher reviews this exact lesson submission; stale revision409 leaves prior feedback unchanged. Success increments revision and sets reviewedAt. Separate from the lesson's reviewNotes. */
+        patch: operations["reviewHomework"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        /** @description Read paged historical attempt summaries for this exact workspace/student/lesson/exercise tuple. Ordinary current lesson authorization permits the actual owner STUDENT and owning TEACHER; ADMIN and foreign content return 404. Active account/workspace/membership remain required. Stable historical assignment ownership is sufficient after assignment deactivation, explicit-empty assignment sets, or loss/change of the current catalog. Do not require an active assignment or prepared material bundle. A known historical assignment with no attempts returns an empty page; a nonexistent assignment returns 404. Sort createdAt descending, then id descending. No files, private checker properties, internal job/lease identifiers or environment image details are returned. Each summary includes its bounded public per-test result when terminal. audience=student only narrows projection and never changes Actor or write permission. */
+        get: operations["listPracticeAttempts"];
+        put?: never;
+        /** @description Actual owning STUDENT only; teacher preview never grants enqueue rights. Require browser Origin/client, CSRF and matching X-Mentor-Account before mutation. Account mismatch returns 409 ACCOUNT_CHANGED. Accept exactly exerciseRevision/mode/files with all declared filenames; invalid body/header/source returns 400 INVALID_INPUT. New attempts require active assignment, current typed exercise revision, compatible saved draft, and atomic queue capacity. Outdated exercise or draft returns 409 EXERCISE_REVISION_CONFLICT; reset the draft explicitly first. Unavailable/inactive assignment for a new key returns 404. Atomically persist one attempt and immutable code/exercise/tests/environment/resource snapshot. New environmentRevision is non-null. Idempotency scope is account plus stable assignment plus exact key. Same key and canonically identical typed revision/mode/exact source returns the existing attempt; changed payload returns 409 IDEMPOTENCY_CONFLICT. Identical accepted replay remains possible after assignment removal or catalog publication while the current student retains history access, and does not consume queue capacity. Every successful new enqueue or identical replay returns 202, including replay of a terminal attempt, with current jobState/result and canonical detail Location. Keep keys for retained attempt history. Queue overflow returns 429 QUEUE_FULL without persisting an attempt, job or key reservation; identical committed replay bypasses a newly full queue. Assignment removal/session invalidation after 202 does not cancel accepted work. Enqueue does not save, reset or archive the draft. The raw JSON body limit is 1605632 bytes, including chunked input and all accepted JSON media types; larger bodies return 413. Source limits remain 16 declared files, 131072 UTF-8 bytes each and 262144 in total. No user-supplied environment/checker/command fields are accepted. Poll with GET on Location; no separate poll endpoint exists. */
+        post: operations["enqueuePracticeAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts/{attemptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+                attemptId: components["parameters"]["PracticeAttemptId"];
+            };
+            cookie?: never;
+        };
+        /** @description Read or poll one attempt with its immutable exact submitted files. Authorize current actor, workspace/student/lesson and stored historical assignment on every request, matching every path component. Current active assignment/catalog is not required; account/workspace blocking closes access immediately. Owning teacher and actual owner student may read; ADMIN and foreign tuples return 404. audience=student preserves Actor. Return 200 with the current state on every authorized poll: queued/running has result null, completed/failed has a bounded public result. A first infrastructure failure retains public running while a private reserved slot awaits retry; do not expose private failure receipts or lease details. completed includes unsuccessful student verdicts; failed means exhausted infrastructure execution. Terminal state/result is immutable. Missing imported environment information remains null; new attempts always retain their pin. Reading old files does not authorize rerunning them or change drafts/archives. */
+        get: operations["getPracticeAttempt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -905,6 +1145,247 @@ export interface components {
             /** @description Teacher-only cards preserving legacy [codeKey,title,description] tuple */
             answersCards?: string[][];
         };
+        /** @description Typed scalar identity, never string-coerced or trimmed. JSON numeric 1 and 1.0 are the same n:1 identity; JSON string "1" is distinct s:1. Strings are nonempty, well-formed Unicode with at most 100 UTF-16 units, preserving all whitespace. Numbers are exact integers in 0..9007199254740991. Reject null, boolean, container, negative, fractional, unsafe numeric values, and malformed Unicode. Unsupported historical import values cause explicit inspection errors; never rewrite them. No discriminator object wraps the wire value: the string/integer branches discriminate by JSON scalar kind. */
+        ExerciseRevision: string | number;
+        /** @enum {string} */
+        Placement: "class" | "homework";
+        /** @description Exact named Java source strings, including package paths, whitespace, and line endings. Submitted keys equal the complete current declared set: 1..16 files, no aliases, traversal, backslashes, or undeclared resources. Valid source contains neither NUL nor malformed Unicode; bounds measure actual UTF-8 bytes (131072 each, 262144 total), not characters or JSON-escaped bytes. Standard maxLength does not express these limits. Saved historical reads retain their original declaration and source without validation against a newer catalog. Reading files does not authorize their execution. */
+        SourceFiles: {
+            [key: string]: string;
+        };
+        /** @description Explicit public description frozen with the exercise snapshot. No image digest/tag, internal build revision, SHA metadata, jar path, processor, build command, or manifest provenance is exposed. Trusted operator environment approval remains internal. */
+        PublicEnvironment: {
+            id: string;
+            title: string;
+            /** @constant */
+            javaVersion: 21;
+            /** @description Public pinned Maven groupId:artifactId:version descriptions only. */
+            dependencies: string[];
+        };
+        /** @description Current authorized public exercise snapshot. Tests, checker definitions, target classes, methods, parameter/custom types, environment execution details, and commands are absent. */
+        PublicExercise: {
+            id: string;
+            revision: components["schemas"]["ExerciseRevision"];
+            title: string;
+            statement: string;
+            environment: components["schemas"]["PublicEnvironment"];
+            starterFiles: components["schemas"]["SourceFiles"];
+        };
+        PublicExercisePage: {
+            items: components["schemas"]["PublicExercise"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        Draft: {
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /**
+             * Format: int64
+             * @description Independent draft counter; 0 for an unpersisted template projection.
+             */
+            revision: number;
+            files: components["schemas"]["SourceFiles"];
+            /**
+             * Format: date-time
+             * @description Original UTC save instant; null only for a missing draft projection.
+             */
+            updatedAt: string | null;
+        };
+        /** @description Contextual active-practice summary with no files. A missing draft projects the current exercise revision, counter 0, updatedAt null, and outdated false. Outdated is computed, not a persisted revision identity and not part of the bare Draft DTO. */
+        DraftSummary: {
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string | null;
+            /** @description Typed mismatch against this active exercise; false for a missing draft. */
+            outdated: boolean;
+        };
+        AssignedExercise: {
+            /** @description Stable through deactivation/reactivation and placement changes. */
+            assignmentId: string;
+            placement: components["schemas"]["Placement"];
+            exercise: components["schemas"]["PublicExercise"];
+            draft: components["schemas"]["DraftSummary"];
+        };
+        LessonPracticeView: {
+            /**
+             * Format: int64
+             * @description Assignment-set CAS counter, initially 0. Every successful assignments PUT increments it once, including empty lists. Catalog publication does not increment this counter.
+             */
+            revision: number;
+            /** @description Active assignments only, in the teacher's saved order. */
+            exercises: components["schemas"]["AssignedExercise"][];
+        };
+        AssignmentsPut: {
+            /** Format: int64 */
+            revision: number;
+            /** @description Empty is explicit and persisted. Exercise IDs must be unique within the list. */
+            assignments: {
+                exerciseId: string;
+                placement: components["schemas"]["Placement"];
+            }[];
+        };
+        DraftPut: {
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** Format: int64 */
+            revision: number;
+            files: components["schemas"]["SourceFiles"];
+            /** @description Optional explicit reset/port consent; omission means no consent and null is invalid. If supplied, must match the current typed exercise revision in every case. Required when saved code belongs to an older revision. The submitted files are saved exactly; server-side template substitution is forbidden. */
+            resetForRevision?: components["schemas"]["ExerciseRevision"];
+        };
+        /** @description Historical metadata only; files are returned only by the detail route. */
+        DraftArchiveSummary: {
+            id: string;
+            assignmentId: string;
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** Format: int64 */
+            revision: number;
+            /**
+             * Format: date-time
+             * @description Exact original UTC draft save instant, retained for stable history ordering.
+             */
+            updatedAt: string;
+            /**
+             * Format: date-time
+             * @description UTC archive event instant; null for imported history whose event time is unknown.
+             */
+            archivedAt: string | null;
+            /** @enum {string} */
+            reason: "exercise_revision_changed" | "imported";
+        };
+        /** @description Immutable archive detail. Preserve exact prior files, typed exercise revision, draft counter, and original save timestamp. A missing imported archive timestamp stays null. Current catalog and assignment activity do not determine historical read permission. */
+        DraftArchive: {
+            id: string;
+            assignmentId: string;
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            archivedAt: string | null;
+            /** @enum {string} */
+            reason: "exercise_revision_changed" | "imported";
+            files: components["schemas"]["SourceFiles"];
+        };
+        DraftArchivePage: {
+            items: components["schemas"]["DraftArchiveSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        Submission: {
+            id: string;
+            filename: string;
+            size: number;
+            /** Format: date-time */
+            createdAt: string;
+            comment: string;
+            repositoryUrl: string;
+            /** @enum {string} */
+            status: "submitted" | "reviewed" | "needs_revision";
+            feedback: string;
+            /**
+             * Format: date-time
+             * @description Omitted before the first review.
+             */
+            reviewedAt?: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        HomeworkReviewInput: {
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            status: "reviewed" | "needs_revision";
+            /** @description JavaScript-compatible trimmed text; bound checked before trim. */
+            feedback: string;
+        };
+        HomeworkPage: {
+            items: components["schemas"]["Submission"][];
+            page: number;
+            size: number;
+            total: number;
+        };
+        /**
+         * @description run selects the published sample tests; submit selects all published tests.
+         * @enum {string}
+         */
+        Mode: "run" | "submit";
+        /**
+         * @description queued/running have no public final result; a private pending infrastructure retry stays running. completed is terminal for every student verdict, including a failed check; failed is terminal infrastructure exhaustion. Neither state discloses internal job/lease identifiers.
+         * @enum {string}
+         */
+        JobState: "queued" | "running" | "completed" | "failed";
+        AttemptEnqueue: {
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            mode: components["schemas"]["Mode"];
+            files: components["schemas"]["SourceFiles"];
+        };
+        /** @description Legacy-compatible scalar presentation value. Structured expected/actual output is rendered as a bounded, sanitized JSON string, never an arbitrary nested public checker object. Finite JSON numbers, booleans and null retain their scalar type. All strings count toward the complete serialized CheckResult ceiling and undergo host-path sanitization. */
+        PublicResultValue: string | number | boolean | null;
+        /** @description Explicit safe per-test projection, in execution order. No args, mutation rules, customTypes, class/method metadata, nonce, host paths or private checker properties. Optional text/value content may be shortened or omitted to meet the whole-result limit without changing verdicts. */
+        PublicTestResult: {
+            name: string;
+            /** @enum {string} */
+            status: "accepted" | "wrong_answer" | "runtime_error" | "time_limit";
+            expected?: components["schemas"]["PublicResultValue"];
+            actual?: components["schemas"]["PublicResultValue"];
+            message?: string;
+            stdout?: string;
+        };
+        /** @description Bounded explicit public result, not a runner payload or persistence entity. The entire serialized result, including field names, delimiters and JSON escaping, must fit 32000 UTF-16 units. All returned text is host-path-sanitized and Unicode-safe; preserve ordinary URLs and relative Java filenames. passed must not exceed total. accepted requires total>0, passed=total and a verified trusted harness result; matching counters alone do not establish success. Partial test detail is valid for compile/runtime/time failure. Projection/truncation never changes counters or fabricates acceptance. Internal live result validation is separate from this public schema. */
+        CheckResult: {
+            /** @enum {string} */
+            status: "accepted" | "wrong_answer" | "compile_error" | "runtime_error" | "time_limit" | "error" | "unavailable";
+            passed: number;
+            total: number;
+            /** Format: int64 */
+            elapsedMs: number;
+            diagnostics?: string;
+            tests: components["schemas"]["PublicTestResult"][];
+        };
+        /** @description Historical public attempt without files. Pending result is null; terminal result is present. New environmentRevision is non-null. Source appears only in detail/enqueue replies. */
+        AttemptSummary: {
+            id: string;
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** @description Pinned build revision; null only for imported history lacking environment metadata. */
+            environmentRevision: string | null;
+            mode: components["schemas"]["Mode"];
+            jobState: components["schemas"]["JobState"];
+            result: components["schemas"]["CheckResult"] | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Exact immutable accepted source and current state; bare response, not an attempt wrapper. Pending result is null; terminal result is present. No account, worker, lease, test-definition or environment image/manifest fields are exposed. Historical files retain their original declaration/revision and are not validated against today's catalog just to read them. */
+        Attempt: {
+            id: string;
+            exerciseId: string;
+            exerciseRevision: components["schemas"]["ExerciseRevision"];
+            /** @description Pinned build revision; null only for imported history lacking environment metadata. */
+            environmentRevision: string | null;
+            mode: components["schemas"]["Mode"];
+            jobState: components["schemas"]["JobState"];
+            files: components["schemas"]["SourceFiles"];
+            result: components["schemas"]["CheckResult"] | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AttemptPage: {
+            items: components["schemas"]["AttemptSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
     };
     responses: {
         /** @description Structured application error */
@@ -937,6 +1418,56 @@ export interface components {
                 "application/json": components["schemas"]["MaterialPage"];
             };
         };
+        /** @description Page of authorized current public exercises. */
+        PracticeCatalogResponse: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PublicExercisePage"];
+            };
+        };
+        /** @description Active ordered assignments and draft summaries with assignment-set revision. */
+        PracticeViewResponse: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LessonPracticeView"];
+            };
+        };
+        /** @description Bare draft; a missing active draft projects the current template without persistence. */
+        PracticeDraftResponse: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Draft"];
+            };
+        };
+        /** @description Authorized saved draft history summaries; no files in list items. */
+        PracticeArchivePageResponse: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DraftArchivePage"];
+            };
+        };
+        /** @description Immutable draft archive detail with exact saved files. */
+        PracticeArchiveResponse: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DraftArchive"];
+            };
+        };
     };
     parameters: {
         CsrfToken: string;
@@ -958,6 +1489,12 @@ export interface components {
         MaterialAudience: "student";
         MaterialPageNumber: number;
         MaterialPageSize: number;
+        PracticeExerciseId: string;
+        PracticeArchiveId: string;
+        SubmissionId: string;
+        /** @description Case-sensitive untrimmed ASCII token, reused with the same exact payload after response loss. UUIDs are suitable. Missing, duplicate, empty or invalid values return 400 INVALID_INPUT. Scope is account plus stable assignment; retain for the lifetime of attempt history. */
+        AttemptIdempotencyKey: string;
+        PracticeAttemptId: string;
     };
     requestBodies: never;
     headers: {
@@ -1531,6 +2068,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            429: components["responses"]["RateLimited"];
         };
     };
     changeStudentAccess: {
@@ -1565,6 +2103,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            429: components["responses"]["RateLimited"];
         };
     };
     issueStudentInvitation: {
@@ -1601,6 +2140,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            429: components["responses"]["RateLimited"];
         };
     };
     revokeStudentInvitation: {
@@ -1632,6 +2172,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            429: components["responses"]["RateLimited"];
         };
     };
     issueStudentPasswordReset: {
@@ -1668,6 +2209,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            429: components["responses"]["RateLimited"];
         };
     };
     listLessons: {
@@ -2134,6 +2676,530 @@ export interface operations {
             200: components["responses"]["MaterialPageResponse"];
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listExercises: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PracticeCatalogResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getLessonPractice: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PracticeViewResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    replacePracticeAssignments: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignmentsPut"];
+            };
+        };
+        responses: {
+            200: components["responses"]["PracticeViewResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getPracticeDraft: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PracticeDraftResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    savePracticeDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftPut"];
+            };
+        };
+        responses: {
+            200: components["responses"]["PracticeDraftResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listDraftArchives: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+                /** @description Exact exercise ID filter within this lesson's authorized history. */
+                exerciseId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PracticeArchivePageResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getDraftArchive: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                archiveId: components["parameters"]["PracticeArchiveId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PracticeArchiveResponse"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listHomework: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Homework submission history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeworkPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    submitHomework: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Nonempty. Safe filename up to180 UTF-16 units; forbid paths, Windows device names and special/control characters, leading dot or trailing dot/space. ZIP requires a recognized four-byte header without unpacking.
+                     */
+                    file: string;
+                    /**
+                     * @description JavaScript-compatible trimmed text; bound checked before trim.
+                     * @default
+                     */
+                    comment?: string;
+                    /**
+                     * @description JavaScript-compatible trimmed empty string or HTTPS URL with hostname and without userinfo. Never fetched by server.
+                     * @default
+                     */
+                    repositoryUrl?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description New committed submission */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    downloadHomework: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Uploaded file */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    "Content-Disposition": components["headers"]["MaterialDisposition"];
+                    "Content-Length": components["headers"]["MaterialLength"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    headHomeworkFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized file metadata */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["MaterialNoStore"];
+                    "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                    "Content-Disposition": components["headers"]["MaterialDisposition"];
+                    "Content-Length": components["headers"]["MaterialLength"];
+                    "Content-Type"?: "application/octet-stream";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required; no body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource unavailable; no body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Service unavailable; no body */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reviewHomework: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomeworkReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Reviewed submission */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listPracticeAttempts: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Historical attempt page, without submitted source snapshots. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    enqueuePracticeAttempt: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+                /** @description Case-sensitive untrimmed ASCII token, reused with the same exact payload after response loss. UUIDs are suitable. Missing, duplicate, empty or invalid values return 400 INVALID_INPUT. Scope is account plus stable assignment; retain for the lifetime of attempt history. */
+                "Idempotency-Key": components["parameters"]["AttemptIdempotencyKey"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttemptEnqueue"];
+            };
+        };
+        responses: {
+            /** @description Durable accepted attempt or identical replay, with current state and exact source. */
+            202: {
+                headers: {
+                    /** @description Same-origin relative canonical /api/v1/.../attempts/{attemptId} detail URL. */
+                    Location?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attempt"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            /** @description QUEUE_FULL; no new attempt, job or key reservation was committed. */
+            429: {
+                headers: {
+                    /** @description Optional suggested retry delay in seconds; not a completion estimate. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiProblem"];
+                };
+            };
+            503: components["responses"]["Problem"];
+        };
+    };
+    getPracticeAttempt: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                exerciseId: components["parameters"]["PracticeExerciseId"];
+                attemptId: components["parameters"]["PracticeAttemptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact attempt detail and current poll state. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attempt"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };

@@ -32,9 +32,14 @@ public final class BrowserFixture {
         try (var postgres = new PostgreSQLContainer("postgres:17.6-alpine")
                 .withDatabaseName("mentor_browser_synthetic").withUsername("synthetic").withPassword(password)) {
             postgres.start();
-            var settings = Map.<String,Object>of("server.port", "0", "server.address", "127.0.0.1", "spring.datasource.url", postgres.getJdbcUrl(),
+            var settings = new HashMap<String,Object>(Map.<String,Object>of("server.port", "0", "server.address", "127.0.0.1", "spring.datasource.url", postgres.getJdbcUrl(),
                 "spring.datasource.username", postgres.getUsername(), "spring.datasource.password", password,
-                "spring.config.import", "", "mentor.security.public-origin", browser.toString(), "mentor.security.production", "false");
+                "spring.config.import", "", "mentor.security.public-origin", browser.toString(), "mentor.security.production", "false"));
+            settings.put("mentor.blobs.type", "local");
+            settings.put("mentor.blobs.local-root", runtime.resolve("objects").toString());
+            settings.put("mentor.blobs.spool-root", runtime.resolve("spool").toString());
+            settings.put("mentor.blobs.cleanup-enabled", "false");
+            settings.put("mentor.materials.maximum-bytes", "67108864");
             try (var context = new SpringApplicationBuilder(MentorApplication.class)
                     .initializers(app -> app.getEnvironment().getPropertySources().addFirst(new MapPropertySource("synthetic-browser", settings)))
                     .run()) {
@@ -44,11 +49,23 @@ public final class BrowserFixture {
                 String backend = "http://127.0.0.1:" + ((WebServerApplicationContext)context).getWebServer().getPort();
                 Files.writeString(runtime.resolve("ready.json"), json.writeValueAsString(Map.of(
                     "backendOrigin", backend, "browserOrigin", browser.toString(), "credentialsPath", credentials.toString())));
-                while (!Files.exists(runtime.resolve("stop"))) Thread.sleep(250);
+                while (!Files.exists(runtime.resolve("stop"))) {
+                    Path request = runtime.resolve("material-seed-request.json");
+                    if (Files.exists(request) && !Files.exists(runtime.resolve("material-seed-complete.json")))
+                        BrowserMaterialFixture.seed(context, request, runtime.resolve("material-seed-complete.json"));
+                    Thread.sleep(250);
+                }
             }
         } finally {
             Files.deleteIfExists(runtime.resolve("credentials.json"));
             Files.deleteIfExists(runtime.resolve("ready.json"));
+            for (String name : List.of("objects", "spool")) {
+                Path owned = runtime.resolve(name).toAbsolutePath().normalize();
+                if (!owned.startsWith(runtime) || !owned.getParent().equals(runtime)) throw new IllegalStateException("Fixture cleanup scope");
+                if (Files.exists(owned)) try (var files = Files.walk(owned)) {
+                    for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(file);
+                }
+            }
         }
     }
     private static void privateWrite(Path path, String value) throws Exception {

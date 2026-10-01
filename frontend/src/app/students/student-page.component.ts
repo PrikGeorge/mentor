@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { StudentsApi, StudentView } from './students-api.service';
@@ -8,7 +8,8 @@ import { LessonFormComponent } from '../lessons/lesson-form.component';
 import { AccountAccessComponent } from './account-access.component';
 import { DomainPage } from './domain-page';
 import { DashboardComponent } from '../student/dashboard.component';
-@Component({ selector: 'mentor-student-page', imports: [RouterLink, DatePipe, StudentFormComponent, LessonFormComponent, AccountAccessComponent, DashboardComponent], template: `
+import { MaterialViewComponent } from '../materials/material-view.component';
+@Component({ selector: 'mentor-student-page', imports: [RouterLink, DatePipe, StudentFormComponent, LessonFormComponent, AccountAccessComponent, DashboardComponent, MaterialViewComponent], template: `
   @if(preview()&&!section()){<mentor-dashboard/>}@else{
   @if(error()){<p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()">Повторить загрузку</button>}
   @if(student();as s){
@@ -16,7 +17,8 @@ import { DashboardComponent } from '../student/dashboard.component';
       @if(editable()&&!section()){<div class="actions"><a class="btn" [routerLink]="base()" [queryParams]="{preview:'student'}">Кабинет ученика ↗</a><button class="btn" (click)="editStudent.set(true);createLesson.set(false)">Изменить карточку</button><button class="btn primary" (click)="createLesson.set(true);editStudent.set(false)">+ Добавить занятие</button></div>}</div>
     @if(editable()&&editStudent()){<mentor-student-form [workspaceId]="workspaceId()!" [student]="s" (saved)="savedStudent($event)" (cancel)="editStudent.set(false)"/>}
     @if(editable()&&createLesson()){<mentor-lesson-form [workspaceId]="workspaceId()!" [studentId]="s.id" (saved)="createdLesson($event)" (cancel)="createLesson.set(false)"/>}
-    @if(section()==='goal'){<section class="panel panel-inner"><p class="eyebrow">МОЯ ЦЕЛЬ</p><h2>{{s.goal||'Цель обучения ещё предстоит определить'}}</h2><p>{{s.schedule||'Расписание пока не задано'}}</p></section>}
+    @if(section()==='materials'){<mentor-material-view [workspaceId]="workspaceId()!" [studentId]="s.id" [section]="section()" [detail]="detail()" [base]="base()" [preview]="preview()" [learner]="learner()"/>}
+    @else if(section()==='goal'){<section class="panel panel-inner"><p class="eyebrow">МОЯ ЦЕЛЬ</p><h2>{{s.goal||'Цель обучения ещё предстоит определить'}}</h2><p>{{s.schedule||'Расписание пока не задано'}}</p></section>}
     @else if(section()==='roadmap'){<section class="panel panel-inner"><h2>Маршрут обучения</h2><p class="plain-note">{{s.studentRoadmap||'Маршрут ещё не составлен. Здесь появится план с учётом цели и текущего уровня.'}}</p></section>}
     @else{
       @if(!section()){<section class="panel panel-inner student-overview"><h2>{{s.goal||'Цель пока не указана'}}</h2><p>{{s.schedule||'Расписание пока не задано'}}</p><span class="pill neutral">Занятий: {{total()}}</span></section>
@@ -29,8 +31,10 @@ import { DashboardComponent } from '../student/dashboard.component';
       </section>
       @if(section()==='review'&&s.studentReview){<section class="panel panel-inner"><h2>Предыдущий отзыв без привязки к занятию</h2><p class="plain-note">{{s.studentReview}}</p></section>}
     }
+    @if(['goal','roadmap','profile','review','projects','career','journal'].includes(section())){<mentor-material-view [workspaceId]="workspaceId()!" [studentId]="s.id" [section]="section()" [base]="base()" [preview]="preview()" [learner]="learner()"/>}
   }@else if(!error()){<p role="status">Загружаем карточку…</p>}}` })
 export class StudentPageComponent extends DomainPage {
+    readonly detail = computed(() => this.params().get('detail'));
     private readonly studentsApi = inject(StudentsApi);
     private readonly lessonsApi = inject(LessonsApi);
     private readonly router = inject(Router);
@@ -47,7 +51,7 @@ export class StudentPageComponent extends DomainPage {
         super();
         effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(), preview = this.preview(), section = this.section(); this.refresh(); this.student.set(null); this.error.set(''); this.editStudent.set(false); this.createLesson.set(false); this.context.clear(this); if (!w || !s || (preview && !section))
             return; const sub = this.studentsApi.load(w, s, preview).subscribe({ next: view => { this.student.set(view); this.context.set(this, { student: view, base: this.base(), preview, learner: this.learner(), page: section }); }, error: e => this.error.set(this.message(e)) }); onCleanup(() => sub.unsubscribe()); });
-        effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(), preview = this.preview(), page = this.page(), section = this.section(); this.refresh(); this.lessons.set([]); this.total.set(0); if (!w || !s || (preview && !section) || ['goal', 'roadmap'].includes(section))
+        effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(), preview = this.preview(), page = this.page(), section = this.section(); this.refresh(); this.lessons.set([]); this.total.set(0); if (!w || !s || (preview && !section) || ['goal', 'roadmap', 'materials'].includes(section))
             return; this.loading.set(true); const sub = this.lessonsApi.list(w, s, page, preview).subscribe({ next: view => { this.lessons.set(view.items); this.total.set(view.total); this.loading.set(false); }, error: e => { this.error.set(this.message(e)); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); });
     }
     title() { const section = this.section(); return section === 'goal' ? 'Моя цель' : section === 'roadmap' ? 'Маршрут обучения' : section === 'review' ? 'Предыдущие отзывы' : section === 'lessons' ? 'Мои занятия' : this.student()?.name; }
