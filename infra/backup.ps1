@@ -7,9 +7,10 @@ param(
     [string]$ProjectName = 'mentor-platform',
     [string]$OffsiteDirectory,
     [switch]$Scheduled,
-    [switch]$VerifyRestore
+    [switch]$VerifyRestore,
+    [IO.FileStream]$MaintenanceLease
 )
-. (Join-Path $PSScriptRoot 'platform-common.ps1')
+. (Join-Path $PSScriptRoot 'maintenance-lease.ps1')
 foreach ($path in @($Destination,$PassphraseFile)) {
     if (-not [IO.Path]::IsPathFullyQualified($path)) { throw 'Backup and passphrase paths must be absolute.' }
 }
@@ -17,19 +18,20 @@ if ($Scheduled -and -not $OffsiteDirectory) { throw 'Scheduled backups require a
 if ($OffsiteDirectory -and -not [IO.Path]::IsPathFullyQualified($OffsiteDirectory)) { throw 'OffsiteDirectory must be absolute.' }
 Test-MentorPassphraseFile $PassphraseFile
 $context = New-MentorPlatformContext $EnvironmentFile $ProjectName
+if($null -ne $MaintenanceLease){Assert-MentorMaintenanceLease $MaintenanceLease $EnvironmentFile $ProjectName}
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 $backupName = 'mentor-backup-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') + '-' + [Guid]::NewGuid().ToString('N')
 $backup = Join-Path $Destination $backupName
 $stage = Join-Path $backup 'private-stage'
 New-MentorPrivateDirectory $backup
 New-MentorPrivateDirectory $stage
-$lock = $null
+$maintenance = $null
 $resume = $false
 $postgres = $null
 $fence = $null
 $dumpName = 'mentor-backup-' + [Guid]::NewGuid().ToString('N') + '.dump'
 try {
-    $lock = [IO.File]::Open((Join-Path (Split-Path -Parent $EnvironmentFile) ($ProjectName + '.maintenance.lock')),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    $maintenance = Open-MentorMaintenanceLease $EnvironmentFile $ProjectName $MaintenanceLease
     $postgres = Get-MentorServiceId $context 'postgres'
     $backend = Get-MentorServiceId $context 'backend'
     $resume = ((Invoke-MentorDocker @('inspect','--format','{{.State.Running}}',$backend) | Out-String).Trim() -eq 'true')
@@ -97,7 +99,7 @@ try {
             finally { if ($resume) { Invoke-MentorCompose $context @('start','backend') | Out-Null } }
         }
     } finally {
-        if ($lock) { $lock.Dispose() }
+        Close-MentorMaintenanceLease $maintenance
         Remove-MentorOwnedDirectory $stage $backup
     }
 }
