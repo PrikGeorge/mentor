@@ -82,9 +82,11 @@ class WorkerRecoveryTest {
             long until=System.currentTimeMillis()+7000; String running="";
             while(System.currentTimeMillis()<until && process.isAlive()) { running=docker("ps","-q","--filter","label=ru.mentor.runner.worker=crash-test").trim(); if(!running.isEmpty()) break; Thread.sleep(100); }
             assertFalse(running.isEmpty(),"Worker must create a real container before crash: "+Files.readString(directory.resolve("worker.log")));
+            assertEquals("true",docker("inspect",running,"--format","{{.HostConfig.AutoRemove}}").trim());
             process.destroyForcibly(); process.waitFor(5,TimeUnit.SECONDS);
             until=System.currentTimeMillis()+15000;
-            while(System.currentTimeMillis()<until && !docker("ps","-q","--filter","label=ru.mentor.runner.worker=crash-test").trim().isEmpty()) Thread.sleep(200);
+            // Docker reports stopped before asynchronous --rm deletion has completed.
+            while(System.currentTimeMillis()<until && !docker("ps","-aq","--filter","label=ru.mentor.runner.worker=crash-test").trim().isEmpty()) Thread.sleep(200);
             assertEquals("",docker("ps","-aq","--filter","label=ru.mentor.runner.worker=crash-test").trim()); assertEquals(0,completed.get());
             String image=manifest.environments().get("java21").imageDigest();
             String stale=docker("run","-d","--rm","--network","none","--label","ru.mentor.runner=true","--label","ru.mentor.runner.worker=crash-test","--label","ru.mentor.runner.expires=1",image,Long.toString(System.currentTimeMillis()+90000)).trim();
