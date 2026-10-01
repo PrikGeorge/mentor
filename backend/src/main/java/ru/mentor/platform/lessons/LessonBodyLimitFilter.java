@@ -9,14 +9,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import ru.mentor.platform.shared.ApiFailure;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
-/** Bounded JSON text PUT only; after Spring Security and before MVC. Other uploads stay streaming. */
+/** Bound every text PUT regardless of media type; after security, before any MVC converter. Other uploads stay streaming. */
 @Component @ConditionalOnWebApplication @Order(0)
 public class LessonBodyLimitFilter extends OncePerRequestFilter {
     static final int MAXIMUM=4*1024*1024;
     @Override protected boolean shouldNotFilter(HttpServletRequest r){
-        String type=r.getContentType();return !r.getMethod().equals("PUT")||!r.getRequestURI().matches("/api/v1/workspaces/[^/]+/students/[^/]+/lessons/[^/]+/texts/[^/]+")||type==null||!type.toLowerCase(Locale.ROOT).matches("application/json(?:\\s*;.*)?");
+        return !r.getMethod().equals("PUT")||!r.getRequestURI().matches("/api/v1/workspaces/[^/]+/students/[^/]+/lessons/[^/]+/texts/[^/]+");
     }
     @Override protected void doFilterInternal(HttpServletRequest r,HttpServletResponse response,FilterChain chain)throws IOException,ServletException {
         if(r.getContentLengthLong()>MAXIMUM)throw oversized();byte[] body=r.getInputStream().readNBytes(MAXIMUM+1);if(body.length>MAXIMUM)throw oversized();

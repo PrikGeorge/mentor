@@ -1,6 +1,8 @@
 package ru.mentor.platform.lessons;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.*;
 import java.util.concurrent.*;
 import java.net.*;
@@ -38,9 +40,25 @@ class LessonRevisionTest extends LessonHttpTest {
         assertEquals(3,data(get(f.teacher().client(),path),200).get("revision").asInt());assertEquals("",data(get(f.teacher().client(),path),200).get("markdown").asText());
     }
     private HttpResponse<String> raw(Fixture f,String path,String body,boolean chunked)throws Exception {
+        return raw(f,path,body,chunked,"application/json");
+    }
+    private HttpResponse<String> raw(Fixture f,String path,String body,boolean chunked,String contentType)throws Exception {
         var s=session(f.teacher().client());byte[] bytes=body.getBytes(StandardCharsets.UTF_8);
         var publisher=chunked?HttpRequest.BodyPublishers.ofInputStream(()->new java.io.ByteArrayInputStream(bytes)):HttpRequest.BodyPublishers.ofByteArray(bytes);
-        return f.teacher().client().send(HttpRequest.newBuilder(URI.create(origin+"/api/v1"+path)).header("Origin",origin).header("X-Mentor-Client","web").header("X-Mentor-Account",f.teacher().id()).header("X-CSRF-TOKEN",s.get("csrfToken").asText()).header("Content-Type","application/json").PUT(publisher).build(),HttpResponse.BodyHandlers.ofString());
+        return f.teacher().client().send(HttpRequest.newBuilder(URI.create(origin+"/api/v1"+path)).header("Origin",origin).header("X-Mentor-Client","web").header("X-Mentor-Account",f.teacher().id()).header("X-CSRF-TOKEN",s.get("csrfToken").asText()).header("Content-Type",contentType).PUT(publisher).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void vendorJsonBodyLimitAppliesToDeclaredAndChunkedBodies(boolean chunked)throws Exception {
+        var f=fixture("lesson-vendor-"+chunked);String path=lessonPath(f,lesson(f,"Vendor JSON","2030-01-01","12:00",60))+"/texts/studentNotes";
+        String type="application/vnd.mentor+json; charset=UTF-8";
+        String small=json.writeValueAsString(Map.of("revision",1,"markdown",""));
+        String exact=small+" ".repeat(4*1024*1024-small.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(200,raw(f,path,exact,chunked,type).statusCode());
+        small=json.writeValueAsString(Map.of("revision",2,"markdown","must-not-save"));
+        String excessive=small+" ".repeat(4*1024*1024+1-small.getBytes(StandardCharsets.UTF_8).length);
+        var rejected=raw(f,path,excessive,chunked,type);assertEquals(413,rejected.statusCode(),rejected.body());
+        assertEquals(413,json.readTree(rejected.body()).get("status").asInt());
+        var persisted=data(get(f.teacher().client(),path),200);assertEquals(2,persisted.get("revision").asInt());assertEquals("",persisted.get("markdown").asText());
     }
     @Test void strictMetadataDefaultsYearZeroAndShortFormOnly()throws Exception {
         var f=fixture("lesson-calendar");data(write(f.teacher().client(),"PATCH",f.path(),Map.of("revision",1,"studentReview","archive-only")),200);
