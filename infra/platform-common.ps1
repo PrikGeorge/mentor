@@ -166,13 +166,18 @@ function Remove-MentorOwnedDirectory([string]$Path,[string]$Parent) {
     if (Test-Path -LiteralPath $absolute) { Remove-Item -LiteralPath $absolute -Recurse -Force }
 }
 
+function ConvertFrom-MentorReceiptDate($Value) {
+    if ($Value -is [DateTime] -or $Value -is [DateTimeOffset]) { return ([DateTimeOffset]$Value).ToUniversalTime() }
+    return [DateTimeOffset]::Parse($Value,[cultureinfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+}
+
 function Remove-MentorExpiredBackups([string]$Directory) {
     $cutoff = [DateTimeOffset]::UtcNow.AddDays(-14)
     foreach ($candidate in (Get-ChildItem -LiteralPath $Directory -Directory)) {
         if ($candidate.Name -notmatch '^mentor-backup-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{32}$' -or ($candidate.Attributes -band [IO.FileAttributes]::ReparsePoint)) { continue }
         try {
             $receipt = Get-Content -LiteralPath (Join-Path $candidate.FullName 'receipt.json') -Raw | ConvertFrom-Json
-            if ($receipt.completed -ne $true -or $receipt.encrypted -ne $true -or [DateTimeOffset]::Parse($receipt.createdAt) -ge $cutoff) { continue }
+            if ($receipt.completed -ne $true -or $receipt.encrypted -ne $true -or (ConvertFrom-MentorReceiptDate $receipt.createdAt) -ge $cutoff) { continue }
             $entries = @(Get-ChildItem -LiteralPath $candidate.FullName -Force)
             if (@($entries | Where-Object { $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Name -notin @('receipt.json','snapshot.tar.gpg','restore-report.json') }).Count -gt 0) { continue }
             if (-not (Test-Path -LiteralPath (Join-Path $candidate.FullName 'snapshot.tar.gpg') -PathType Leaf)) { continue }

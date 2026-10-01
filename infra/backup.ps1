@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory)][string]$PassphraseFile,
     [string]$ProjectName = 'mentor-platform',
     [string]$OffsiteDirectory,
-    [switch]$Scheduled
+    [switch]$Scheduled,
+    [switch]$VerifyRestore
 )
 . (Join-Path $PSScriptRoot 'platform-common.ps1')
 foreach ($path in @($Destination,$PassphraseFile)) {
@@ -67,10 +68,20 @@ try {
         if ((Get-FileHash -LiteralPath (Join-Path $remoteBackup 'snapshot.tar.gpg') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $cipherHash) { throw 'Offsite checksum mismatch.' }
         $offsiteVerified=$true
     }
-    $receipt = [ordered]@{ format=1; completed=$true; createdAt=$manifest.createdAt; sha256=$cipherHash; encrypted=$true; offsiteVerified=$offsiteVerified }
+    $receipt = [ordered]@{ format=1; completed=$true; createdAt=$manifest.createdAt; sha256=$cipherHash; encrypted=$true; offsiteVerified=$offsiteVerified; restoreVerified=$false }
     $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'receipt.json') -Encoding utf8NoBOM
     if ($offsiteVerified) { Copy-Item -LiteralPath (Join-Path $backup 'receipt.json') -Destination (Join-Path $remoteBackup 'receipt.json') }
-    if ($Scheduled -and $offsiteVerified) {
+    if ($Scheduled -or $VerifyRestore) {
+        $backendImage=(Invoke-MentorDocker @('inspect','--format','{{.Config.Image}}',$backend) | Out-String).Trim()
+        & (Join-Path $PSScriptRoot 'restore-test.ps1') -Backup $backup -PassphraseFile $PassphraseFile -BackendImage $backendImage
+        if ((Get-Content -LiteralPath (Join-Path $backup 'restore-report.json') -Raw | ConvertFrom-Json).completed -ne $true) { throw 'Scheduled restore verification did not complete.' }
+        $receipt.restoreVerified=$true
+        $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'receipt.json') -Encoding utf8NoBOM
+        if ($offsiteVerified) {
+            Copy-Item -LiteralPath (Join-Path $backup 'receipt.json'),(Join-Path $backup 'restore-report.json') -Destination $remoteBackup
+        }
+    }
+    if ($Scheduled -and $offsiteVerified -and $receipt.restoreVerified) {
         Remove-MentorExpiredBackups $Destination
         Remove-MentorExpiredBackups $OffsiteDirectory
     }

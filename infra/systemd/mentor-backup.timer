@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Mentor backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=mentor-backup.service
+
+[Install]
+WantedBy=timers.target

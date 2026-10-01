@@ -1,0 +1,15 @@
+[Unit]
+Description=Encrypted Mentor backup and isolated restore verification
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mentor-ops
+SupplementaryGroups=docker
+UMask=0077
+NoNewPrivileges=true
+EnvironmentFile=/etc/mentor/backup.env
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/mentor/infra/backup.ps1 -EnvironmentFile ${MENTOR_PLATFORM_ENV} -Destination ${MENTOR_BACKUP_DIR} -OffsiteDirectory ${MENTOR_BACKUP_OFFSITE} -PassphraseFile ${MENTOR_BACKUP_PASSPHRASE} -ProjectName ${MENTOR_PROJECT} -Scheduled
+TimeoutStartSec=2h
