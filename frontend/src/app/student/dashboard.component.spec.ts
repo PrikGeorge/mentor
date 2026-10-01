@@ -11,6 +11,11 @@ describe('Learner dashboard and navigation', () => {
             http.expectOne(base + '/dashboard').flush({ student: publicStudent, lessonCount: focus ? 1 : 0, focus });
             fixture.detectChanges();
             expect(element.querySelector('h1')?.textContent).toContain('Тестовая Анна');
+            expect(element.querySelector('.brand')?.textContent).toContain('Тестовая Анна');
+            expect(element.querySelector('.brand')?.textContent).toContain(publicStudent.direction);
+            expect(element.querySelectorAll('.selected-student')).toHaveLength(0);
+            expect(element.querySelector('footer')?.textContent).toContain('Кабинет ученика');
+            expect(element.querySelector('footer')?.textContent).not.toContain('Кабинет наставника');
             expect(element.textContent).toContain(focus === null ? 'Занятий пока нет' : focus.upcoming ? 'БЛИЖАЙШЕЕ ЗАНЯТИЕ' : 'ПОСЛЕДНЕЕ ЗАНЯТИЕ');
             expect(element.textContent).not.toContain('Заметки наставника');
             expect(element.querySelector('a[href*="/learn/students/s1/goal"]')).toBeTruthy();
@@ -34,6 +39,9 @@ describe('Learner dashboard and navigation', () => {
         http.expectOne(base + '/dashboard?audience=student').flush({ student: publicStudent, lessonCount: 1, focus: { lesson: publicLesson, upcoming: true } });
         fixture.detectChanges();
         expect(session.actor()?.role).toBe('TEACHER');
+        expect(element.querySelectorAll('.selected-student')).toHaveLength(0);
+        expect(element.querySelector('.brand')?.textContent).toContain(publicStudent.name);
+        expect(element.querySelector('footer')?.textContent).toContain('Кабинет ученика');
         expect(element.textContent).toContain('БЛИЖАЙШЕЕ ЗАНЯТИЕ');
         expect(element.textContent).not.toContain('Доступ к кабинету');
         expect(element.querySelector('a[href="/teacher/students/s1/lessons/l1/student/tasks?preview=student"]')).toBeTruthy();

@@ -9,6 +9,14 @@ import { routes } from '../app.routes';
 describe('Shell identity transitions', () => {
   beforeEach(() => TestBed.configureTestingModule({ imports: [ShellComponent], providers: [provideRouter(routes), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting()] }));
   afterEach(() => { TestBed.inject(HttpTestingController).verify(); TestBed.resetTestingModule(); });
+  for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
+    it(`uses ${role} footer copy before selected profile data loads`, () => {
+      const session = TestBed.inject(SessionStore), http = TestBed.inject(HttpTestingController);
+      session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'synthetic', workspaceId: role === 'ADMIN' ? null : 'w1', role, authVersion: 1 }, csrfToken: 'synthetic' });
+      const fixture = TestBed.createComponent(ShellComponent); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('footer').textContent).toContain(role === 'STUDENT' ? 'Кабинет ученика' : role === 'ADMIN' ? 'Администрирование' : 'Кабинет наставника');
+    });
+  }
   for (const path of ['/not-found', '/unknown/synthetic-page']) {
     it(`shows the public error heading and recovery link to an anonymous visitor at ${path}`, async () => {
       const session = TestBed.inject(SessionStore), http = TestBed.inject(HttpTestingController), router = TestBed.inject(Router);

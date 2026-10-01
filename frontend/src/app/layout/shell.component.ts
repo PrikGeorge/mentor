@@ -10,7 +10,7 @@ import { StudentNavigationComponent } from '../student/student-navigation.compon
 @Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, RouterLinkActive, DatePipe, StudentNavigationComponent], template: `
   <a class="skip" href="#main">К содержимому</a>
   @if (session.actor(); as actor) {
-    <aside class="sidebar" [class.open]="menuOpen()" id="sidebar"><button class="sidebar-close" (click)="menuOpen.set(false)" aria-label="Закрыть меню">Закрыть ×</button><a class="brand" routerLink="/" (click)="menuOpen.set(false)"><span class="monogram">{{selection.current()?.learner?selection.current()!.student.name.slice(0,1):'м.'}}</span><span>{{selection.current()?.learner?selection.current()!.student.name:'Наставник'}}<small>{{selection.current()?.learner?selection.current()!.student.direction:'Личный кабинет'}}</small></span></a>
+    <aside class="sidebar" [class.open]="menuOpen()" id="sidebar"><button class="sidebar-close" (click)="menuOpen.set(false)" aria-label="Закрыть меню">Закрыть ×</button><a class="brand" [class.learner-brand]="learnerContext()" routerLink="/" (click)="menuOpen.set(false)"><span class="monogram">{{selection.current()?.learner?selection.current()!.student.name.slice(0,1):'м.'}}</span><span>{{selection.current()?.learner?selection.current()!.student.name:'Наставник'}}<small>{{selection.current()?.learner?selection.current()!.student.direction:'Личный кабинет'}}</small></span></a>
       <nav aria-label="Главное меню">
         @if (actor.role === 'ADMIN') { <a routerLink="/admin/teachers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Преподаватели</a> }
         @if (actor.role === 'TEACHER') { <a routerLink="/teacher/students" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">Мои ученики</a> }
@@ -30,11 +30,12 @@ import { StudentNavigationComponent } from '../student/student-navigation.compon
     @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p><button class="btn" (click)="signOut()" [disabled]="signingOut()">Повторить выход</button> }
     <!-- Destroy the routed view at account changes before private state can persist. -->
     <div [hidden]="!publicRoute() && !session.actor()">@for (view of views(); track view.id) { <router-outlet /> }</div>
-  </main><footer class="site-footer">Кабинет наставника <span>Свои занятия и материалы.</span></footer></div>`,
+  </main><footer class="site-footer">{{ learnerContext() ? 'Кабинет ученика' : session.actor()?.role === 'ADMIN' ? 'Администрирование' : 'Кабинет наставника' }} <span>Свои занятия и материалы.</span></footer></div>`,
 })
 export class ShellComponent {
   readonly session = inject(SessionStore);
   readonly selection = inject(WorkspaceContext);
+  readonly learnerContext = computed(() => this.session.actor()?.role === 'STUDENT' || this.selection.current()?.learner === true);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly menuOpen = signal(false);

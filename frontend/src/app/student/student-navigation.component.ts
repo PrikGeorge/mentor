@@ -3,7 +3,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import type { WorkspaceSelection } from '../layout/workspace-context';
 @Component({ selector: 'mentor-student-navigation', imports: [RouterLink, RouterLinkActive], template: `
   @if (selection(); as context) {
-    <div class="selected-student"><strong>{{context.student.name}}</strong><small>{{context.student.direction}}</small></div>
+    @if (!context.learner) { <div class="selected-student"><strong>{{context.student.name}}</strong><small>{{context.student.direction}}</small></div> }
     <p class="nav-label">{{context.learner?'МОЁ ОБУЧЕНИЕ':'КАРТОЧКА УЧЕНИКА'}}</p>
     <nav [attr.aria-label]="context.learner?'Кабинет ученика':'Карточка ученика'">
       <a [routerLink]="context.base" [queryParams]="context.preview?{preview:'student'}:{}" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" ariaCurrentWhenActive="page">{{context.learner?'Главная':'Занятия'}}</a>

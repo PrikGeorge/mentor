@@ -104,6 +104,15 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
     });
     return errors;
 }
+async function learnerIdentity(page: Page) {
+    await expect(page.locator('.sidebar .brand')).toBeVisible();
+    await expect(page.locator('.sidebar .brand')).toContainText(anna.name);
+    await expect(page.locator('.sidebar .brand')).toContainText(anna.direction);
+    await expect(page.locator('.sidebar .selected-student')).toHaveCount(0);
+    await expect(page.locator('.sidebar .brand')).toHaveCount(1);
+    await expect(page.locator('.site-footer')).toContainText('Кабинет ученика');
+    await expect(page.locator('.site-footer')).not.toContainText('Кабинет наставника');
+}
 for (const width of [1280, 390]) {
     test(`teacher creation, text conflict and public preview at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
@@ -142,6 +151,7 @@ for (const width of [1280, 390]) {
         if (width === 390)
             await page.getByRole('button', { name: 'Меню', exact: true }).click();
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
+        await learnerIdentity(page);
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
         await page.screenshot({ path: test.info().outputPath(`preview-${width}.png`), fullPage: true });
         expect(errors).toEqual([]);
@@ -160,6 +170,7 @@ for (const width of [1280, 390]) {
         if (width === 390)
             await page.getByRole('button', { name: 'Меню', exact: true }).click();
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
+        await learnerIdentity(page);
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.screenshot({ path: test.info().outputPath(`learner-${width}.png`), fullPage: true });
