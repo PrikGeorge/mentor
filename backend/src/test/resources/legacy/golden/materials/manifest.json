@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "snapshot": "content.json",
+  "materials": [
+    {
+      "id": "doc-student",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "doc-student.json",
+      "kind": "doc",
+      "key": "student",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "doc-guide",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "teacher",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "doc-guide.json",
+      "kind": "doc",
+      "key": "guide",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "doc-profile",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "teacher",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "doc-profile.json",
+      "kind": "doc",
+      "key": "profile"
+    },
+    {
+      "id": "doc-student-roadmap",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "doc-student-roadmap.json",
+      "kind": "doc",
+      "key": "student-roadmap"
+    },
+    {
+      "id": "doc-student-review",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "doc-student-review.json",
+      "kind": "doc",
+      "key": "student-review",
+      "lessonId": "lesson-history",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "code-ListTask",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "code-ListTask.json",
+      "kind": "code",
+      "key": "ListTask",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "student-fixture-download",
+      "file": "downloads/ListTask.java",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "text/plain; charset=utf-8",
+      "filename": "ListTask.java",
+      "kind": "download",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "code-ListSolutions",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "teacher",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "code-ListSolutions.json",
+      "kind": "code",
+      "key": "ListSolutions",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "teacher-fixture-download",
+      "file": "downloads/ListSolutions.java",
+      "studentId": "michael",
+      "audience": "teacher",
+      "contentType": "text/plain; charset=utf-8",
+      "filename": "ListSolutions.java",
+      "kind": "download",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "student-fixture-zip",
+      "file": "downloads/student-fixture.zip",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/zip",
+      "filename": "synthetic-student.zip",
+      "kind": "download",
+      "lessonId": "lesson-2026-09-27",
+      "bundleId": "library-2026-09-27"
+    },
+    {
+      "id": "view-fixture",
+      "file": "content.json",
+      "studentId": "michael",
+      "audience": "student",
+      "contentType": "application/json; charset=utf-8",
+      "filename": "view-fixture.json",
+      "kind": "view",
+      "key": "michael"
+    }
+  ]
+}

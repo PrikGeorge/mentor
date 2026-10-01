@@ -17,6 +17,8 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.http.MediaType;
 import jakarta.annotation.PreDestroy;
+import ru.mentor.platform.migration.OfflineImportLease;
+import java.util.function.*;
 
 @Service
 public class BlobService implements AutoCloseable {
@@ -39,10 +41,20 @@ public class BlobService implements AutoCloseable {
         if(TransactionSynchronizationManager.isActualTransactionActive())throw new IllegalStateException("Stage bytes before starting the domain attachment transaction.");
         if(input==null||maximum<0||(expected!=null&&(expected<0||expected>maximum)))throw new IllegalArgumentException("Invalid upload size.");
         var r=reservationTransaction.execute(status->{lockOwner(actor,owner,lesson);Instant now=clock.instant();return repository.reserve(UUID.randomUUID().toString(),UUID.randomUUID().toString(),owner.workspaceId(),owner.id(),lesson,actor.userId(),UUID.randomUUID().toString(),now,now.plus(policy.lease()),now.plus(policy.lifetime()),now.plus(policy.lifetime()).plus(policy.writeWindow()).plus(policy.grace()));});
+        return streamReserved(r,input,maximum,expected,Supplier::get);
+    }
+    /** Called only by the non-web importer; an active/fabricated Actor is never used for historical ownership. */
+    public BlobStore.StagedBlob stageForImport(OfflineImportLease lease,String student,String lesson,String sourcePath,InputStream input,long maximum,long expected)throws IOException {
+        if(TransactionSynchronizationManager.isActualTransactionActive())throw new IllegalStateException("Stage bytes outside the domain transaction.");
+        if(input==null||expected<0||expected>maximum)throw new IllegalArgumentException("Invalid import size.");
+        var r=lease.write(()->{lease.requireBinding(student,lesson);Instant now=clock.instant();var reserved=repository.reserve(UUID.randomUUID().toString(),UUID.randomUUID().toString(),lease.workspaceId(),student,lesson,lease.teacherId(),UUID.randomUUID().toString(),now,now.plus(policy.lease()),now.plus(policy.lifetime()),now.plus(policy.lifetime()).plus(policy.writeWindow()).plus(policy.grace()));lease.reservation(reserved.id(),sourcePath);return reserved;});
+        return streamReserved(r,input,maximum,expected,operation->lease.write(operation));
+    }
+    private BlobStore.StagedBlob streamReserved(BlobRepository.Reservation r,InputStream input,long maximum,Long expected,Function<Supplier<Boolean>,Boolean> mutate)throws IOException {
         AtomicBoolean lost=new AtomicBoolean();AtomicReference<Future<?>> current=new AtomicReference<>();
         Runnable abort=()->{lost.set(true);var future=current.get();if(future!=null)future.cancel(true);try{input.close();}catch(IOException ignored){}};
         var renewal=renewals.scheduleAtFixedRate(()->{
-            try {Instant now=clock.instant();if(!repository.renew(r.id(),r.leaseToken(),now,now.plus(policy.lease())))abort.run();}
+            try {Instant now=clock.instant();if(!mutate.apply(()->repository.renew(r.id(),r.leaseToken(),now,now.plus(policy.lease()))))abort.run();}
             catch(RuntimeException unavailable){abort.run();}
         },policy.renewEvery().toMillis(),policy.renewEvery().toMillis(),TimeUnit.MILLISECONDS);
         InputStream guarded=new FilterInputStream(input){
@@ -55,7 +67,7 @@ public class BlobService implements AutoCloseable {
             var staged=future.get(policy.lifetime().toMillis(),TimeUnit.MILLISECONDS);
             if(lost.get()||(expected!=null&&expected!=staged.size()))throw new IOException("Upload size or lease invalid.");
             Instant now=clock.instant();
-            if(!repository.markStaged(r.id(),r.leaseToken(),staged.size(),staged.sha256(),now,now.plus(policy.lease())))throw new IOException("Upload lease ended.");
+            if(!mutate.apply(()->repository.markStaged(r.id(),r.leaseToken(),staged.size(),staged.sha256(),now,now.plus(policy.lease()))))throw new IOException("Upload lease ended.");
             return staged;
         } catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new IOException("Upload interrupted.");}
         catch(TimeoutException|CancellationException timeout){throw new IOException("Upload deadline exceeded.");}
@@ -68,13 +80,22 @@ public class BlobService implements AutoCloseable {
         String safeName=filename(filename),safeType=contentType(type);
         if(staged==null)throw new IllegalArgumentException("Completed upload required.");BlobIO.key(staged.key());
         return transaction.execute(status->{
-            lockOwner(actor,owner,lesson);var r=repository.lockForAttach(staged.key()).orElseThrow(WorkspaceAccess::missing);
-            if(!r.workspaceId().equals(owner.workspaceId())||!r.studentId().equals(owner.id())||!Objects.equals(r.lessonId(),lesson)||!r.uploaderId().equals(actor.userId()))throw WorkspaceAccess.missing();
-            if(!Objects.equals(r.size(),staged.size())||!Objects.equals(r.sha256(),staged.sha256()))throw conflict();
-            if(r.state()==BlobRepository.State.ATTACHED){var existing=repository.stored(owner.workspaceId(),r.attachedBlobId()).orElseThrow(WorkspaceAccess::missing);if(!existing.filename().equals(safeName)||!existing.contentType().equals(safeType))throw conflict();return ref(existing);}
-            if(r.state()!=BlobRepository.State.STAGED||!clock.instant().isBefore(r.leaseUntil()))throw conflict();
-            String id=UUID.randomUUID().toString();repository.insert(r,id,safeName,safeType,clock.instant());repository.markAttached(r.id(),id,clock.instant());return new BlobRef(id,r.size(),r.sha256());
+            lockOwner(actor,owner,lesson);return attachReserved(owner.workspaceId(),owner.id(),lesson,actor.userId(),staged,safeName,safeType,null,clock.instant(),null);
         });
+    }
+    public BlobRef attachForImport(OfflineImportLease lease,String student,String lesson,BlobStore.StagedBlob staged,String desiredId,Instant createdAt,String filename,String type){
+        if(staged==null||desiredId==null||createdAt==null||filename==null||!java.nio.charset.StandardCharsets.UTF_8.newEncoder().canEncode(filename))throw new IllegalArgumentException("Invalid import attachment.");BlobIO.key(staged.key());
+        String safeType=contentType(type);
+        return transaction.execute(status->{lease.requireBinding(student,lesson);return attachReserved(lease.workspaceId(),student,lesson,lease.teacherId(),staged,filename,safeType,desiredId,createdAt,lease);});
+    }
+    private BlobRef attachReserved(String workspace,String student,String lesson,String uploader,BlobStore.StagedBlob staged,String safeName,String safeType,String desiredId,Instant createdAt,OfflineImportLease lease){
+            var r=repository.lockForAttach(staged.key()).orElseThrow(WorkspaceAccess::missing);
+            if(!r.workspaceId().equals(workspace)||!r.studentId().equals(student)||!Objects.equals(r.lessonId(),lesson)||!r.uploaderId().equals(uploader))throw WorkspaceAccess.missing();
+            if(lease!=null)lease.requireReservation(r.id());
+            if(!Objects.equals(r.size(),staged.size())||!Objects.equals(r.sha256(),staged.sha256()))throw conflict();
+            if(r.state()==BlobRepository.State.ATTACHED){var existing=repository.stored(workspace,r.attachedBlobId()).orElseThrow(WorkspaceAccess::missing);if(!existing.filename().equals(safeName)||!existing.contentType().equals(safeType)||(desiredId!=null&&!desiredId.equals(existing.id())))throw conflict();return ref(existing);}
+            if(r.state()!=BlobRepository.State.STAGED||!clock.instant().isBefore(r.leaseUntil()))throw conflict();
+            String id=desiredId==null?UUID.randomUUID().toString():desiredId;repository.insert(r,id,safeName,safeType,createdAt);repository.markAttached(r.id(),id,clock.instant());return new BlobRef(id,r.size(),r.sha256());
     }
     private void lockOwner(Actor actor,StudentRef owner,String lesson){
         access.lockMember(actor,owner.workspaceId());students.lockCard(owner.workspaceId(),owner.id());students.requireReader(actor,owner.workspaceId(),owner.id());

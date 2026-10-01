@@ -303,7 +303,7 @@ class SessionIntegrationTest extends PostgresTest {
     @Test void databaseOutageReturnsStructuredUnavailableInsteadOfFrameworkError() throws Exception {
         HttpClient client = client(); login(client);
         int port = URI.create(origin).getPort();
-        context.getBean(com.zaxxer.hikari.HikariDataSource.class).close();
+        ((AutoCloseable)context.getBean(javax.sql.DataSource.class)).close();
         try {
             var response = get(client,"/auth/session");
             assertEquals(503,response.statusCode(),response.body());

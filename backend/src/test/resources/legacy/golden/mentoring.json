@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "students": [
+    {
+      "id": "michael",
+      "name": "  Synthetic learner  ",
+      "direction": "Java",
+      "goal": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "schedule": "  00:05 Europe/Moscow  ",
+      "notes": "SYNTHETIC_PRIVATE_PROFILE",
+      "studentRoadmap": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "studentReview": "  Profile archive, not a lesson review.\n",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    },
+    {
+      "id": "fixture-second",
+      "name": "Synthetic second",
+      "direction": "Java",
+      "goal": "",
+      "schedule": "",
+      "notes": "",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "lesson-2026-09-27",
+      "studentId": "michael",
+      "date": "2026-09-27",
+      "time": "12:00",
+      "duration": 60,
+      "title": "  Synthetic lesson  ",
+      "status": "prepared",
+      "bundleId": "library-2026-09-27",
+      "teacherNotes": "SYNTHETIC_TEACHER_ONLY\n  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "studentNotes": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "reviewNotes": "Lesson-specific review.\n",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    },
+    {
+      "id": "lesson-explicit-empty",
+      "studentId": "michael",
+      "date": "2026-09-28",
+      "time": "13:00",
+      "duration": 60,
+      "title": "  Synthetic lesson  ",
+      "status": "prepared",
+      "bundleId": "library-2026-09-27",
+      "teacherNotes": "SYNTHETIC_TEACHER_ONLY\n  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "studentNotes": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "reviewNotes": "Lesson-specific review.\n",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    },
+    {
+      "id": "lesson-history",
+      "studentId": "michael",
+      "date": "2026-09-29",
+      "time": "14:00",
+      "duration": 60,
+      "title": "  Synthetic lesson  ",
+      "status": "prepared",
+      "bundleId": "library-2026-09-27",
+      "teacherNotes": "SYNTHETIC_TEACHER_ONLY\n  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "studentNotes": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "reviewNotes": "Lesson-specific review.\n",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    },
+    {
+      "id": "lesson-midnight",
+      "studentId": "michael",
+      "date": "2026-09-30",
+      "time": "00:05",
+      "duration": 60,
+      "title": "  Synthetic lesson  ",
+      "status": "planned",
+      "bundleId": null,
+      "teacherNotes": "SYNTHETIC_TEACHER_ONLY\n  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "studentNotes": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+      "createdAt": "2026-09-20T21:05:00.000Z"
+    }
+  ]
+}

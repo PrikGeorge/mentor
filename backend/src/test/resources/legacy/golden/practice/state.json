@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "lessons": [
+    {
+      "studentId": "michael",
+      "lessonId": "lesson-explicit-empty",
+      "assignments": [],
+      "drafts": [],
+      "draftArchives": [],
+      "attempts": [],
+      "submissions": []
+    },
+    {
+      "studentId": "michael",
+      "lessonId": "lesson-history",
+      "assignments": [
+        {
+          "exerciseId": "list-task",
+          "placement": "class"
+        },
+        {
+          "exerciseId": "grouping-task",
+          "placement": "homework"
+        }
+      ],
+      "drafts": [
+        {
+          "exerciseId": "list-task",
+          "exerciseRevision": 1,
+          "revision": 7,
+          "files": {
+            "pkg/ListTask.java": "package pkg;\r\npublic class ListTask {\r\n    public static int select(int n) { return n; }\r\n}\r\n"
+          },
+          "updatedAt": "2026-09-20T21:05:00.000Z"
+        }
+      ],
+      "draftArchives": [
+        {
+          "exerciseId": "list-task",
+          "exerciseRevision": "1",
+          "revision": 3,
+          "files": {
+            "pkg/ListTask.java": "package pkg;\r\npublic class ListTask {\r\n    public static int select(int n) { return n; }\r\n}\r\n"
+          },
+          "updatedAt": "2026-09-20T21:05:00.000Z"
+        },
+        {
+          "exerciseId": "retired-task",
+          "exerciseRevision": "old",
+          "revision": 9,
+          "files": {
+            "Old-task.java": "// historical path\n"
+          },
+          "updatedAt": "2026-09-20T21:05:00.000Z"
+        }
+      ],
+      "attempts": [
+        {
+          "id": "attempt-known",
+          "exerciseId": "list-task",
+          "exerciseRevision": 1,
+          "files": {
+            "pkg/ListTask.java": "package pkg;\r\npublic class ListTask {\r\n    public static int select(int n) { return n; }\r\n}\r\n"
+          },
+          "mode": "submit",
+          "result": {
+            "status": "accepted",
+            "passed": 2,
+            "total": 2,
+            "elapsedMs": 5,
+            "tests": []
+          },
+          "createdAt": "2026-09-20T21:05:00.000Z"
+        },
+        {
+          "id": "attempt-old",
+          "exerciseId": "retired-task",
+          "exerciseRevision": "old",
+          "files": {
+            "Old-task.java": "// exact old source\n"
+          },
+          "mode": "run",
+          "result": {
+            "status": "runtime_error",
+            "passed": 0,
+            "total": 1,
+            "elapsedMs": 4,
+            "diagnostics": "Synthetic old diagnostic",
+            "tests": []
+          },
+          "createdAt": "2026-09-20T21:05:00.000Z"
+        }
+      ],
+      "submissions": [
+        {
+          "id": "submission-fixture",
+          "blobId": "10000000-0000-4000-8000-000000000001",
+          "filename": "  synthetic-notes.txt  ",
+          "size": 56,
+          "createdAt": "2026-09-20T21:05:00.000Z",
+          "status": "reviewed",
+          "feedback": "  Synthetic feedback\n",
+          "comment": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\n",
+          "repositoryUrl": "https://example.invalid/fixture",
+          "reviewedAt": "2026-09-21T21:05:00.000Z"
+        }
+      ]
+    }
+  ]
+}

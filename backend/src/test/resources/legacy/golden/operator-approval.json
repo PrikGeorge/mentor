@@ -1,0 +1,11 @@
+{
+  "environments": {
+    "fixture-java21": {
+      "id": "fixture-java21",
+      "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "dependencies": [],
+      "annotationProcessors": []
+    }
+  }
+}

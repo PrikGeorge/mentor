@@ -1,0 +1,70 @@
+[
+  {
+    "id": "list-task",
+    "revision": 1,
+    "title": "Synthetic ListTask",
+    "statement": "Synthetic statement. Preserve  two spaces.\n",
+    "environmentId": "fixture-java21",
+    "starterFiles": [
+      "pkg/ListTask.java"
+    ],
+    "className": "pkg.ListTask",
+    "method": "select",
+    "parameterTypes": [
+      "int"
+    ],
+    "customTypes": {},
+    "tests": [
+      {
+        "name": "sample",
+        "sample": true,
+        "args": [
+          2
+        ],
+        "expected": 2
+      },
+      {
+        "name": "private",
+        "sample": false,
+        "args": [
+          7
+        ],
+        "expected": 7
+      }
+    ]
+  },
+  {
+    "id": "grouping-task",
+    "revision": "1",
+    "title": "Synthetic GroupingTask",
+    "statement": "Synthetic statement. Preserve  two spaces.\n",
+    "environmentId": "fixture-java21",
+    "starterFiles": [
+      "pkg/GroupingTask.java"
+    ],
+    "className": "pkg.GroupingTask",
+    "method": "count",
+    "parameterTypes": [
+      "int"
+    ],
+    "customTypes": {},
+    "tests": [
+      {
+        "name": "sample",
+        "sample": true,
+        "args": [
+          2
+        ],
+        "expected": 2
+      },
+      {
+        "name": "private",
+        "sample": false,
+        "args": [
+          7
+        ],
+        "expected": 7
+      }
+    ]
+  }
+]

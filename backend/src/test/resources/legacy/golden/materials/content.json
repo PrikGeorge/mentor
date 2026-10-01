@@ -1,0 +1,147 @@
+{
+  "docs": {
+    "student": {
+      "studentId": "michael",
+      "title": "Synthetic student",
+      "intro": "<p>Synthetic intro</p>",
+      "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details><!-- task-code:ListTask:practice --><a href=\"/api/materials/student-fixture-download\">Download</a>",
+      "raw": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\nstudent\n",
+      "sections": [
+        {
+          "title": "Synthetic section",
+          "id": "section-0",
+          "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details><!-- task-code:ListTask:practice --><a href=\"/api/materials/student-fixture-download\">Download</a>"
+        }
+      ]
+    },
+    "guide": {
+      "studentId": "michael",
+      "title": "Synthetic guide",
+      "intro": "<p>Synthetic intro</p>",
+      "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details><!-- task-code:ListTask:practice --><a href=\"/api/materials/student-fixture-download\">Download</a>",
+      "raw": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\nguide\n",
+      "sections": [
+        {
+          "title": "Synthetic section",
+          "id": "section-0",
+          "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details><!-- task-code:ListTask:practice --><a href=\"/api/materials/student-fixture-download\">Download</a>",
+          "studentParts": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    "profile": {
+      "studentId": "michael",
+      "title": "Synthetic profile",
+      "intro": "<p>Synthetic intro</p>",
+      "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>",
+      "raw": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\nprofile\n",
+      "sections": [
+        {
+          "title": "Synthetic section",
+          "id": "section-0",
+          "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>"
+        }
+      ]
+    },
+    "student-roadmap": {
+      "studentId": "michael",
+      "title": "Synthetic student-roadmap",
+      "intro": "<p>Synthetic intro</p>",
+      "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>",
+      "raw": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\nstudent-roadmap\n",
+      "sections": [
+        {
+          "title": "Synthetic section",
+          "id": "section-0",
+          "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>"
+        }
+      ]
+    },
+    "student-review": {
+      "studentId": "michael",
+      "title": "Synthetic student-review",
+      "intro": "<p>Synthetic intro</p>",
+      "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>",
+      "raw": "  # Synthetic heading\r\n\r\n    indented 😀\r\nlast line  \r\nstudent-review\n",
+      "sections": [
+        {
+          "title": "Synthetic section",
+          "id": "section-0",
+          "html": "<blockquote class=\"say\"><strong class=\"saylabel\">Реплика:</strong> Synthetic</blockquote><details class=\"explanation-details\"><summary>Пояснение</summary><div class=\"explanation\"><span class=\"expected\">Expected</span></div></details>"
+        }
+      ]
+    }
+  },
+  "code": {
+    "ListTask": {
+      "text": "package pkg;\r\npublic class ListTask {\r\n    public static int select(int n) { return n; }\r\n}\r\n",
+      "teacher": false,
+      "materialId": "student-fixture-download",
+      "excerpt": {
+        "start": 1,
+        "end": 4
+      }
+    },
+    "ListSolutions": {
+      "text": "class ListSolutions { /* SYNTHETIC_TEACHER_ONLY */ }\n",
+      "teacher": true,
+      "materialId": "teacher-fixture-download"
+    }
+  },
+  "viewData": {
+    "students": {
+      "michael": {
+        "goalHtml": "<p>Goal <a href=\"#student-roadmap\">Roadmap</a></p>",
+        "review": {
+          "metadataParagraphs": 1,
+          "priorities": [
+            {
+              "sectionId": "section-0",
+              "label": "Synthetic priority"
+            }
+          ]
+        }
+      }
+    },
+    "teacher": {
+      "profileFacts": "<p>Facts <a href=\"#profile\">Profile</a></p>",
+      "lessonHtml": "<p>Plan <a href=\"#guide\">Guide</a></p>",
+      "reviewHtml": "<p>Review <a href=\"#student-review\">Review source</a></p>",
+      "answersCards": [
+        [
+          "ListSolutions",
+          "Synthetic answer",
+          "Teacher only"
+        ]
+      ],
+      "descriptors": {
+        "profile": [
+          "Profile",
+          "Synthetic"
+        ],
+        "student": [
+          "Tasks",
+          "Synthetic"
+        ]
+      },
+      "resources": [
+        [
+          "profile",
+          "Profile",
+          "Synthetic card",
+          "Teacher only"
+        ],
+        [
+          "student",
+          "Tasks",
+          "Synthetic task",
+          "Public"
+        ]
+      ]
+    }
+  },
+  "sha": "synthetic-source-revision"
+}

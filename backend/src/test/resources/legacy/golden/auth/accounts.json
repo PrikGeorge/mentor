@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "accounts": [
+    {
+      "id": "account-fixture-teacher",
+      "login": "fixture.teacher",
+      "role": "teacher",
+      "studentId": null,
+      "disabled": false,
+      "authVersion": 7,
+      "createdAt": "2026-09-20T21:05:00.000Z",
+      "passwordHash": {
+        "algorithm": "scrypt",
+        "N": 131072,
+        "r": 8,
+        "p": 1,
+        "saltBase64": "AAECAwQFBgcICQoLDA0ODw==",
+        "hashBase64": "6OyRqBtheFh+VpVgr58+OgmGj3pvYWid2qrm3k8zBWyD6tuH4yXbmwsPZ+yJsYrpKkhJCIqvQX69+Ow0P1BIHA=="
+      }
+    },
+    {
+      "id": "account-fixture-student",
+      "login": "fixture.student",
+      "role": "student",
+      "studentId": "michael",
+      "disabled": false,
+      "authVersion": 3,
+      "createdAt": "2026-09-20T21:05:00.000Z",
+      "passwordHash": {
+        "algorithm": "scrypt",
+        "N": 131072,
+        "r": 8,
+        "p": 1,
+        "saltBase64": "AAECAwQFBgcICQoLDA0ODw==",
+        "hashBase64": "6OyRqBtheFh+VpVgr58+OgmGj3pvYWid2qrm3k8zBWyD6tuH4yXbmwsPZ+yJsYrpKkhJCIqvQX69+Ow0P1BIHA=="
+      }
+    }
+  ],
+  "invitations": [
+    {
+      "id": "invitation-fixture",
+      "purpose": "register",
+      "studentId": "fixture-second",
+      "tokenHash": "e3571b85481645cc048e855f150b51e1dc6cc586ea4534bd58128bc98ece85e5",
+      "createdAt": "2026-09-20T21:05:00.000Z",
+      "expiresAt": "2026-09-23T21:05:00.000Z",
+      "usedAt": null,
+      "revokedAt": null
+    }
+  ],
+  "resets": [
+    {
+      "id": "reset-fixture",
+      "purpose": "reset-password",
+      "accountId": "account-fixture-student",
+      "tokenHash": "f45f7a6255b428e29b63081d1b2c1c52d9a80f10fb32e8a9e62edca0a26fe35b",
+      "createdAt": "2026-09-20T21:05:00.000Z",
+      "expiresAt": "2026-09-20T21:35:00.000Z",
+      "usedAt": null,
+      "revokedAt": null
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "fixture-java21",
+    "title": "Synthetic Java 21",
+    "javaVersion": 21,
+    "dockerImage": "fixture/java21:metadata-only",
+    "dependencies": [],
+    "annotationProcessors": []
+  }
+]
