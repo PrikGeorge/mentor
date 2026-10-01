@@ -112,6 +112,21 @@ java -jar runner.jar --prepare training/environments.json
 
 Секрет и manifest монтируются только в сервис исполнителя. Изолированные задания получают только исходники и доверенный harness, без сети, Docker socket и секретов. Выполнение ограничено по памяти, CPU, процессам, выводу и времени. При ротации credential замените файл атомарно в обоих каталогах; монтируется каталог, чтобы замена была видна без перезапуска.
 
+### Исполнитель на локальном компьютере
+
+Для локальной разработки можно использовать `infra/compose.runner.local.yaml` поверх основного runner-файла. Он подключает исполнителя к существующей приватной сети `<platform-project>_jobs`. Для публичного размещения остаётся отдельный хост исполнителя.
+
+В отдельном закрытом `local-runner.env` задайте параметры исполнителя из списка выше и `MENTOR_PLATFORM_JOBS_NETWORK=<platform-project>_jobs`. Здесь `MENTOR_JOB_SERVICE=https://job-gateway:8443/internal/v1`. Сертификат gateway должен содержать SAN `job-gateway`; `truststore.p12` содержит только его доверенный публичный сертификат. Локальный overlay использует пароль этого хранилища `changeit`: это не пароль пользователя и не защита приватного ключа.
+
+```text
+docker compose --env-file <platform.env> -f infra/compose.platform.yaml --project-name <platform-project> --profile runner up -d --no-build job-gateway
+docker compose --env-file <local-runner.env> -f infra/compose.runner.yaml -f infra/compose.runner.local.yaml --project-name <runner-project> up -d --no-build
+```
+
+Приватный ключ остаётся только у gateway. Каталоги конфигурации и credential исполнителя должны читаться UID10001; scratch должен принадлежать ему и быть доступен для записи. На Linux используйте 0700 для этих каталогов и 0600 для файлов; на Windows сохраняйте приватный ACL и проверяйте чтение из контейнера. Не изменяйте права всей папки проекта. Sandbox-контейнеры не получают эти mounts.
+
+Исполнитель и gateway имеют `restart: unless-stopped`: Docker поднимает их после перезапуска, если они не были остановлены вручную. Ярлык кабинета запускает PostgreSQL/backend/web. После ручного `down` исполнителя снова выполните вторую команду. Недоступность исполнителя отражается в статусе очереди и не запрещает пользоваться кабинетом.
+
 ## HTTPS и доступ
 
 Для внешнего сервера используйте `initialize-platform.ps1 -Production -PublicOrigin https://ваш-домен` с фактическим доменом. Проверьте DNS, доступность 80/443 и выпуск сертификата Caddy. Origin не содержит путь или завершающий `/`. Это административная инструкция; скрипты не покупают хостинг и не публикуют данные самостоятельно.

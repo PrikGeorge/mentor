@@ -1,0 +1,12 @@
+# Optional local workstation overlay. Public deployment keeps the runner on its dedicated host.
+# Use with compose.runner.yaml and an explicitly selected existing private jobs network.
+services:
+  runner:
+    environment:
+      # This password protects only a public-certificate truststore, never a private key.
+      JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=${MENTOR_RUNNER_SCRATCH:?Set the identical absolute scratch path} -Djavax.net.ssl.trustStore=/run/mentor-config/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit
+    networks: [platform_jobs]
+networks:
+  platform_jobs:
+    external: true
+    name: ${MENTOR_PLATFORM_JOBS_NETWORK:?Set the existing private platform jobs network}
