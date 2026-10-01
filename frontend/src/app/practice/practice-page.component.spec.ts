@@ -11,6 +11,72 @@ import type { PublicExercise } from './practice-api.service';
 const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' }, exercise: PublicExercise = { id: 'e1', revision: 1, title: 'Synthetic exercise', statement: 'Public statement', environment: { id: 'java', title: 'Java21', javaVersion: 21, dependencies: [] }, starterFiles: { 'Task.java': 'template' } }, draft = { exerciseId: 'e1', exerciseRevision: 1, revision: 0, files: exercise.starterFiles, updatedAt: null };
 const root = '/api/v1/workspaces/w1/students/s1/lessons/l1/practice', attempt = { id: 'accepted-id', exerciseId: 'e1', exerciseRevision: 1, mode: 'run', environmentRevision: 'synthetic', jobState: 'queued', files: exercise.starterFiles, result: null, createdAt: '2030-01-01T00:00:00Z' };
 describe('Account/lesson-bound practice workbench', () => {
+    it('warns before losing unsaved code while session revalidation is unavailable', () => {
+        const {component, http, fixture} = page();
+        const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+        try {
+            component.draft.edit('Task.java', 'only copy of unsaved code');
+            component.revalidate();
+            http.expectOne('/api/v1/auth/session').flush({}, {status: 503, statusText: 'Unavailable'});
+            expect(component.draft.files()['Task.java']).toBe('only copy of unsaved code');
+            const event = new Event('beforeunload', {cancelable: true});
+            window.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(true);
+        } finally {storage.mockRestore(); fixture.destroy();}
+    });
+    it('keeps unload protection while session validation is pending without revealing or writing source', () => {
+        const {component, http, fixture} = page();
+        try {
+            component.draft.edit('Task.java', 'retained pending source');
+            component.revalidate();
+            const pending = http.expectOne('/api/v1/auth/session');
+            fixture.detectChanges();
+            expect(fixture.nativeElement.querySelector('.practice-page').hidden).toBe(true);
+            component.run('submit');
+            component.draft.edit('Task.java', 'stale mutation');
+            http.expectNone(request => request.method === 'POST' || request.method === 'PUT');
+            expect(component.draft.files()['Task.java']).toBe('retained pending source');
+            expect(unloadWarning()).toBe(true);
+            pending.flush({}, {status:503,statusText:'Unavailable'});
+        } finally {fixture.destroy();}
+    });
+    it('retains an unchanged owner warning until source is confirmed saved', async () => {
+        const {component, http, fixture} = page();
+        try {
+            expect(unloadWarning()).toBe(false);
+            component.draft.edit('Task.java', 'retained same owner source');
+            component.revalidate();
+            http.expectOne('/api/v1/auth/session').flush({account:{userId:'u1',workspaceId:'w1',role:'STUDENT',authVersion:1},csrfToken:'synthetic'});
+            expect(unloadWarning()).toBe(true);
+            const save=component.draft.save();
+            http.expectOne(root+'/exercises/e1/draft').flush({...draft,revision:1,files:{'Task.java':'retained same owner source'}});
+            expect(await save).toBe(true);
+            expect(unloadWarning()).toBe(false);
+        } finally {fixture.destroy();}
+    });
+    it('does not keep an old-owner unload warning after the session generation changes', () => {
+        const {component, http, fixture} = page();
+        try {
+            component.draft.edit('Task.java', 'old owner source');
+            component.revalidate();
+            http.expectOne('/api/v1/auth/session').flush({account:{userId:'teacher',workspaceId:'w1',role:'TEACHER',authVersion:1},csrfToken:'other'});
+            expect(unloadWarning()).toBe(false);
+            component.run('submit');
+            component.draft.edit('Task.java','late old owner source');
+            http.expectNone(request=>request.method==='POST'||request.method==='PUT');
+        } finally {fixture.destroy();}
+    });
+    it('removes the retained-source unload handler and cancels validation on destroy', () => {
+        const {component, http, fixture} = page();
+        component.draft.edit('Task.java','destroyed source');
+        component.revalidate();
+        const pending=http.expectOne('/api/v1/auth/session');
+        fixture.destroy();
+        expect(pending.cancelled).toBe(true);
+        expect(unloadWarning()).toBe(false);
+        expect(component.draft.files()).toEqual({});
+    });
+    function unloadWarning(){const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}
     beforeEach(() => { localStorage.clear(); TestBed.configureTestingModule({ imports: [PracticeWorkbench], providers: [provideRouter([]), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting(), { provide: MonacoLoader, useValue: { load: () => Promise.reject(new Error('fixture fallback')) } }] }); });
     afterEach(() => { TestBed.inject(HttpTestingController).verify(); localStorage.clear(); TestBed.resetTestingModule(); });
     function page(role: 'STUDENT' | 'TEACHER' = 'STUDENT', preview = false, before = () => { }, historyRows: import('./practice-api.service').HistoryEntry[] = []) { const http = TestBed.inject(HttpTestingController), session = TestBed.inject(SessionStore); session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'u1', workspaceId: 'w1', role, authVersion: 1 }, csrfToken: 'synthetic' }); before(); const fixture = TestBed.createComponent(PracticeWorkbench); fixture.componentRef.setInput('lesson', lesson); fixture.componentRef.setInput('preview', preview); fixture.detectChanges(); const suffix = preview ? '?audience=student' : ''; http.expectOne(root + suffix).flush({ revision: 0, exercises: [{ assignmentId: 'as1', placement: 'class', exercise, draft: { ...draft, outdated: false } }] }); http.expectOne(root + '/history?page=0&size=100' + (preview ? '&audience=student' : '')).flush({ items: historyRows, page: 0, size: 100, total: historyRows.length }); for (const request of http.match(r => r.url.endsWith('/materials')))

@@ -99,7 +99,7 @@ export class PracticeWorkbench {
     private readonly selectionChanged = new Subject<void>();
     constructor() {
         const unregister = this.exit.register({ valid: () => this.sourceOwner(),blocked:()=>this.alive&&this.owner===this.session.generation()&&this.checking(), dirty: () => this.draft.dirty(), pause: value => this.draft.pause(value), save: () => this.draft.save(), export: () => this.exportFiles(), discard: () => this.draft.discard() });
-        const beforeUnload = (event: BeforeUnloadEvent) => { if (this.sourceOwner() && this.draft.dirty()) {
+        const beforeUnload = (event: BeforeUnloadEvent) => { if (this.retainedDirtySource()) {
             event.preventDefault();
             event.returnValue = '';
         } };
@@ -195,6 +195,12 @@ export class PracticeWorkbench {
     }
     owned() { return this.alive && this.owner === this.session.generation() && this.bound === lessonKey(this.lesson())&&!untracked(this.checking); }
     private validSelection(id = this.selection, key = this.bound) { return this.owned() && id === this.selectedId() && key === this.bound; }
+    private retainedDirtySource() {
+        return this.alive && this.owner === this.session.generation()
+            && this.bound === lessonKey(this.lesson()) && this.selection === this.selectedId()
+            && this.session.actor()?.role === 'STUDENT' && this.session.actor()?.workspaceId === this.lesson().workspaceId
+            && !this.preview() && this.draft.exercise()?.id === this.selectedId() && this.draft.dirty();
+    }
     sourceOwner() { return this.validSelection() && this.session.actor()?.role === 'STUDENT' && !this.preview() && this.draft.exercise()?.id === this.selectedId(); }
     writable() { return this.validSelection() && this.session.actor()?.role === 'STUDENT' && !this.preview() && !!this.current(); }
     runnable() { return this.writable() && this.draft.editable() && this.draft.compatible() && !this.draft.conflict() && !this.draft.paused() && !this.resetting(); }
