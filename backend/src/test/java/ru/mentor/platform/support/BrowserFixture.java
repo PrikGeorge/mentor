@@ -40,6 +40,8 @@ public final class BrowserFixture {
             settings.put("mentor.blobs.spool-root", runtime.resolve("spool").toString());
             settings.put("mentor.blobs.cleanup-enabled", "false");
             settings.put("mentor.materials.maximum-bytes", "67108864");
+            Path multipart = Files.createDirectories(runtime.resolve("multipart"));
+            settings.put("spring.servlet.multipart.location", multipart.toString());
             try (var context = new SpringApplicationBuilder(MentorApplication.class)
                     .initializers(app -> app.getEnvironment().getPropertySources().addFirst(new MapPropertySource("synthetic-browser", settings)))
                     .run()) {
@@ -59,7 +61,7 @@ public final class BrowserFixture {
         } finally {
             Files.deleteIfExists(runtime.resolve("credentials.json"));
             Files.deleteIfExists(runtime.resolve("ready.json"));
-            for (String name : List.of("objects", "spool")) {
+            for (String name : List.of("objects", "spool", "multipart")) {
                 Path owned = runtime.resolve(name).toAbsolutePath().normalize();
                 if (!owned.startsWith(runtime) || !owned.getParent().equals(runtime)) throw new IllegalStateException("Fixture cleanup scope");
                 if (Files.exists(owned)) try (var files = Files.walk(owned)) {

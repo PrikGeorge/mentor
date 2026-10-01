@@ -99,6 +99,8 @@ describe('Lesson creation and preparation', () => {
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons/l1').flush(lesson);
         fixture.detectChanges();
+        http.expectOne(base + '/lessons/l1/homework?page=0&size=25').flush({items:[],page:0,size:25,total:0});
+        fixture.detectChanges();
         click(element, 'Изменить отзыв');
         fixture.detectChanges();
         http.expectOne(base + '/lessons/l1/texts/reviewNotes').flush({ kind: 'reviewNotes', markdown: 'old', revision: 3 });

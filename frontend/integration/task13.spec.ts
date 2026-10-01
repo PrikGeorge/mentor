@@ -1,0 +1,75 @@
+import { test, expect, APIRequestContext, Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import type { components } from '../src/app/api/schema';
+test.describe.configure({mode:'serial'});
+type Session=components['schemas']['Session'];
+type Actor=components['schemas']['Actor'];
+type Student=components['schemas']['TeacherStudentView'];
+type Lesson=components['schemas']['TeacherLessonView'];
+type Submission=components['schemas']['Submission'];
+type Issue=components['schemas']['InvitationIssue'];
+type User={login:string;client:APIRequestContext;actor:Actor};
+const ready=JSON.parse(readFileSync(process.env['MENTOR_BROWSER_FIXTURE']!,'utf8'));
+const credentials=JSON.parse(readFileSync(ready.credentialsPath,'utf8'));
+const runtime=path.dirname(process.env['MENTOR_BROWSER_FIXTURE']!);
+const clients:APIRequestContext[]=[];
+let teacher:User,learner:User,student:Student;
+const card=()=>`/workspaces/${teacher.actor.workspaceId}/students/${student.id}`;
+const lessonPath=(lesson:Lesson)=>card()+`/lessons/${lesson.id}`;
+async function get<T>(client:APIRequestContext,route:string):Promise<T>{const response=await client.get('/api/v1'+route);expect(response.status(),`GET ${route}`).toBe(200);return response.json();}
+async function write<T>(client:APIRequestContext,method:string,route:string,body:unknown,status:number):Promise<T>{const session=await get<Session>(client,'/auth/session');const headers:Record<string,string>={Origin:ready.browserOrigin,'X-Mentor-Client':'web','X-CSRF-TOKEN':session.csrfToken};if(session.account&&!['/auth/login','/auth/register'].includes(route))headers['X-Mentor-Account']=session.account.userId;const response=await client.fetch('/api/v1'+route,{method,headers,...(body===undefined?{}:{data:body})});expect(response.status(),`${method} ${route}`).toBe(status);return status===204?undefined as T:response.json();}
+test.beforeAll(async({playwright})=>{
+ async function client(){const client=await playwright.request.newContext({baseURL:ready.browserOrigin});clients.push(client);return client;}
+ const admin=await client();await write(admin,'POST','/auth/login',credentials,200);
+ async function register(issue:Issue,login:string){const clientContext=await client();const token=new URL(issue.link,ready.browserOrigin).searchParams.get('token');const session=await write<Session>(clientContext,'POST','/auth/register',{token,login,password:credentials.password},200);return{login,client:clientContext,actor:session.account!};}
+ teacher=await register(await write<Issue>(admin,'POST','/admin/teacher-invitations',{},200),'homework-teacher');
+ student=await write<Student>(teacher.client,'POST',`/workspaces/${teacher.actor.workspaceId}/students`,{name:'Синтетическая ученица ДЗ',direction:'Java'},201);
+ learner=await register(await write<Issue>(teacher.client,'POST',card()+'/invitations',{},200),'homework-student');
+});
+test.afterAll(async()=>{for(const client of clients)await client.dispose();});
+async function login(page:Page,user:User){await page.goto('/login');await page.locator('[name=login]').fill(user.login);await page.locator('[name=password]').fill(credentials.password);await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(user.actor.role==='STUDENT'?'/learn':'/teacher/students');}
+async function logout(page:Page){await page.getByRole('button',{name:'Выйти',exact:true}).click();await expect(page).toHaveURL('/login');}
+async function createLesson(title:string){return write<Lesson>(teacher.client,'POST',card()+'/lessons',{title,date:'2030-01-01',time:'12:00',duration:60},201);}
+const studentRoute=(lesson:Lesson,section='homework')=>`/learn/students/${student.id}/lessons/${lesson.id}/student/${section}`;
+const teacherRoute=(lesson:Lesson,section='review')=>`/teacher/students/${student.id}/lessons/${lesson.id}/teacher/${section}`;
+async function upload(page:Page,lesson:Lesson,name:string,body:Buffer,comment:string){await page.locator('[name=homeworkFile]').setInputFiles({name,mimeType:'application/octet-stream',buffer:body});await page.locator('[name=comment]').fill(comment);const response=page.waitForResponse(response=>response.request().method()==='POST'&&response.url().endsWith(lessonPath(lesson)+'/homework'));await page.getByRole('button',{name:'Отправить на ревью',exact:true}).focus();await page.keyboard.press('Enter');const created=await response;expect(created.status()).toBe(201);expect(created.request().headers()['content-type']).toMatch(/^multipart\/form-data; boundary=/);expect(created.request().headers()['x-mentor-account']).toBe(learner.actor.userId);await expect(page.getByText('Работа отправлена на ревью.',{exact:true})).toBeVisible();const history=await get<components['schemas']['SubmissionPage']>(learner.client,lessonPath(lesson)+'/homework');const item=history.items.find(item=>item.filename===name);expect(item).toBeDefined();expect(item!.size).toBe(body.length);return item!;}
+for(const width of [1280,390])test(`real upload, needs revision, resubmit and review with unknown outcome at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:900});const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ const lesson=await createLesson(`Домашняя работа ${width}`);const other=await createLesson(`Другое занятие ${width}`);
+ await write(teacher.client,'PUT',lessonPath(lesson)+'/texts/reviewNotes',{markdown:'Общий итог занятия отдельно от файлов.',revision:1},200);
+ await login(page,learner);await page.goto(studentRoute(lesson));await expect(page.locator('[name=homeworkFile]')).toBeVisible();
+ if(width===1280){let posts=0;const count=(request:import('@playwright/test').Request)=>{if(request.method()==='POST'&&request.url().endsWith(lessonPath(lesson)+'/homework'))posts++;};page.on('request',count);await page.locator('[name=homeworkFile]').setInputFiles({name:'oversized.java',mimeType:'text/plain',buffer:Buffer.alloc(20971521,65)});await page.getByRole('button',{name:'Отправить на ревью',exact:true}).click();await expect(page.getByText('Файл должен быть непустым и не больше 20 МиБ.',{exact:true})).toBeVisible();expect(posts).toBe(0);page.off('request',count);}
+ const initial=width===1280?Buffer.alloc(20971520,65):Buffer.from('class Homework {}');const first=await upload(page,lesson,`first-${width}.java`,initial,'Первая версия');await expect(page.locator('.homework-submission')).toHaveCount(1);
+ // Actual authenticated file transport; only the transient browser object URL is used to save it.
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'↓ Скачать файл',exact:true}).click();const file=await download;expect(file.suggestedFilename()).toBe(first.filename);const downloaded=await file.createReadStream();const chunks:Buffer[]=[];for await(const chunk of downloaded!)chunks.push(Buffer.from(chunk));expect(Buffer.concat(chunks).equals(initial)).toBe(true);
+ await logout(page);await login(page,teacher);await page.goto(teacherRoute(lesson));
+ await expect(page.getByText('Общий итог занятия отдельно от файлов.',{exact:true})).toBeVisible();const review=page.locator('mentor-lesson-review').first();await review.locator('summary').click();await review.locator('textarea').fill('Добавьте проверку null.');await review.locator('select').selectOption('needs_revision');
+ const reviewed=page.waitForResponse(response=>response.request().method()==='PATCH'&&response.url().endsWith(first.id+'/review'));await review.getByRole('button',{name:'Сохранить ревью',exact:true}).focus();await page.keyboard.press('Enter');expect((await reviewed).status()).toBe(200);await expect(page.locator('.homework-submission .pill').filter({hasText:'Нужна доработка'})).toBeVisible();if(!await review.locator('textarea').isVisible())await review.locator('summary').click();
+ // Real stale-CAS response keeps the teacher's unsaved feedback.
+ await review.locator('textarea').fill('Сохранить введённый отзыв');await write(teacher.client,'PATCH',lessonPath(lesson)+`/homework/${first.id}/review`,{revision:2,status:'needs_revision',feedback:'Параллельный отзыв'},200);
+ const conflict=page.waitForResponse(response=>response.request().method()==='PATCH'&&response.url().endsWith(first.id+'/review'));await review.getByRole('button',{name:'Сохранить ревью',exact:true}).click();expect((await conflict).status()).toBe(409);await expect(review.locator('textarea')).toHaveValue('Сохранить введённый отзыв');
+ await page.goto(teacherRoute(lesson));await expect(page.locator('.homework-submission')).toHaveCount(1);
+ await logout(page);await login(page,learner);await page.goto(studentRoute(lesson));await expect(page.getByText('Параллельный отзыв',{exact:true})).toBeVisible();
+ // Browser offline transport generates a real network error, not an API fixture or a fabricated response.
+ await page.locator('[name=homeworkFile]').setInputFiles({name:`retry-${width}.java`,mimeType:'text/plain',buffer:Buffer.from('class Revised {}')});await page.locator('[name=comment]').fill('Исправленная версия');await page.context().setOffline(true);await page.getByRole('button',{name:'Отправить на ревью',exact:true}).click();await expect(page.getByText('Результат отправки неизвестен.',{exact:false})).toBeVisible();await expect(page.getByText('Работа отправлена на ревью.',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Отправить на ревью',exact:true})).toBeDisabled();
+ await page.context().setOffline(false);await page.getByRole('button',{name:'Обновить историю',exact:true}).click();await expect(page.getByRole('button',{name:'Отправить на ревью',exact:true})).toBeEnabled();await expect(page.locator('[name=comment]')).toHaveValue('Исправленная версия');await expect(page.locator('.homework-submission')).toHaveCount(1);
+ const second=await upload(page,lesson,`revised-${width}.java`,Buffer.from('class Revised {}'),'Исправленная версия');await expect(page.locator('.homework-submission')).toHaveCount(2);expect(second.id).not.toBe(first.id);
+ await page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();window.scrollTo(0,0);});await page.screenshot({path:path.join(runtime,`real-homework-upload-${width}.png`)});
+ await logout(page);await login(page,teacher);await page.goto(teacherRoute(lesson));const revised=page.locator('mentor-lesson-review').first();await revised.locator('summary').click();await revised.locator('textarea').fill('Исправления приняты.');await revised.locator('select').selectOption('reviewed');const done=page.waitForResponse(response=>response.request().method()==='PATCH'&&response.url().endsWith(second.id+'/review'));await revised.getByRole('button',{name:'Сохранить ревью',exact:true}).click();expect((await done).status()).toBe(200);await expect(page.locator('.homework-submission .pill').filter({hasText:'Проверено'})).toBeVisible();await page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();window.scrollTo(0,0);});await page.screenshot({path:path.join(runtime,`real-homework-review-${width}.png`)});
+ // Preview retains TEACHER session and read access only.
+ await page.goto(`/teacher/students/${student.id}/lessons/${lesson.id}/student/homework?preview=student`);await expect(page.getByText('Предпросмотр ученика · Только для чтения.',{exact:false})).toBeVisible();await expect(page.locator('[name=homeworkFile]')).toHaveCount(0);expect((await get<Session>(teacher.client,'/auth/session')).account?.role).toBe('TEACHER');
+ await logout(page);await login(page,learner);await page.goto(studentRoute(lesson,'review'));await expect(page.getByText('Исправления приняты.',{exact:true})).toBeVisible();await expect(page.getByText('Общий итог занятия отдельно от файлов.',{exact:true})).toBeVisible();await page.locator('.homework-history').screenshot({path:path.join(runtime,`real-homework-history-${width}.png`)});await page.goto(studentRoute(other,'review'));await expect(page.getByText('Общий отзыв пока не добавлен.',{exact:false})).toBeVisible();await expect(page.locator('.homework-submission')).toHaveCount(0);await expect(page.getByText('Исправления приняты.',{exact:true})).toHaveCount(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
+ const history=await get<components['schemas']['SubmissionPage']>(learner.client,lessonPath(lesson)+'/homework');expect(history.items.map(item=>item.id)).toEqual([second.id,first.id]);expect(history.items[0].status).toBe('reviewed');expect(history.items[1].status).toBe('needs_revision');
+});
+
+ test('real in-flight upload is cancelled on lesson navigation and account logout',async({page})=>{
+  test.setTimeout(90000);const lesson=await createLesson('Отмена отправки'),other=await createLesson('Следующее занятие');
+  await login(page,learner);await page.goto(studentRoute(lesson));const cdp=await page.context().newCDPSession(page);await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:50,downloadThroughput:1048576,uploadThroughput:32768});
+  async function start(lesson:Lesson){await expect(page.locator('[name=homeworkFile]')).toBeVisible();await page.locator('[name=homeworkFile]').setInputFiles({name:'slow.java',mimeType:'text/plain',buffer:Buffer.alloc(262144,65)});const post=page.waitForRequest(request=>request.method()==='POST'&&request.url().endsWith(lessonPath(lesson)+'/homework'));await page.getByRole('button',{name:'Отправить на ревью',exact:true}).click();const request=await post;await expect(page.getByRole('button',{name:'Отправить на ревью',exact:true})).toBeDisabled();await expect(page.getByText('Работа отправлена на ревью.',{exact:true})).toHaveCount(0);return request;}
+  const request=await start(lesson),cancelled=page.waitForEvent('requestfailed',event=>event===request);await page.getByRole('link',{name:'← Все занятия',exact:true}).click();await cancelled;await expect(page).toHaveURL(`/learn/students/${student.id}/lessons`);await page.getByRole('link',{name:other.title,exact:true}).click();await expect(page.getByText('Работа отправлена на ревью.',{exact:true})).toHaveCount(0);
+  await page.goto(studentRoute(other));const second=await start(other),accountCancelled=page.waitForEvent('requestfailed',event=>event===second);await logout(page);await accountCancelled;await expect(page.locator('[name=homeworkFile]')).toHaveCount(0);
+  await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await cdp.detach();
+  for(const target of [lesson,other])expect((await get<components['schemas']['SubmissionPage']>(learner.client,lessonPath(target)+'/homework')).total).toBe(0);
+ });

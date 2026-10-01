@@ -9,7 +9,8 @@ import { LessonFormComponent } from './lesson-form.component';
 import { MarkdownEditorComponent } from '../editor/markdown-editor.component';
 import { MarkdownRenderer } from '../editor/markdown-renderer.service';
 import { MaterialViewComponent } from '../materials/material-view.component';
-@Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent], template: `
+import { HomeworkPageComponent } from '../homework/homework-page.component';
+@Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent], template: `
   @if(error()){<p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()">Повторить загрузку</button>}
   @if(lesson();as l){
     <div class="lesson-page-actions"><a class="text-link" [routerLink]="base()+'/lessons'" [queryParams]="previewQuery()">← Все занятия</a>@if(editable()){<button class="btn" (click)="editingMetadata.set(true);closeText()">Изменить занятие</button><a class="btn" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>}<span class="pill neutral">{{l.status==='prepared'?'Подготовлено':'Запланировано'}}</span></div>
@@ -25,6 +26,7 @@ import { MaterialViewComponent } from '../materials/material-view.component';
       <section class="panel panel-inner"><h2>{{section()==='review'?'Ревью занятия':learner()?'Задания на занятие':'Сценарий преподавателя'}}</h2>@if(section()==='review'){<p class="subtitle">Отзывы относятся к этому занятию и его домашней работе.</p>}
         <div class="markdown-body lesson-source" [innerHTML]="renderer.render(currentText()||emptyText())"></div>@if(editable()){<button class="btn" (click)="openText(currentKind())" [disabled]="busy()">{{section()==='review'?'Изменить отзыв':learner()?'Изменить задания':'Изменить сценарий'}}</button>}</section>
     }@else if(section()==='materials'||section()==='code'||section()==='answers'){<mentor-material-view [workspaceId]="workspaceId()!" [studentId]="studentId()!" [lessonId]="l.id" [section]="section()" [detail]="detail()" [base]="base()+'/lessons/'+l.id" [preview]="preview()" [learner]="learner()"/>}@else{<section class="panel panel-inner"><h2>{{sectionLabels[section()]||'Материалы'}}</h2><p>Для этого занятия материалы появятся отдельно от материалов других учеников.</p></section>}
+    @if(section()==='homework'||section()==='review'){<mentor-homework-page [lesson]="l" [preview]="preview()" [mode]="section()==='review'?'review':'homework'"/>}
     @if(busy()){<p role="status">Сохраняем или загружаем текст…</p>}@if(textError()&&!editingText()){<p class="auth-error" role="alert">{{textError()}}</p>}
   }@else if(!error()){<p role="status">Загружаем занятие…</p>}` })
 export class LessonPageComponent extends DomainPage {
