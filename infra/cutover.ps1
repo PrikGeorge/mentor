@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $ReportDirectory) -Force 
 New-MentorPrivateDirectory $ReportDirectory
 $session=$null;$maintenance=$null;$operationLock=$null;$context=$null;$stopped=$false;$failure=$null;$cleanup=@();$succeeded=$false
 $receiptPath=Join-Path $ReportDirectory 'operation.json'
-$receipt=[ordered]@{format=1;completed=$false;phase='preflight';createdAt=[DateTime]::UtcNow.ToString('o');importId=$ImportId;sourceDigest=$request.sourceDigest;sourceFilesSha256=$request.sourceFilesSha256;imageId=$imageId;jarSha256=$request.jarSha256;environmentManifestSha256=$manifestSha;environmentProfilesSha256=$request.environmentProfilesSha256;targetWorkspace=$TargetWorkspace;teacherAccount=$TeacherAccount;project=$ProjectName;sourceBackup=$null;targetBackup=$null;dryrunReport=$null;applyReport=$null;targetClosed=$false;userWritesOpened=$false;cleanupFailures=@()}
+$receipt=[ordered]@{format=1;completed=$false;phase='preflight';createdAt=[DateTime]::UtcNow.ToString('o');importId=$ImportId;sourceDigest=$request.sourceDigest;sourceFilesSha256=$request.sourceFilesSha256;imageId=$imageId;jarSha256=$request.jarSha256;environmentManifestSha256=$manifestSha;environmentProfilesSha256=$request.environmentProfilesSha256;targetWorkspace=$TargetWorkspace;teacherAccount=$TeacherAccount;project=$ProjectName;sourceBackup=$null;targetBackup=$null;dryrunReport=$null;applyReport=$null;targetClosed=$false;userWritesOpened=$false;cleanupFailures=@();ownedPreparationResources=$null}
 try {
     $session=New-MentorCutoverSession $Snapshot $EnvironmentManifest $ReportDirectory $imageId $ImmutableJar $request.jarSha256
     if($session.SourceFilesSha256 -cne $request.sourceFilesSha256 -or (Get-MentorCutoverHash (Join-Path $session.Stage 'environment.json')) -cne $manifestSha){throw 'Source or manifest changed after validation.'}
@@ -111,10 +111,16 @@ try {
         if($applied.sourceDigest -cne $request.sourceDigest){throw 'Importer completion digest differs; inspect the closed target.'}
         $receipt.applyReport=@{path=$applyPath;sha256=(Get-MentorCutoverHash $applyPath)};$receipt.phase='complete';$succeeded=$true
     }
-} catch {$failure=$_;$receipt.phase='failed'}
+} catch {
+    $failure=$_;$receipt.phase='failed'
+    if($failure.Exception.Data.Contains('mentor.cutover.cleanupFailures')){
+        $receipt.cleanupFailures=@($failure.Exception.Data['mentor.cutover.cleanupFailures'])
+        $receipt.ownedPreparationResources=$failure.Exception.Data['mentor.cutover.preparationResources']
+    }
+}
 finally {
     $cleanup=Close-MentorCutoverSession $session
-    if($cleanup.Count){$succeeded=$false;$receipt.cleanupFailures=$cleanup;if(-not $failure){$failure=[Management.Automation.ErrorRecord]::new([InvalidOperationException]::new('Owned cutover cleanup is incomplete.'),'CutoverCleanup','InvalidOperation',$null)}}
+    if($cleanup.Count){$succeeded=$false;$receipt.phase='failed';$receipt.cleanupFailures+=$cleanup;if(-not $failure){$failure=[Management.Automation.ErrorRecord]::new([InvalidOperationException]::new('Owned cutover cleanup is incomplete.'),'CutoverCleanup','InvalidOperation',$null)}}
     if($failure -and $stopped){try{Invoke-MentorCompose $context @('stop','--timeout','35','backend','web') | Out-Null;$receipt.targetClosed=$true}catch{$receipt.targetClosed=$false;$receipt.cleanupFailures+=,'target_close_failed'}}
     $receipt.completed=$succeeded
     try {Write-MentorCutoverJson $receiptPath $receipt -Replace} catch {if(-not $failure){$failure=$_}}

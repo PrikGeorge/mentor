@@ -22,7 +22,21 @@ function New-MentorCutoverSession([string]$Snapshot,[string]$Manifest,[string]$R
         if((Invoke-MentorDocker @('wait',$id) | Out-String).Trim() -ne '0'){Invoke-MentorDocker @('logs',$id) *> (Join-Path $ReportDirectory 'preparation-errors.private.log');throw 'Private source volume preparation failed; inspect its protected diagnostic.'}
         Invoke-MentorDocker @('rm',$id) | Out-Null;$session.Containers.Remove($id) | Out-Null
         return $session
-    } catch {Close-MentorCutoverSession $session | Out-Null;throw}
+    } catch {
+        $preparationFailure=$_
+        $cleanup=Close-MentorCutoverSession $session
+        if($cleanup.Count){
+            # The assignment has not returned a session to the caller. Carry only owned resource identities.
+            $preparationFailure.Exception.Data['mentor.cutover.cleanupFailures']=$cleanup
+            $preparationFailure.Exception.Data['mentor.cutover.preparationResources']=[pscustomobject]@{
+                operationId=$session.Operation;containers=@($session.Containers)
+                sourceVolume=$(if($session.VolumeCreated){$session.Volume}else{$null})
+                reportVolume=$(if($session.ReportVolumeCreated){$session.ReportVolume}else{$null})
+                privateStageCleanupFailed=($cleanup -contains 'private_stage_cleanup_failed')
+            }
+        }
+        throw $preparationFailure
+    }
 }
 function Invoke-MentorCutoverCli($Session,$Request,[string]$ReportPath,[switch]$Apply,[string[]]$ComposeContext){
     if(Test-Path -LiteralPath $ReportPath){throw 'CLI report must be new.'}
