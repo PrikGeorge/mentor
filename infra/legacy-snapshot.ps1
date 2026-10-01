@@ -62,7 +62,10 @@ function Get-MentorLegacyFiles([string]$Source) {
             foreach($item in Get-ChildItem -LiteralPath $next -Force){
                 if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Linked source content is not supported; snapshot rejected.'}
                 if($item.PSIsContainer){$pending.Push($item.FullName)}
-                elseif($item.Name -notmatch '(?i)\.(?:lock|tmp|bak)(?:\.|$)'){$files.Add([IO.Path]::GetRelativePath($Source,$item.FullName).Replace('\','/'))}
+                elseif($item.Name -notmatch '(?i)\.(?:lock|tmp|bak)(?:\.|$)'){
+                    Assert-MentorRegularPath $item.FullName $false | Out-Null
+                    $files.Add([IO.Path]::GetRelativePath($Source,$item.FullName).Replace('\','/'))
+                }
             }
         }
     }

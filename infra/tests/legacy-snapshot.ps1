@@ -36,6 +36,15 @@ try {
     $linkFailed=$false;try{Copy-MentorLegacySnapshot $freeze (Join-Path $root 'unsafe-snapshot') | Out-Null}catch{$linkFailed=$true}
     Require ($linkFailed -and -not (Test-Path -LiteralPath (Join-Path $root 'unsafe-snapshot'))) 'Linked source was followed or a failed copy remained.'
     Remove-Item -LiteralPath $linked
+    if(-not $IsWindows){
+        $fifo=Join-Path $source 'content/FIFO.java'
+        & mkfifo -- $fifo
+        Require ($LASTEXITCODE -eq 0) 'Could not create bounded special-file fixture.'
+        $fifoFailed=$false
+        try {Get-MentorLegacyFiles $source | Out-Null} catch {$fifoFailed=$true}
+        Remove-Item -LiteralPath $fifo
+        Require $fifoFailed 'Optional source tree admitted a FIFO before hashing.'
+    }
     Close-MentorLegacyFreeze $freeze;$freeze=$null
     Require (-not (Test-Path -LiteralPath (Join-Path $source 'data/auth/accounts.lock'))) 'Owned source lock leaked.'
     Write-Output 'PASS: exclusive legacy freeze, canonical private byte-exact copy, absent practice preserved, sessions/backups excluded, existing snapshot protected, reparse escape rejected.'

@@ -11,7 +11,7 @@ $Directory=[IO.Path]::GetFullPath($Directory)
 $origin=[Uri]$PublicOrigin
 if (-not $origin.IsAbsoluteUri -or $origin.UserInfo -or $origin.Query -or $origin.Fragment -or $PublicOrigin -ne $origin.GetLeftPart([UriPartial]::Authority) -or $origin.Scheme -notin @('http','https')) { throw 'PublicOrigin must be an exact HTTP(S) origin without a trailing slash.' }
 if ($Production -and $origin.Scheme -ne 'https') { throw 'Production requires HTTPS.' }
-if (-not $Production -and $origin.Host -notin @('localhost','127.0.0.1','[::1]')) { throw 'Local mode requires a loopback origin.' }
+if (-not $Production -and $origin.Host -notin @('localhost','127.0.0.1')) { throw 'Local initialization publishes IPv4 loopback; use http://127.0.0.1:PORT or http://localhost:PORT.' }
 if (-not $Production -and $origin.Scheme -ne 'http') { throw 'Use HTTP for local loopback or configure production HTTPS.' }
 if ($Directory -match '[\r\n"\x00]') { throw 'Unsupported configuration directory name.' }
 New-Item -ItemType Directory -Path (Split-Path -Parent $Directory) -Force | Out-Null
