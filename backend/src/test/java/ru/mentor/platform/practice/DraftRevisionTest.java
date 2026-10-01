@@ -7,8 +7,49 @@ import java.util.*;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class DraftRevisionTest extends PracticeHttpTest {
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void assignmentGetReturnsOneCommittedVersionDuringReplacement(boolean initiallyEmpty)throws Exception {
+        var f=fixture("practice-view-"+initiallyEmpty);publish(f,source());
+        long oldRevision=initiallyEmpty?0:1;if(!initiallyEmpty)assign(f,0,"list-task");
+        var rowsRead=new CountDownLatch(1);var resume=new CountDownLatch(1);
+        var repository=context.getBean(PracticeRepository.class);
+        JdbcTemplate original=(JdbcTemplate)ReflectionTestUtils.getField(repository,"jdbc");
+        JdbcTemplate pausing=new JdbcTemplate(original.getDataSource()){
+            final AtomicBoolean armed=new AtomicBoolean(true);
+            @Override public <T> List<T> query(String sql,RowMapper<T> mapper,Object... args){
+                List<T> rows=super.query(sql,mapper,args);
+                if(sql.contains("AND active ORDER BY position,id")&&armed.compareAndSet(true,false)){
+                    rowsRead.countDown();try{if(!resume.await(15,TimeUnit.SECONDS))throw new IllegalStateException("Test read was not resumed.");}
+                    catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException(e);}
+                }return rows;
+            }
+        };
+        // Pause only after actual PostgreSQL rows have been fully materialized; no data/results are mocked.
+        ReflectionTestUtils.setField(repository,"jdbc",pausing);
+        try(var pool=Executors.newSingleThreadExecutor()){
+            var reading=pool.submit(()->get(f.teacher().client(),f.path()));
+            try{
+                assertTrue(rowsRead.await(10,TimeUnit.SECONDS));
+                assertEquals(initiallyEmpty?0:1,jdbc.queryForObject("SELECT count(*) FROM practice_assignment_set",Integer.class),"GET must not create the missing revision-zero set");
+                var replacement=assign(f,oldRevision,"grouping-task");assertEquals(oldRevision+1,replacement.get("revision").asLong());
+                resume.countDown();var prior=data(reading.get(10,TimeUnit.SECONDS),200);
+                assertEquals(initiallyEmpty?List.of():List.of("list-task"),java.util.stream.StreamSupport.stream(prior.get("exercises").spliterator(),false).map(e->e.get("exercise").get("id").asText()).toList());
+                var staleAssignments=initiallyEmpty?List.of():List.of(Map.of("exerciseId","list-task","placement","class"));
+                assertEquals(409,write(f.teacher().client(),"PUT",f.path()+"/assignments",Map.of("revision",prior.get("revision").asLong(),"assignments",staleAssignments)).statusCode(),"An old GET must not authorize overwriting the intervening edit");
+                assertEquals(oldRevision,prior.get("revision").asLong(),"Rows and CAS counter must come from one committed version");
+                var current=data(get(f.teacher().client(),f.path()),200);assertEquals(oldRevision+1,current.get("revision").asLong());assertEquals("grouping-task",current.get("exercises").get(0).get("exercise").get("id").asText());
+            }finally{resume.countDown();}
+        }finally{ReflectionTestUtils.setField(repository,"jdbc",original);}
+    }
     @Test void malformedRawUtf8CannotBecomeReplacementSourceText()throws Exception {
         var f=fixture("practice-utf8");publish(f,source());assign(f,0,"list-task");String path=draftPath(f,"list-task");var session=session(f.learner().client());
         var bytes=new java.io.ByteArrayOutputStream();bytes.write("{\"exerciseRevision\":1,\"revision\":0,\"files\":{\"ListTask.java\":\"".getBytes(StandardCharsets.UTF_8));bytes.write(0xc3);bytes.write(0x28);bytes.write("\"}}".getBytes(StandardCharsets.UTF_8));

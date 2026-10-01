@@ -15,7 +15,10 @@ public class AssignmentService {
     public record LessonPracticeView(long revision,List<AssignedExercise> exercises){}
     private final PracticeRepository repository;private final PracticeAuthority authority;
     public AssignmentService(PracticeRepository repository,PracticeAuthority authority){this.repository=repository;this.authority=authority;}
-    public LessonPracticeView read(Actor actor,LessonRef lesson,String audience){
+    // A fresh snapshot keeps assignment rows, catalog/drafts and the CAS counter consistent even inside a caller transaction.
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=Isolation.REPEATABLE_READ,readOnly=true)
+    public LessonPracticeView read(Actor actor,LessonRef lesson,String audience){return view(actor,lesson,audience);}
+    private LessonPracticeView view(Actor actor,LessonRef lesson,String audience){
         authority.reader(actor,lesson);PracticeAuthority.audience(audience);var exercises=new ArrayList<AssignedExercise>();
         for(var a:repository.assignments(lesson)){var e=repository.current(lesson.workspaceId(),a.exerciseId(),false);if(e.isEmpty())continue;
             var current=e.get();var d=repository.draft(a,false).orElse(new Draft(a.exerciseId(),current.revision(),0,current.starterFiles(),null));
@@ -27,7 +30,7 @@ public class AssignmentService {
         Set<String> ids=new TreeSet<>();for(var a:assignments){if(a==null||a.exerciseId()==null||a.placement()==null||!ids.add(a.exerciseId()))throw new IllegalArgumentException("Invalid assignments.");}
         for(var id:ids)repository.current(lesson.workspaceId(),id,true).orElseThrow(WorkspaceAccess::missing);
         if(repository.setRevision(lesson,true)!=revision)throw conflict();repository.deactivate(lesson);
-        int position=0;for(var a:assignments)repository.activate(lesson,a.exerciseId(),a.placement(),position++);repository.bumpSet(lesson);return read(actor,lesson,null);
+        int position=0;for(var a:assignments)repository.activate(lesson,a.exerciseId(),a.placement(),position++);repository.bumpSet(lesson);return view(actor,lesson,null);
     }
     @Transactional(propagation=Propagation.MANDATORY) public AssignmentRef requireActive(Actor actor,LessonRef lesson,String exerciseId){
         authority.lock(actor,lesson);repository.current(lesson.workspaceId(),exerciseId,true).orElseThrow(WorkspaceAccess::missing);
