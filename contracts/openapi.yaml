@@ -959,6 +959,395 @@ paths:
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/materials/{materialId}:
+    parameters:
+    - $ref: '#/components/parameters/MaterialWorkspaceId'
+    - $ref: '#/components/parameters/MaterialId'
+    - $ref: '#/components/parameters/MaterialAudience'
+    get:
+      operationId: getMaterial
+      description: Authorize workspace, card, audience and applicable exact prepared lesson/bundle before returning
+        content. ADMIN has no teaching-content override.
+      responses:
+        '200':
+          description: Authorized material
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    head:
+      operationId: headMaterial
+      description: Same authorization as GET. No response body on success or failure.
+      responses:
+        '200':
+          description: Authorized material exists; no body
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+            Content-Type:
+              schema:
+                type: string
+                const: application/json
+        '400':
+          description: Invalid query; no body
+        '401':
+          description: Authentication required; no body
+        '404':
+          description: Resource unavailable; no body
+        '503':
+          description: Service unavailable; no body
+  /workspaces/{workspaceId}/materials/{materialId}/file:
+    parameters:
+    - $ref: '#/components/parameters/MaterialWorkspaceId'
+    - $ref: '#/components/parameters/MaterialId'
+    - $ref: '#/components/parameters/MaterialAudience'
+    get:
+      operationId: downloadMaterial
+      description: Only download-kind records. Authorize before opening object bytes. No public storage key, redirect
+        or presigned object URL.
+      responses:
+        '200':
+          description: Attached file with its validated stored media type
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+            Content-Disposition:
+              $ref: '#/components/headers/MaterialDisposition'
+            Content-Length:
+              $ref: '#/components/headers/MaterialLength'
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    head:
+      operationId: headMaterialFile
+      description: Same authorization as download. Uses attached metadata without opening object bytes. No response
+        body on any status.
+      responses:
+        '200':
+          description: Authorized attached file metadata
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/MaterialNoStore'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/MaterialNoSniff'
+            Content-Disposition:
+              $ref: '#/components/headers/MaterialDisposition'
+            Content-Length:
+              $ref: '#/components/headers/MaterialLength'
+            Content-Type:
+              description: Validated attached file media type
+              schema:
+                type: string
+        '400':
+          description: Invalid query; no body
+        '401':
+          description: Authentication required; no body
+        '404':
+          description: Resource unavailable; no body
+        '503':
+          description: Service unavailable; no body
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/materials:
+    parameters:
+    - $ref: '#/components/parameters/MaterialWorkspaceId'
+    - $ref: '#/components/parameters/MaterialStudentId'
+    - $ref: '#/components/parameters/MaterialLessonId'
+    - $ref: '#/components/parameters/MaterialAudience'
+    - $ref: '#/components/parameters/MaterialPageNumber'
+    - $ref: '#/components/parameters/MaterialPageSize'
+    get:
+      operationId: listLessonMaterials
+      description: Only material rows attached to this exact lesson and visible in the caller projection. No raw/html/code/viewData
+        in list items.
+      responses:
+        '200':
+          $ref: '#/components/responses/MaterialPageResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/materials:
+    parameters:
+    - $ref: '#/components/parameters/MaterialWorkspaceId'
+    - $ref: '#/components/parameters/MaterialStudentId'
+    - $ref: '#/components/parameters/MaterialAudience'
+    - $ref: '#/components/parameters/MaterialPageNumber'
+    - $ref: '#/components/parameters/MaterialPageSize'
+    get:
+      operationId: listProfileMaterials
+      description: Only this card's profile-bound rows; lessonId and bundleId are null. No fabricated lesson and
+        no descendant lesson materials.
+      responses:
+        '200':
+          $ref: '#/components/responses/MaterialPageResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/exercises:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    get:
+      operationId: listExercises
+      description: Page of current published public exercise projections, ordered by exercise ID ascending. An owning
+        TEACHER sees the workspace catalog. An actual STUDENT sees only distinct exercises actively assigned to
+        that student's own accessible lessons. ADMIN and foreign workspace access return 404. audience=student narrows
+        readable fields without changing Actor; a teacher workspace catalog has no selected student and is not filtered
+        as an arbitrary student's assignments. No private checker, tests, custom types, image, build, processor,
+        or filesystem metadata is returned.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeCatalogResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: getLessonPractice
+      description: Ordinary exact lesson/card/workspace read authorization is required; no material bundle or prepared
+        status is required. ADMIN and foreign content return 404. Return active assignments in saved order, each
+        with the current public exercise and a draft summary without source files. audience=student only narrows
+        the owning teacher's read projection; it never authorizes draft saves, resets, or student attempts. The
+        revision is the assignment-set counter, independent of lesson metadata, exercise revisions, and drafts.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeViewResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/assignments:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    put:
+      operationId: replacePracticeAssignments
+      description: Owning TEACHER only. Atomically compare the assignment-set revision, validate all exercise IDs
+        within this workspace, replace the ordered active set, and increment the counter once on every successful
+        PUT, including an explicit empty list. Duplicate IDs, unknown fields, invalid placement, or more than 100
+        assignments return 400. Unknown or foreign catalog exercises return 404. Stale revision or X-Mentor-Account
+        mismatch returns 409 before mutation. Deactivation preserves the stable assignment ID, drafts, archives,
+        and accepted attempts; reactivation reuses that same ID. A placement change retains ID.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentsPut'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeViewResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/draft:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/PracticeExerciseId'
+    get:
+      operationId: getPracticeDraft
+      description: The actual owner STUDENT and owning TEACHER may read after ordinary lesson authorization; ADMIN
+        and foreign content return 404. Return an existing saved draft unchanged, including its original exercise
+        revision and source, even after deactivation or loss of the current catalog. Otherwise an active assignment
+        with an available current definition projects its exact starter files, current typed exercise revision,
+        revision 0, and updatedAt null without inserting a row. With neither saved content nor an active definition
+        return 404. audience=student preserves Actor and grants no write or reset permission.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeDraftResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: savePracticeDraft
+      description: Actual owning STUDENT only; owning teacher preview saves/resets return 403. Require an active
+        assignment, current typed exercise revision, and matching draft counter (0 if no stored draft). The submitted
+        filenames must equal the complete declared set. Compare assignment/current catalog inside the save transaction
+        so concurrent publication cannot relabel old code. A saved draft from another typed exercise revision requires
+        explicit resetForRevision equal to the current revision. A supplied resetForRevision must match the current
+        typed revision even if the saved draft is not outdated. Atomically archive exact prior files, exercise revision,
+        counter, and timestamp before saving submitted new files and incrementing the draft counter. Never substitute
+        templates server-side. Same-revision saves do not create archives. Stale counters return 409 REVISION_CONFLICT;
+        exercise/reset mismatch returns 409 EXERCISE_REVISION_CONFLICT. Account mismatch returns 409 before mutation.
+        Invalid fields/source return 400 INVALID_INPUT. The JSON body limit is 1605632 bytes on this code-body route
+        only; larger bodies return 413. Source limits remain 16 declared files, 131072 UTF-8 bytes per file, and
+        262144 UTF-8 bytes in total.
+      x-max-request-body-bytes: 1605632
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftPut'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeDraftResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/draft-archives:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: listDraftArchives
+      description: Read saved history after current lesson/card membership and exact historical assignment ownership
+        checks. Actual owner STUDENT and owning TEACHER may read; ADMIN and foreign content return 404. Removed
+        assignments or unavailable current catalog entries do not block history. Optional exerciseId filters only
+        within authorized historical rows. Order by original updatedAt descending, then archive ID descending, including
+        imported archives whose archivedAt is null. Ordinary list items contain no source files.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      - name: exerciseId
+        in: query
+        required: false
+        description: Exact exercise ID filter within this lesson's authorized history.
+        schema:
+          type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeArchivePageResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/draft-archives/{archiveId}:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/PracticeArchiveId'
+    get:
+      operationId: getDraftArchive
+      description: Return exact archived source and original metadata to its actual owner STUDENT or owning TEACHER
+        after current lesson/card and historical assignment ownership checks. ADMIN and foreign content return 404.
+        No active assignment or current catalog is required. Do not reinterpret historical files against a newer
+        declaration. Reads never enqueue or execute source. audience=student never changes Actor or grants writes.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          $ref: '#/components/responses/PracticeArchiveResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -1035,6 +1424,66 @@ components:
         minimum: 1
         maximum: 100
         default: 25
+    MaterialWorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+    MaterialStudentId:
+      name: studentId
+      in: path
+      required: true
+      schema:
+        type: string
+    MaterialLessonId:
+      name: lessonId
+      in: path
+      required: true
+      schema:
+        type: string
+    MaterialId:
+      name: materialId
+      in: path
+      required: true
+      schema:
+        type: string
+    MaterialAudience:
+      name: audience
+      in: query
+      description: Optional narrowing only. Student always receives student projection. Teacher preview never changes
+        Actor or allows student writes. Unknown values return400.
+      schema:
+        type: string
+        enum:
+        - student
+    MaterialPageNumber:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    MaterialPageSize:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    PracticeExerciseId:
+      name: exerciseId
+      in: path
+      required: true
+      schema:
+        type: string
+    PracticeArchiveId:
+      name: archiveId
+      in: path
+      required: true
+      schema:
+        type: string
   responses:
     Problem:
       description: Structured application error
@@ -1053,6 +1502,72 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiProblem'
+    MaterialPageResponse:
+      description: Authorized material metadata page
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/MaterialNoStore'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/MaterialNoSniff'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MaterialPage'
+    PracticeCatalogResponse:
+      description: Page of authorized current public exercises.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PublicExercisePage'
+    PracticeViewResponse:
+      description: Active ordered assignments and draft summaries with assignment-set revision.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LessonPracticeView'
+    PracticeDraftResponse:
+      description: Bare draft; a missing active draft projects the current template without persistence.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Draft'
+    PracticeArchivePageResponse:
+      description: Authorized saved draft history summaries; no files in list items.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DraftArchivePage'
+    PracticeArchiveResponse:
+      description: Immutable draft archive detail with exact saved files.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DraftArchive'
   schemas:
     Actor:
       type: object
@@ -1812,3 +2327,694 @@ components:
           oneOf:
           - $ref: '#/components/schemas/DashboardFocus'
           - type: 'null'
+    MaterialMetadata:
+      type: object
+      description: Common authorized metadata. Profile rows have both lessonId and bundleId null; lesson rows have
+        both strings. contentKey is a logical legacy selector, never an object-store key.
+      required:
+      - id
+      - workspaceId
+      - studentId
+      - lessonId
+      - bundleId
+      - audience
+      - kind
+      - contentKey
+      - filename
+      - contentType
+      - title
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        studentId:
+          type: string
+        lessonId:
+          type:
+          - string
+          - 'null'
+        bundleId:
+          type:
+          - string
+          - 'null'
+        audience:
+          type: string
+          enum:
+          - teacher
+          - student
+        kind:
+          type: string
+          enum:
+          - doc
+          - code
+          - view
+          - download
+        contentKey:
+          type:
+          - string
+          - 'null'
+        filename:
+          type: string
+        contentType:
+          type: string
+        title:
+          type:
+          - string
+          - 'null'
+    MaterialSummary:
+      allOf:
+      - $ref: '#/components/schemas/MaterialMetadata'
+      unevaluatedProperties: false
+    MaterialPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaterialSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    MaterialView:
+      oneOf:
+      - $ref: '#/components/schemas/DocMaterialView'
+      - $ref: '#/components/schemas/CodeMaterialView'
+      - $ref: '#/components/schemas/ViewMaterialView'
+      - $ref: '#/components/schemas/DownloadMaterialView'
+      discriminator:
+        propertyName: kind
+        mapping:
+          doc: '#/components/schemas/DocMaterialView'
+          code: '#/components/schemas/CodeMaterialView'
+          view: '#/components/schemas/ViewMaterialView'
+          download: '#/components/schemas/DownloadMaterialView'
+    DocMaterialView:
+      allOf:
+      - $ref: '#/components/schemas/MaterialMetadata'
+      - type: object
+        required:
+        - document
+        properties:
+          kind:
+            const: doc
+          document:
+            $ref: '#/components/schemas/MaterialDocument'
+      unevaluatedProperties: false
+    CodeMaterialView:
+      allOf:
+      - $ref: '#/components/schemas/MaterialMetadata'
+      - type: object
+        required:
+        - code
+        properties:
+          kind:
+            const: code
+          code:
+            $ref: '#/components/schemas/MaterialCode'
+      unevaluatedProperties: false
+    ViewMaterialView:
+      allOf:
+      - $ref: '#/components/schemas/MaterialMetadata'
+      - type: object
+        required:
+        - viewData
+        properties:
+          kind:
+            const: view
+          viewData:
+            $ref: '#/components/schemas/MaterialViewData'
+      unevaluatedProperties: false
+    DownloadMaterialView:
+      allOf:
+      - $ref: '#/components/schemas/MaterialMetadata'
+      - type: object
+        required:
+        - blob
+        - downloadUrl
+        properties:
+          kind:
+            const: download
+          blob:
+            $ref: '#/components/schemas/BlobRef'
+          downloadUrl:
+            type: string
+            format: uri-reference
+            description: Constructed same-origin /api/v1/workspaces/{workspaceId}/materials/{materialId}/file path.
+              Never an external/presigned/storage URL.
+      unevaluatedProperties: false
+    BlobRef:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - size
+      - sha256
+      properties:
+        id:
+          type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    MaterialDocument:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - intro
+      - raw
+      - html
+      - sections
+      properties:
+        title:
+          type: string
+        intro:
+          type: string
+          description: Legacy intro HTML fragment
+        raw:
+          type: string
+          description: Exact source text without trimming
+        html:
+          type: string
+        sections:
+          type: array
+          description: Preserve order and literal section IDs including section-0
+          items:
+            $ref: '#/components/schemas/MaterialSection'
+    MaterialSection:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - title
+      - html
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        html:
+          type: string
+        studentParts:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+    MaterialCode:
+      type: object
+      additionalProperties: false
+      required:
+      - text
+      - teacher
+      - materialId
+      properties:
+        text:
+          type: string
+        teacher:
+          type: boolean
+          description: Preserve legacy marker; true must not be returned in student projection even if inconsistent
+            imported audience.
+        materialId:
+          type: string
+          description: ID of separately authorized download material, not BlobRef.id or an object key
+        excerpt:
+          type: object
+          additionalProperties: false
+          required:
+          - start
+          - end
+          properties:
+            start:
+              type: integer
+              minimum: 0
+              description: Zero-based first line
+            end:
+              type: integer
+              minimum: 0
+              description: Exclusive ending line
+              at least start: null
+    MaterialViewData:
+      type: object
+      additionalProperties: false
+      description: Known legacy fields for one explicit audience/card/lesson binding. Omit fields outside that binding;
+        never return teacher blocks or a students map to a student. descriptors/resources are filtered to authorized
+        referenced documents.
+      properties:
+        goalHtml:
+          type: string
+        review:
+          type: object
+          additionalProperties: false
+          required:
+          - metadataParagraphs
+          - priorities
+          properties:
+            metadataParagraphs:
+              type: integer
+              minimum: 0
+            priorities:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                - sectionId
+                - label
+                properties:
+                  sectionId:
+                    type: string
+                  label:
+                    type: string
+        lessonHtml:
+          type: string
+          description: Teacher-only field
+        reviewHtml:
+          type: string
+          description: Teacher-only field
+        profileFacts:
+          type: string
+          description: Teacher-only field
+        descriptors:
+          type: object
+          additionalProperties:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: string
+        resources:
+          type: array
+          items:
+            type: array
+            minItems: 4
+            maxItems: 4
+            items:
+              type: string
+        answersCards:
+          type: array
+          description: Teacher-only cards preserving legacy [codeKey,title,description] tuple
+          items:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              type: string
+    ExerciseRevision:
+      description: 'Typed scalar identity, never string-coerced or trimmed. JSON numeric 1 and 1.0 are the same
+        n:1 identity; JSON string "1" is distinct s:1. Strings are nonempty, well-formed Unicode with at most 100
+        UTF-16 units, preserving all whitespace. Numbers are exact integers in 0..9007199254740991. Reject null,
+        boolean, container, negative, fractional, unsafe numeric values, and malformed Unicode. Unsupported historical
+        import values cause explicit inspection errors; never rewrite them. No discriminator object wraps the wire
+        value: the string/integer branches discriminate by JSON scalar kind.'
+      oneOf:
+      - type: string
+        minLength: 1
+        x-max-utf16-units: 100
+        x-well-formed-unicode: true
+      - type: integer
+        minimum: 0
+        maximum: 9007199254740991
+    Placement:
+      type: string
+      enum:
+      - class
+      - homework
+    SourceFiles:
+      type: object
+      minProperties: 1
+      maxProperties: 16
+      propertyNames:
+        pattern: ^(?:[A-Za-z_$][A-Za-z0-9_$]*/)*[A-Za-z_$][A-Za-z0-9_$]*\.java$(?![\s\S])
+      additionalProperties:
+        type: string
+        pattern: ^[^\u0000]*$
+        x-max-utf8-bytes: 131072
+        x-well-formed-unicode: true
+      x-max-total-utf8-bytes: 262144
+      description: 'Exact named Java source strings, including package paths, whitespace, and line endings. Submitted
+        keys equal the complete current declared set: 1..16 files, no aliases, traversal, backslashes, or undeclared
+        resources. Valid source contains neither NUL nor malformed Unicode; bounds measure actual UTF-8 bytes (131072
+        each, 262144 total), not characters or JSON-escaped bytes. Standard maxLength does not express these limits.
+        Saved historical reads retain their original declaration and source without validation against a newer catalog.
+        Reading files does not authorize their execution.'
+    PublicEnvironment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - title
+      - javaVersion
+      - dependencies
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        javaVersion:
+          type: integer
+          const: 21
+        dependencies:
+          type: array
+          items:
+            type: string
+          description: Public pinned Maven groupId:artifactId:version descriptions only.
+      description: Explicit public description frozen with the exercise snapshot. No image digest/tag, internal
+        build revision, SHA metadata, jar path, processor, build command, or manifest provenance is exposed. Trusted
+        operator environment approval remains internal.
+    PublicExercise:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - revision
+      - title
+      - statement
+      - environment
+      - starterFiles
+      properties:
+        id:
+          type: string
+        revision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        title:
+          type: string
+        statement:
+          type: string
+        environment:
+          $ref: '#/components/schemas/PublicEnvironment'
+        starterFiles:
+          $ref: '#/components/schemas/SourceFiles'
+      description: Current authorized public exercise snapshot. Tests, checker definitions, target classes, methods,
+        parameter/custom types, environment execution details, and commands are absent.
+    PublicExercisePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicExercise'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    Draft:
+      type: object
+      additionalProperties: false
+      required:
+      - exerciseId
+      - exerciseRevision
+      - revision
+      - files
+      - updatedAt
+      properties:
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Independent draft counter; 0 for an unpersisted template projection.
+        files:
+          $ref: '#/components/schemas/SourceFiles'
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Original UTC save instant; null only for a missing draft projection.
+    DraftSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - exerciseId
+      - exerciseRevision
+      - revision
+      - updatedAt
+      - outdated
+      properties:
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        outdated:
+          type: boolean
+          description: Typed mismatch against this active exercise; false for a missing draft.
+      description: Contextual active-practice summary with no files. A missing draft projects the current exercise
+        revision, counter 0, updatedAt null, and outdated false. Outdated is computed, not a persisted revision
+        identity and not part of the bare Draft DTO.
+    AssignedExercise:
+      type: object
+      additionalProperties: false
+      required:
+      - assignmentId
+      - placement
+      - exercise
+      - draft
+      properties:
+        assignmentId:
+          type: string
+          description: Stable through deactivation/reactivation and placement changes.
+        placement:
+          $ref: '#/components/schemas/Placement'
+        exercise:
+          $ref: '#/components/schemas/PublicExercise'
+        draft:
+          $ref: '#/components/schemas/DraftSummary'
+    LessonPracticeView:
+      type: object
+      additionalProperties: false
+      required:
+      - revision
+      - exercises
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Assignment-set CAS counter, initially 0. Every successful assignments PUT increments it once,
+            including empty lists. Catalog publication does not increment this counter.
+        exercises:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AssignedExercise'
+          description: Active assignments only, in the teacher's saved order.
+    AssignmentsPut:
+      type: object
+      additionalProperties: false
+      required:
+      - revision
+      - assignments
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        assignments:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - exerciseId
+            - placement
+            properties:
+              exerciseId:
+                type: string
+              placement:
+                $ref: '#/components/schemas/Placement'
+          description: Empty is explicit and persisted. Exercise IDs must be unique within the list.
+          x-unique-by: exerciseId
+    DraftPut:
+      type: object
+      additionalProperties: false
+      required:
+      - exerciseRevision
+      - revision
+      - files
+      properties:
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        files:
+          $ref: '#/components/schemas/SourceFiles'
+        resetForRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+          description: Optional explicit reset/port consent; omission means no consent and null is invalid. If supplied,
+            must match the current typed exercise revision in every case. Required when saved code belongs to an
+            older revision. The submitted files are saved exactly; server-side template substitution is forbidden.
+    DraftArchiveSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - assignmentId
+      - exerciseId
+      - exerciseRevision
+      - revision
+      - updatedAt
+      - archivedAt
+      - reason
+      properties:
+        id:
+          type: string
+        assignmentId:
+          type: string
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+          description: Exact original UTC draft save instant, retained for stable history ordering.
+        archivedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: UTC archive event instant; null for imported history whose event time is unknown.
+        reason:
+          type: string
+          enum:
+          - exercise_revision_changed
+          - imported
+      description: Historical metadata only; files are returned only by the detail route.
+    DraftArchive:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - assignmentId
+      - exerciseId
+      - exerciseRevision
+      - revision
+      - updatedAt
+      - archivedAt
+      - reason
+      - files
+      properties:
+        id:
+          type: string
+        assignmentId:
+          type: string
+        exerciseId:
+          type: string
+        exerciseRevision:
+          $ref: '#/components/schemas/ExerciseRevision'
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+        archivedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        reason:
+          type: string
+          enum:
+          - exercise_revision_changed
+          - imported
+        files:
+          $ref: '#/components/schemas/SourceFiles'
+      description: Immutable archive detail. Preserve exact prior files, typed exercise revision, draft counter,
+        and original save timestamp. A missing imported archive timestamp stays null. Current catalog and assignment
+        activity do not determine historical read permission.
+    DraftArchivePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DraftArchiveSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+  headers:
+    MaterialNoStore:
+      schema:
+        type: string
+        const: no-store
+    MaterialNoSniff:
+      schema:
+        type: string
+        const: nosniff
+    MaterialDisposition:
+      description: Attachment with normalized ASCII filename and UTF-8 filename*. Never includes a physical path
+        or control characters.
+      schema:
+        type: string
+    MaterialLength:
+      description: Measured attached file bytes, not caller-provided Content-Length
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
