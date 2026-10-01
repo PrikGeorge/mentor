@@ -6,7 +6,7 @@ New-MentorPrivateDirectory $root
 $source=Join-Path $root 'source';$destination=Join-Path $root 'snapshot';$freeze=$null
 function Require([bool]$Condition,[string]$Message){if(-not $Condition){throw $Message}}
 try {
-    foreach($relative in @('data/mentoring.json','data/auth/accounts.json','private/materials/manifest.json','private/materials/content.json','training/catalog.json','training/environments.json','content/example.md','code/Sample.java')){
+    foreach($relative in @('data/mentoring.json','data/auth/accounts.json','private/materials/manifest.json','private/materials/content.json','private/materials/student.html','training/catalog.json','training/environments.json','content/example.md','code/Sample.java')){
         $path=Join-Path $source $relative;New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
         [IO.File]::WriteAllText($path,"exact synthetic bytes $relative`r`n  Я😀  `r`n",[Text.UTF8Encoding]::new($false))
     }
@@ -22,7 +22,7 @@ try {
     $secondFailed=$false;try{$second=Open-MentorLegacyFreeze $source;Close-MentorLegacyFreeze $second}catch{$secondFailed=$true}
     Require $secondFailed 'Concurrent legacy freeze unexpectedly acquired ownership.'
     $report=Copy-MentorLegacySnapshot $freeze $destination
-    Require ($report.verified -and $report.files.Count -eq 8 -and -not $report.optionalPracticePresent) 'Canonical copy membership is incorrect.'
+    Require ($report.verified -and $report.files.Count -eq 9 -and -not $report.optionalPracticePresent -and (Test-Path -LiteralPath (Join-Path $destination 'private/materials/student.html'))) 'Canonical copy membership is incorrect; include prepared files stored directly beside the manifest.'
     Require (-not (Test-Path -LiteralPath (Join-Path $destination 'data/auth/accounts.lock'))) 'Writer lock entered imported source.'
     Require (-not (Test-Path -LiteralPath (Join-Path $destination 'data/auth/sessions.json'))) 'Sessions entered imported source.'
     foreach($entry in $report.files){Require ((Get-FileHash -LiteralPath (Join-Path $source $entry.path)).Hash -eq (Get-FileHash -LiteralPath (Join-Path $destination $entry.path)).Hash) 'Unicode/CRLF source bytes changed.'}

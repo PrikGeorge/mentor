@@ -51,7 +51,7 @@ function Get-MentorLegacyFiles([string]$Source) {
     }
     $state=Join-Path $Source 'data/practice/state.json'
     if(Test-Path -LiteralPath $state){Assert-MentorRegularPath (Split-Path -Parent $state) $true | Out-Null;Assert-MentorRegularPath $state $false | Out-Null;$files.Add('data/practice/state.json')}
-    foreach($relative in @('data/practice/uploads','private/materials/downloads','training/exercises','training/templates','content','code')){
+    foreach($relative in @('data/practice/uploads','private/materials','training/exercises','training/templates','content','code')){
         $directory=Join-Path $Source $relative
         if(-not (Test-Path -LiteralPath $directory)){continue}
         $parent=[IO.Path]::GetDirectoryName($directory)
@@ -64,7 +64,8 @@ function Get-MentorLegacyFiles([string]$Source) {
                 if($item.PSIsContainer){$pending.Push($item.FullName)}
                 elseif($item.Name -notmatch '(?i)\.(?:lock|tmp|bak)(?:\.|$)'){
                     Assert-MentorRegularPath $item.FullName $false | Out-Null
-                    $files.Add([IO.Path]::GetRelativePath($Source,$item.FullName).Replace('\','/'))
+                    $relativeFile=[IO.Path]::GetRelativePath($Source,$item.FullName).Replace('\','/')
+                    if(-not $files.Contains($relativeFile)){$files.Add($relativeFile)}
                 }
             }
         }
