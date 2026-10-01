@@ -6,9 +6,9 @@ import { Observable, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
 import { SessionStore } from '../core/session.store';
 import { StudentsApi, StudentAccessView } from './students-api.service';
-@Component({ selector: 'mentor-account-access', imports: [ReactiveFormsModule, DatePipe], template: `
-  <section class="panel panel-inner account-access"><p class="eyebrow">АККАУНТ УЧЕНИКА</p><h2>Доступ к кабинету</h2>
-    @if(data();as access){@if(access.account;as account){<p>Логин: <strong>{{account.login}}</strong> · {{account.disabled?'Доступ приостановлен':'Доступ открыт'}}</p><div class="actions"><button class="btn" (click)="setDisabled(!account.disabled)" [disabled]="busy()">{{account.disabled?'Восстановить доступ':'Приостановить доступ'}}</button><button class="btn" (click)="resetOpen.set(true)" [disabled]="busy()">Ссылка для смены пароля</button></div>}
+@Component({ selector: 'mentor-account-access', imports: [ReactiveFormsModule, DatePipe], styleUrl: './account-access.component.scss', template: `
+  <section class="panel panel-inner account-access" [class.compact]="compact()"><p class="eyebrow">АККАУНТ УЧЕНИКА</p><h2>Доступ к кабинету</h2>
+    @if(data();as access){@if(access.account;as account){<div class="account-identity"><span class="small-muted">Логин</span><strong>{{account.login}}</strong><span class="pill neutral">{{account.disabled?'Доступ приостановлен':'Доступ открыт'}}</span></div><div class="actions"><button class="btn" (click)="setDisabled(!account.disabled)" [disabled]="busy()">{{account.disabled?'Восстановить доступ':'Приостановить доступ'}}</button><button class="btn" (click)="resetOpen.set(true)" [disabled]="busy()">Ссылка для смены пароля</button></div>}
     @else{<p>Ученик создаст логин и пароль по вашей ссылке. Его занятия и работы сохранятся.</p>@if(access.invitation;as invitation){<p>{{invitationLabels[invitation.state]}} · до {{invitation.expiresAt|date:'dd.MM.yyyy HH:mm':'+0300'}} МСК</p>}<div class="actions"><button class="btn" (click)="invite()" [disabled]="busy()">{{access.invitation?.state==='pending'?'Создать новое приглашение':'Создать приглашение'}}</button>@if(access.invitation?.state==='pending'){<button class="btn" (click)="revoke()" [disabled]="busy()">Отозвать</button>}</div>}}
     @else{<p role="status">Загружаем доступ…</p>}
     @if(issued();as issue){<div class="callout"><label class="auth-field">Одноразовая ссылка<input name="accessLink" [value]="issue.link" readonly (focus)="select($event)"></label><p>До {{issue.expiresAt|date:'dd.MM.yyyy HH:mm':'+0300'}} МСК. Передайте ученику лично. После ухода ссылка скрывается.</p><button class="btn" (click)="issued.set(null)">Скрыть ссылку</button></div>}
@@ -16,6 +16,7 @@ import { StudentsApi, StudentAccessView } from './students-api.service';
     @if(error()){<p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()" [disabled]="busy()">Повторить загрузку</button>}
   </section>` })
 export class AccountAccessComponent {
+    readonly compact = input(false);
     readonly workspaceId = input.required<string>();
     readonly studentId = input.required<string>();
     private readonly api = inject(StudentsApi);

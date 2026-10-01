@@ -1,0 +1,14 @@
+:host { display: block; min-width: 0; }
+.account-identity { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; margin: 0 0 14px; }
+.account-identity strong { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; max-width: 100%; }
+.account-identity .pill { white-space: normal; }
+.compact { height: 100%; padding: 20px; margin-bottom: 0; }
+.compact h2 { font-size: 19px; margin-bottom: 14px; }
+.compact .eyebrow { font-size: 10px; margin-bottom: 8px; }
+.compact p { font-size: 13px; line-height: 1.6; margin: 0 0 13px; overflow-wrap: anywhere; }
+.compact .actions { gap: 8px; margin-top: 14px; }
+.compact .actions .btn { flex: 1 1 100%; min-height: 38px; padding: 8px 10px; font-size: 12px; }
+.compact .callout { margin: 16px 0 0; padding: 12px; }
+.compact form { margin-top: 16px; }
+.compact .auth-error { margin-top: 14px; }
+@media (max-width: 740px) { .compact { padding: 18px; } }
