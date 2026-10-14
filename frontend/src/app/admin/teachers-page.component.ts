@@ -7,47 +7,56 @@ import { finalize, forkJoin, Observable } from 'rxjs';
 import type { components } from '../api/schema';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
+import { IconComponent } from '../core/icon.component';
 type Teacher = components['schemas']['TeacherView'];
 type Invitation = components['schemas']['InvitationView'];
 type LinkIssue = components['schemas']['PasswordResetIssue'];
 
 @Component({
-  selector: 'mentor-teachers-page', imports: [ReactiveFormsModule, DatePipe],
+  selector: 'mentor-teachers-page', imports: [ReactiveFormsModule, DatePipe, IconComponent],
   template: `
-    <div class="page-head"><div><p class="eyebrow">Администрирование</p><h1>Преподаватели</h1><p class="subtitle">Приглашения и доступ к кабинетам.</p></div>
-      <button class="btn primary" data-action="invite" (click)="invite()" [disabled]="busy()">+ Пригласить преподавателя</button></div>
+    <div class="page-head"><div><h1>Преподаватели</h1><p class="subtitle">Приглашения и доступ к кабинетам.</p></div>
+      <button class="btn primary" data-action="invite" (click)="invite()" [disabled]="busy()"><mentor-icon name="plus"/>Пригласить преподавателя</button></div>
     @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
-    @if (loading()) { <p role="status">Загружаем…</p> }
+    @if (loading()) { <p class="loading" role="status">Загружаем…</p> }
     @if (issued()) {
-      <section class="panel panel-inner issued-link"><h2>Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC. Передайте её получателю лично.</p>
+      <section class="issued-link section-block" aria-labelledby="issued-title"><h2 id="issued-title"><mentor-icon name="link"/> Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC. Передайте её получателю лично.</p>
         <label class="auth-field">Одноразовая ссылка<input name="issuedLink" [value]="issued()!.link" readonly (focus)="selectLink($event)"></label>
-        <button class="btn" (click)="issued.set(null)">Скрыть ссылку</button></section>
+        <div class="form-actions"><button class="btn sm" type="button" (click)="copy(issued()!.link)"><mentor-icon name="copy"/>{{ copied() ? 'Скопировано' : 'Скопировать' }}</button><button class="btn sm text" (click)="issued.set(null)">Скрыть ссылку</button></div></section>
     }
     @if (resetTeacher()) {
-      <section class="panel panel-inner"><h2>Восстановить доступ: {{ resetTeacher()!.login }}</h2>
+      <section class="confirm-box section-block" aria-labelledby="reset-title"><h2 id="reset-title">Восстановить доступ: {{ resetTeacher()!.login }}</h2><p>Подтвердите действие своим текущим паролем.</p>
         <form (submit)="issueReset($event)"><label class="auth-field">Ваш текущий пароль<input name="currentPassword" type="password" [formControl]="currentPassword" autocomplete="current-password" required></label>
-          <div class="actions"><button type="submit" class="btn primary" [disabled]="busy()">Выдать ссылку восстановления</button><button type="button" class="btn" (click)="cancelReset()">Отмена</button></div>
+          <div class="form-actions"><button type="submit" class="btn primary" [disabled]="busy()"><mentor-icon name="key-round"/>Выдать ссылку восстановления</button><button type="button" class="btn" (click)="cancelReset()">Отмена</button></div>
         </form></section>
     }
-    <section aria-label="Преподаватели" class="admin-list">
-      @for (teacher of teachers(); track teacher.userId) {
-        <article class="panel panel-inner"><h2>{{ teacher.login }}</h2>
-          <p class="small-muted">Аккаунт: {{ teacher.accountDisabled ? 'приостановлен' : 'активен' }} · Пространство: {{ teacher.workspaceDisabled ? 'приостановлено' : 'активно' }}</p>
-          <div class="actions">
-            <button class="btn" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>
-            <button class="btn" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>
-            <button class="btn" data-action="reset" (click)="startReset(teacher)" [disabled]="busy()">Восстановить пароль</button>
-          </div></article>
-      } @empty { @if (!loading()) { <p class="subtitle">Преподавателей пока нет.</p> } }
+    <div class="admin-page">
+    <section aria-label="Преподаватели" class="admin-list"><div class="sh"><div class="title-group"><h2>Преподаватели</h2><span class="count">Всего: {{ teacherTotal() }}</span></div></div>
+      @if (teachers().length) {
+        <div class="table-wrap"><table class="tbl admin-table"><thead><tr><th scope="col">Логин</th><th scope="col">Аккаунт</th><th scope="col">Пространство</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead><tbody>
+        @for (teacher of teachers(); track teacher.userId) {
+          <tr><td><code>{{ teacher.login }}</code></td>
+            <td><span class="tag" [class.on]="!teacher.accountDisabled"><mentor-icon [name]="teacher.accountDisabled ? 'circle-pause' : 'check'"/>Аккаунт {{ teacher.accountDisabled ? 'приостановлен' : 'активен' }}</span></td>
+            <td><span class="tag" [class.quiet]="teacher.workspaceDisabled"><mentor-icon [name]="teacher.workspaceDisabled ? 'circle-pause' : 'check'"/>Пространство {{ teacher.workspaceDisabled ? 'приостановлено' : 'активно' }}</span></td>
+            <td class="act"><div class="actions m-0">
+              <button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>
+              <button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>
+              <button class="btn sm" data-action="reset" (click)="startReset(teacher)" [disabled]="busy()"><mentor-icon name="key-round"/>Восстановить пароль</button>
+            </div></td></tr>
+        }</tbody></table></div>
+      } @else if (!loading()) { <div class="empty-state mt-16"><h3>Преподавателей пока нет</h3><p>Пригласите первого преподавателя — он получит своё пространство.</p></div> }
+      @if (teacherTotal() > 25) { <nav class="pagination" aria-label="Страницы преподавателей"><button class="btn" (click)="teacherPage.set(teacherPage()-1)" [disabled]="teacherPage() === 0 || loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{ teacherPage()+1 }}</span><button class="btn" (click)="teacherPage.set(teacherPage()+1)" [disabled]="(teacherPage()+1)*25 >= teacherTotal() || loading()">Далее<mentor-icon name="chevron-right"/></button></nav> }
     </section>
-    <nav class="pagination" aria-label="Страницы преподавателей"><button class="btn" (click)="teacherPage.set(teacherPage()-1)" [disabled]="teacherPage() === 0 || loading()">Назад</button><span>Страница {{ teacherPage()+1 }}</span><button class="btn" (click)="teacherPage.set(teacherPage()+1)" [disabled]="(teacherPage()+1)*25 >= teacherTotal() || loading()">Далее</button></nav>
-    <section class="panel panel-inner"><h2>Приглашения</h2>
-      @for (invitation of invitations(); track invitation.id) {
-        <article class="invitation-row"><div><strong>{{ invitationLabels[invitation.state] }}</strong><p class="small-muted">До {{ invitation.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC</p></div>
-          @if (invitation.state === 'pending') { <button class="btn" data-action="revoke" (click)="revoke(invitation.id)" [disabled]="busy()">Отозвать</button> }</article>
-      } @empty { <p class="small-muted">Приглашений пока нет.</p> }
-      <nav class="pagination" aria-label="Страницы приглашений"><button class="btn" (click)="invitationPage.set(invitationPage()-1)" [disabled]="invitationPage() === 0 || loading()">Назад</button><span>Страница {{ invitationPage()+1 }}</span><button class="btn" (click)="invitationPage.set(invitationPage()+1)" [disabled]="(invitationPage()+1)*25 >= invitationTotal() || loading()">Далее</button></nav>
-    </section>`,
+    <section aria-label="Приглашения" class="admin-list"><div class="sh"><div class="title-group"><h2>Приглашения</h2><span class="count">Всего: {{ invitationTotal() }}</span></div></div>
+      @if (invitations().length) {
+        <div class="table-wrap"><table class="tbl admin-table"><thead><tr><th scope="col">Статус</th><th scope="col">Действует до</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead><tbody>
+        @for (invitation of invitations(); track invitation.id) {
+          <tr class="invitation-row"><td><span class="tag" [class.quiet]="invitation.state !== 'pending'"><mentor-icon [name]="invitation.state === 'pending' ? 'mail' : invitation.state === 'used' ? 'user-check' : 'ban'"/>{{ invitationLabels[invitation.state] }}</span></td><td>{{ invitation.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC</td>
+            <td class="act">@if (invitation.state === 'pending') { <button class="btn sm danger" data-action="revoke" (click)="revoke(invitation.id)" [disabled]="busy()"><mentor-icon name="ban"/>Отозвать</button> }</td></tr>
+        }</tbody></table></div>
+      } @else if (!loading()) { <div class="empty-state mt-16"><h3>Приглашений пока нет</h3><p>Создайте приглашение кнопкой «Пригласить преподавателя».</p></div> }
+      @if (invitationTotal() > 25) { <nav class="pagination" aria-label="Страницы приглашений"><button class="btn" (click)="invitationPage.set(invitationPage()-1)" [disabled]="invitationPage() === 0 || loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{ invitationPage()+1 }}</span><button class="btn" (click)="invitationPage.set(invitationPage()+1)" [disabled]="(invitationPage()+1)*25 >= invitationTotal() || loading()">Далее<mentor-icon name="chevron-right"/></button></nav> }
+    </section></div>`,
 })
 export class TeachersPageComponent {
   private readonly api = inject(PlatformApi);
@@ -65,6 +74,7 @@ export class TeachersPageComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly issued = signal<LinkIssue | null>(null);
+  readonly copied = signal(false);
   readonly resetTeacher = signal<Teacher | null>(null);
   readonly currentPassword = new FormControl('', { nonNullable: true, validators: [Validators.required] });
   readonly invitationLabels = { pending: 'Ожидает регистрации', used: 'Использовано', revoked: 'Отозвано', expired: 'Истекло' };
@@ -103,11 +113,12 @@ export class TeachersPageComponent {
     this.mutate(this.api.post('/admin/teachers/{id}/password-reset', { currentPassword: this.currentPassword.value }, { pathParams: { id: this.resetTeacher()!.userId } }), issue => { this.showIssue(issue); this.cancelReset(); }, false);
   }
   selectLink(event: Event): void { (event.target as HTMLInputElement).select(); }
+  copy(link: string): void { void navigator.clipboard?.writeText(link).then(() => this.copied.set(true), () => this.copied.set(false)); }
   private showIssue(issue: LinkIssue): void {
     try {
       const url = new URL(issue.link, document.baseURI);
       if (!['http:', 'https:'].includes(url.protocol) || url.origin !== window.location.origin) throw new Error('Invalid issue link');
-      this.issued.set({ ...issue, link: url.href });
+      this.issued.set({ ...issue, link: url.href }); this.copied.set(false);
     } catch { this.error.set('Ссылка недоступна. Проверьте адрес кабинета.'); }
   }
   private mutate<T>(action: Observable<T>, done?: (value: T) => void, reload = true): void {

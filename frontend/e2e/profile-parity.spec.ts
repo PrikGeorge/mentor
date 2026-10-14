@@ -58,7 +58,7 @@ for (const width of [1280, 390])
         await page.setViewportSize({ width, height: 900 });
         const state = await api(page);
         await page.goto('/teacher/students/s1/profile');
-        await expect(page.locator('main h1')).toHaveText('Навыки и наблюдения');
+        await expect(page.locator('main .sh h2')).toHaveText('Навыки и наблюдения');
         await expect(page.locator('.material-document')).toContainText('PRIVATE_PROFILE');
         expect(state.lessonLists()).toBe(0);
         if (width === 390)

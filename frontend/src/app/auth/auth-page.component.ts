@@ -7,39 +7,51 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { SessionStore } from '../core/session.store';
 import { safeReturnUrl } from '../core/session.interceptor';
 import { passwordValidator } from '../core/password.validator';
+import { IconComponent } from '../core/icon.component';
+import { NgTemplateOutlet } from '@angular/common';
 
 @Component({
-  selector: 'mentor-auth-page', imports: [ReactiveFormsModule, RouterLink],
+  selector: 'mentor-auth-page', imports: [ReactiveFormsModule, RouterLink, IconComponent, NgTemplateOutlet],
   template: `
-    <section class="auth-layout" aria-labelledby="auth-title"><div class="auth-card">
-      <p class="eyebrow">Кабинет наставника</p><h1 id="auth-title">{{ heading }}</h1>
-      <p class="auth-description">{{ description }}</p>
+    @if (session.actor() && mode === 'password') {
+      <div class="page-head"><div><h1 id="auth-title">{{ heading }}</h1><p class="subtitle">{{ description }}</p></div></div>
+      <section class="auth-layout" aria-labelledby="auth-title"><div class="auth-card"><ng-container *ngTemplateOutlet="body"/></div></section>
+    } @else {
+      <div class="auth-split">
+        <aside class="auth-side" aria-hidden="true"><span class="brand"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><span>Наставник</span></span>
+          <p class="motto">Ход — ответ.</p><p>Кабинет индивидуального наставничества по Java backend.</p>
+          <div class="auth-art"><div class="auth-clock"><div class="on"><b>Ученик</b><span>твой ход</span></div><div><b>Наставник</b><span>ответил</span></div></div><div class="auth-board"></div></div></aside>
+        <div class="auth-main"><section class="auth-layout" aria-labelledby="auth-title"><div class="auth-card"><h1 id="auth-title">{{ heading }}</h1><p class="auth-description">{{ description }}</p><ng-container *ngTemplateOutlet="body"/></div></section></div>
+      </div>
+    }
+    <ng-template #body>
       @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
-      @if (message()) { <p class="callout" role="status">{{ message() }}</p> }
+      @if (message()) { <p class="success-banner" role="status">{{ message() }}</p> }
       <form [formGroup]="form" (ngSubmit)="submit()">
         @if (mode === 'login' || mode === 'register') {
-          <label class="auth-field">Логин<input name="login" formControlName="login" autocomplete="username" required maxlength="200"></label>
+          <label class="auth-field">Логин<input name="login" formControlName="login" autocomplete="username" required maxlength="200" spellcheck="false" autocapitalize="none"></label>
         }
         @if (mode === 'password') {
           <label class="auth-field">Текущий пароль<input name="currentPassword" type="password" formControlName="currentPassword" autocomplete="current-password" required></label>
         }
         <label class="auth-field">{{ mode === 'login' ? 'Пароль' : 'Новый пароль' }}
           <input name="password" type="password" formControlName="password" [attr.autocomplete]="mode === 'login' ? 'current-password' : 'new-password'" required [attr.aria-describedby]="mode === 'login' ? null : 'password-hint'">
+          @if (mode !== 'login') { <small id="password-hint">От 8 до 128 символов. Пробелы сохраняются.</small> }
         </label>
         @if (mode !== 'login') {
-          <p id="password-hint" class="small-muted">От 8 до 128 символов. Пробелы сохраняются.</p>
           <label class="auth-field">Повторите пароль<input name="confirmation" type="password" formControlName="confirmation" autocomplete="new-password" required></label>
         }
-        <button class="btn primary" type="submit" [disabled]="busy()">{{ busy() ? 'Сохраняем…' : submitLabel }}</button>
+        @if (mode === 'password') { <p class="warning-banner m-0"><span>Остальные сессии будут завершены.</span></p> }
+        <button class="btn primary" type="submit" [disabled]="busy()">@if (busy()) {<mentor-icon class="spin" name="loader"/>Сохраняем…} @else {<mentor-icon [name]="mode === 'login' ? 'log-in' : mode === 'register' ? 'user-check' : 'save'"/>{{ submitLabel }}}</button>
       </form>
-      @if (mode !== 'login') { <p class="auth-links"><a routerLink="/login">Перейти ко входу</a></p> }
-      @if (mode === 'login') { <p class="small-muted auth-links">Для восстановления доступа попросите ссылку у преподавателя или администратора.</p> }
-    </div></section>`,
+      @if (mode !== 'login' && !session.actor()) { <p class="auth-links"><a routerLink="/login">Перейти ко входу</a></p> }
+      @if (mode === 'login') { <p class="auth-note"><mentor-icon name="info"/><span>Для восстановления доступа попросите ссылку у преподавателя или администратора.</span></p> }
+    </ng-template>`,
 })
 export class AuthPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly session = inject(SessionStore);
+  readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
   readonly mode = this.route.snapshot.data['mode'] as 'register' | 'reset' | 'password' | undefined ?? 'login';
   readonly heading = { login: 'Вход', register: 'Приглашение', reset: 'Восстановление пароля', password: 'Смена пароля' }[this.mode];

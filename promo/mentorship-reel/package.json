@@ -1,0 +1,31 @@
+{
+  "name": "mentorship-reel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ролик о наставничестве в IT для объявления на Авито: 1:1, есть вертикальная версия 9:16 (Remotion)",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render MentorshipReel out/mentorship-reel-1x1.mp4",
+    "render:vertical": "remotion render MentorshipReel out/mentorship-reel-9x16.mp4 --props={\"format\":\"vertical\"}",
+    "render:safe": "remotion render MentorshipReel out/mentorship-reel-safezones.mp4 --props={\"showSafeZones\":true}",
+    "avatar": "remotion render TelegramAvatar out/telegram-avatar.mp4",
+    "avatar:cover": "remotion still TelegramAvatar out/telegram-avatar-cover.png --frame=42",
+    "cover": "remotion still MentorshipReel out/cover.png --frame=1100",
+    "stills": "node scripts/stills.mjs --safe",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.528",
+    "@remotion/google-fonts": "4.0.528",
+    "@remotion/paths": "4.0.528",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "remotion": "4.0.528"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "4.0.528",
+    "@remotion/renderer": "4.0.528",
+    "@types/react": "19.2.16",
+    "typescript": "5.9.2"
+  }
+}

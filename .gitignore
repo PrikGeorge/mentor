@@ -8,3 +8,6 @@ data/
 private/materials/
 backend/target/
 runner/target/
+private/
+.angular/
+frontend/.angular/

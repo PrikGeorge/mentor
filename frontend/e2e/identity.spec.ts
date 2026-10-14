@@ -1,4 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+async function signOut(page: Page) { const menu = page.getByRole('button', { name: 'Меню', exact: true }); if (await menu.isVisible()) await menu.click(); else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); }
+
 
 test('390px keyboard login keeps private assets out and navigates by role', async ({ page }) => {
   const failures: string[] = [];
@@ -38,7 +40,7 @@ test('390px keyboard login keeps private assets out and navigates by role', asyn
   await expect(page.getByRole('link', { name: 'Преподаватели', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Сменить пароль' }).click();
   await expect(page.getByRole('heading', { name: 'Смена пароля' })).toBeVisible();
-  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await signOut(page);
   await expect(page).toHaveURL('/login');
   expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
   expect(failures).toEqual([]);
@@ -63,7 +65,7 @@ test('administrator page at 390px wraps long logins and issues manual links', as
   });
   await page.goto('/admin/teachers');
   await expect(page.getByRole('button', { name: 'Блокировать аккаунт' })).toBeVisible();
-  await page.getByRole('button', { name: '+ Пригласить преподавателя' }).click();
+  await page.getByRole('button', { name: 'Пригласить преподавателя' }).click();
   await expect(page.getByRole('textbox', { name: 'Одноразовая ссылка' })).toHaveValue('http://127.0.0.1:4201/register?token=synthetic-only');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: test.info().outputPath('admin-390.png'), fullPage: true });

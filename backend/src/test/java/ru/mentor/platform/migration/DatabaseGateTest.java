@@ -30,7 +30,9 @@ class DatabaseGateTest extends PostgresTest {
         runtime=start();
         try(var other=raw()){
             assertFalse(bool(other,"SELECT pg_try_advisory_lock("+LOCK+")"),"A live runtime must hold the maintenance gate before accepting HTTP requests");
-            assertEquals(8,integer(other,"SELECT count(*) FROM flyway_schema_history WHERE success"),"Guarded startup must still apply V8");
+            int migrations=new org.springframework.core.io.support.PathMatchingResourcePatternResolver().getResources("classpath:db/migration/V*.sql").length;
+            assertTrue(migrations>=8);
+            assertEquals(migrations,integer(other,"SELECT count(*) FROM flyway_schema_history WHERE success"),"Guarded startup must still apply every migration");
             assertEquals(0,integer(other,"SELECT count(*) FROM import_run"));
         }
     }

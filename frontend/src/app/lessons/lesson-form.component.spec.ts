@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, student, lesson, base, click, fill, publicStudent, publicLesson } from '../students/domain-test-support';
+import { configure, open, page, student, lesson, base, click, fill, publicStudent, publicLesson, flushTurns } from '../students/domain-test-support';
 describe('Lesson creation and preparation', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -8,7 +8,7 @@ describe('Lesson creation and preparation', () => {
         http.expectOne(base).flush(student); http.expectOne(base + '/lessons/l1').flush(lesson); fixture.detectChanges();
         session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'another-teacher', workspaceId: 'w2', role: 'TEACHER', authVersion: 1 }, csrfToken: 'synthetic-new' });
         click(element, 'Изменить сценарий'); http.expectNone(request => request.url.includes('/texts/'));
-        fixture.detectChanges(); http.match(request => request.method === 'GET').forEach(request => request.flush({items:[],page:0,size:25,total:0}));
+        fixture.detectChanges(); http.match(request => request.method === 'GET').forEach(request => { if (!request.cancelled) request.flush({items:[],page:0,size:25,total:0}); });
     });
     it('creates only the short four-field form and navigates to preparation after 201', async () => {
         const { fixture, http, element, router } = await open('/teacher/students/s1');
@@ -17,7 +17,7 @@ describe('Lesson creation and preparation', () => {
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
         fixture.detectChanges();
-        click(element, '+ Добавить занятие');
+        click(element, 'Добавить занятие');
         fixture.detectChanges();
         expect(element.querySelectorAll('form')).toHaveLength(1);
         expect(element.querySelector('[name="reviewNotes"]')).toBeNull();
@@ -40,7 +40,7 @@ describe('Lesson creation and preparation', () => {
         fixture.detectChanges();
         expect(element.textContent).toContain('Подготовка занятия');
         expect(element.querySelectorAll('h1')).toHaveLength(1);
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('keeps entered short-form values and does not navigate after a creation error', async () => {
         const { fixture, http, element, router } = await open('/teacher/students/s1');
@@ -49,7 +49,7 @@ describe('Lesson creation and preparation', () => {
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
         fixture.detectChanges();
-        click(element, '+ Добавить занятие');
+        click(element, 'Добавить занятие');
         fixture.detectChanges();
         fill(element, 'title', 'Не потерять');
         element.querySelector('form')!.dispatchEvent(new Event('submit'));
@@ -58,7 +58,7 @@ describe('Lesson creation and preparation', () => {
         fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="title"]')?.value).toBe('Не потерять');
         expect(router.url).toBe('/teacher/students/s1');
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('teacher preview fetches public projection, keeps one header and offers no write controls', async () => {
         const { fixture, http, element, session } = await open('/teacher/students/s1/lessons/l1/student/tasks?preview=student');
@@ -72,7 +72,7 @@ describe('Lesson creation and preparation', () => {
         expect(element.textContent).not.toContain('Частные заметки');
         expect(element.querySelector('form')).toBeNull();
         expect(Array.from(element.querySelectorAll('button')).some(b => /Сохранить|Изменить|Сдать/.test(b.textContent || ''))).toBe(false);
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('loads and saves an independent text revision while preserving Markdown whitespace', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1/lessons/l1');
@@ -92,7 +92,7 @@ describe('Lesson creation and preparation', () => {
         save.flush({ kind: 'teacherNotes', markdown: '  новое  \n', revision: 8 });
         fixture.detectChanges();
         expect(element.querySelector('form')).toBeNull();
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('keeps Markdown in the text editor on stale revision without changing lesson metadata', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1/lessons/l1/teacher/review');
@@ -114,7 +114,7 @@ describe('Lesson creation and preparation', () => {
         fixture.detectChanges();
         expect(element.querySelector<HTMLTextAreaElement>('[name="markdown"]')?.value).toBe('  сохранить локально\n');
         expect(element.textContent).toContain('Ревизия устарела');
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('metadata form excludes all lesson texts and uses the metadata revision', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1/lessons/l1');
@@ -130,7 +130,7 @@ describe('Lesson creation and preparation', () => {
         expect(save.request.body).toEqual({ title: 'Коллекции', date: '2026-10-02', time: '14:30', duration: 60, revision: 5 });
         save.flush({ ...lesson, time: '14:30', revision: 6 });
         fixture.detectChanges();
-        expect(element.querySelector('.lesson-header')?.textContent).toContain('14:30');
-        http.verify();
+        expect(element.querySelector('.context-title .meta')?.textContent).toContain('14:30');
+        flushTurns(http); http.verify();
     });
 });

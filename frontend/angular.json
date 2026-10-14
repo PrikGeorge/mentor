@@ -14,27 +14,67 @@
             "browser": "src/main.ts",
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
-            "styles": ["src/styles.scss"],
-            "assets": [{ "glob": "**/*", "input": "public" }],
+            "styles": [
+              "node_modules/@fontsource/fira-sans/400.css",
+              "node_modules/@fontsource/fira-sans/400-italic.css",
+              "node_modules/@fontsource/fira-sans/500.css",
+              "node_modules/@fontsource/fira-sans/600.css",
+              "node_modules/@fontsource/fira-sans/700.css",
+              "node_modules/@fontsource/old-standard-tt/400.css",
+              "node_modules/@fontsource/old-standard-tt/400-italic.css",
+              "node_modules/@fontsource/old-standard-tt/700.css",
+              "node_modules/@fontsource/pt-mono/400.css",
+              "src/styles.scss"
+            ],
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "outputPath": "dist/mentor"
           },
           "configurations": {
             "production": {
               "outputHashing": "all",
-              "optimization": { "scripts": true, "styles": { "minify": true, "inlineCritical": false }, "fonts": true },
-              "budgets": [{ "type": "initial", "maximumWarning": "600kB", "maximumError": "800kB" }]
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "600kB",
+                  "maximumError": "800kB"
+                }
+              ]
             },
-            "development": { "optimization": false, "sourceMap": true }
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
           },
           "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": { "buildTarget": "mentor:build:development", "port": 4201, "proxyConfig": "proxy.conf.json" }
+          "options": {
+            "buildTarget": "mentor:build:development",
+            "port": 4201,
+            "proxyConfig": "proxy.conf.json"
+          }
         },
         "test": {
           "builder": "@angular/build:unit-test",
-          "options": { "tsConfig": "tsconfig.spec.json", "runner": "vitest", "buildTarget": "mentor:build:development" }
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "runner": "vitest",
+            "buildTarget": "mentor:build:development"
+          }
         }
       }
     }

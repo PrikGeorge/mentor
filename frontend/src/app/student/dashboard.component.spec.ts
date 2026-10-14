@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, base, publicStudent, publicLesson } from '../students/domain-test-support';
+import { configure, open, page, base, publicStudent, publicLesson, flushTurns } from '../students/domain-test-support';
 describe('Learner dashboard and navigation', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -10,18 +10,18 @@ describe('Learner dashboard and navigation', () => {
             fixture.detectChanges();
             http.expectOne(base + '/dashboard').flush({ student: publicStudent, lessonCount: focus ? 1 : 0, focus });
             fixture.detectChanges();
-            expect(element.querySelector('h1')?.textContent).toContain('Тестовая Анна');
-            expect(element.querySelector('.brand')?.textContent).toContain('Тестовая Анна');
-            expect(element.querySelector('.brand')?.textContent).toContain(publicStudent.direction);
+            expect(element.querySelector('h1')?.textContent).toContain(focus ? publicLesson.title : 'Тестовая Анна');
+            expect(element.querySelector('.profile-name')?.textContent).toContain('Тестовая Анна');
+            expect(element.textContent).toContain(publicStudent.direction);
             expect(element.querySelectorAll('.selected-student')).toHaveLength(0);
             expect(element.querySelector('footer')?.textContent).toContain('Кабинет ученика');
             expect(element.querySelector('footer')?.textContent).not.toContain('Кабинет наставника');
-            expect(element.textContent).toContain(focus === null ? 'Занятий пока нет' : focus.upcoming ? 'БЛИЖАЙШЕЕ ЗАНЯТИЕ' : 'ПОСЛЕДНЕЕ ЗАНЯТИЕ');
+            expect(element.textContent).toContain(focus === null ? 'Занятий пока нет' : focus.upcoming ? 'Ближайшее занятие' : 'Последнее занятие');
             expect(element.textContent).not.toContain('Заметки наставника');
             expect(element.querySelector('a[href*="/learn/students/s1/goal"]')).toBeTruthy();
             if (focus)
                 expect(element.querySelector('a[href*="/learn/students/s1/lessons/l1/student/tasks"]')).toBeTruthy();
-            http.verify();
+            flushTurns(http); http.verify();
         });
     }
     it('shows lesson sections in the learner menu without a second lesson header', async () => {
@@ -32,7 +32,7 @@ describe('Learner dashboard and navigation', () => {
         expect(element.querySelectorAll('h1')).toHaveLength(1);
         expect(element.querySelector('nav[aria-label="Разделы занятия"]')?.textContent).toContain('Домашняя работа');
         expect(element.textContent).not.toContain('Заметки наставника');
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('teacher home preview uses the public dashboard without account-access reads', async () => {
         const { fixture, http, element, session } = await open('/teacher/students/s1?preview=student');
@@ -40,12 +40,12 @@ describe('Learner dashboard and navigation', () => {
         fixture.detectChanges();
         expect(session.actor()?.role).toBe('TEACHER');
         expect(element.querySelectorAll('.selected-student')).toHaveLength(0);
-        expect(element.querySelector('.brand')?.textContent).toContain(publicStudent.name);
+        expect(element.querySelector('.profile-name')?.textContent).toContain(publicStudent.name);
         expect(element.querySelector('footer')?.textContent).toContain('Кабинет ученика');
-        expect(element.textContent).toContain('БЛИЖАЙШЕЕ ЗАНЯТИЕ');
+        expect(element.textContent).toContain('Ближайшее занятие');
         expect(element.textContent).not.toContain('Доступ к кабинету');
         expect(element.querySelector('a[href="/teacher/students/s1/lessons/l1/student/tasks?preview=student"]')).toBeTruthy();
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('legacy learner list root resolves to its own dashboard instead of a missing page', async () => {
         const { fixture, http, router, element } = await open('/learn/students', 'STUDENT');
@@ -54,6 +54,6 @@ describe('Learner dashboard and navigation', () => {
         fixture.detectChanges();
         expect(router.url).toBe('/learn');
         expect(element.textContent).toContain('Тестовая Анна');
-        http.verify();
+        flushTurns(http); http.verify();
     });
 });

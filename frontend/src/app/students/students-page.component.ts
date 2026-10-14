@@ -1,32 +1,54 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { forkJoin, of, switchMap } from 'rxjs';
+import { DatePipe } from '@angular/common';
+import { catchError, forkJoin, of, switchMap } from 'rxjs';
 import { SessionStore } from '../core/session.store';
-import { WorkspaceContext } from '../layout/workspace-context';
 import { Dashboard, StudentsApi, StudentView } from './students-api.service';
 import { StudentFormComponent } from './student-form.component';
-@Component({ selector: 'mentor-students-page', imports: [RouterLink, StudentFormComponent], template: `
-  <div class="page-head"><div><p class="eyebrow">КАБИНЕТ НАСТАВНИКА</p><h1>Мои ученики</h1><p class="subtitle">Выберите ученика, чтобы открыть его занятия, материалы и план обучения.</p></div><button class="btn primary" (click)="creating.set(true)">+ Добавить ученика</button></div>
-  @if(creating()&&session.actor()?.workspaceId){<mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/>}
-  @if(error()){<p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()">Повторить загрузку</button>}
-  @if(loading()){<p role="status">Загружаем учеников…</p>}
-  <div class="students-grid">@for(s of students();track s.id){<a class="panel panel-inner student-card" [routerLink]="['/teacher/students',s.id]"><span class="avatar">{{s.name.slice(0,1)}}</span><h2>{{s.name}}</h2><p>{{s.direction||'Направление не указано'}}</p><p>{{s.goal||'Цель обучения можно добавить в карточку'}}</p>@if(summaries()[s.id];as summary){<p class="small-muted">Занятий: {{summary.lessonCount}}</p>@if(summary.focus;as focus){<p>{{focus.upcoming?'Ближайшее занятие':'Последнее по дате'}}<br>{{focus.lesson.date}} · {{focus.lesson.time}} МСК</p>}@else{<p>Первое занятие ещё не добавлено</p>}}</a>}@empty{@if(!loading()){<div class="empty-state"><h2>Учеников пока нет</h2><p>Создайте отдельную карточку. Материалы других учеников сюда не переносятся.</p></div>}}<button class="panel panel-inner student-card" (click)="creating.set(true)"><h2>+ Новый ученик</h2><p>Отдельная карточка, занятия и материалы</p></button></div>
-  <nav class="pagination" aria-label="Страницы учеников"><button class="btn" (click)="page.set(page()-1)" [disabled]="page()===0||loading()">Назад</button><span>Страница {{page()+1}}</span><button class="btn" (click)="page.set(page()+1)" [disabled]="(page()+1)*25>=total()||loading()">Далее</button></nav>` })
+import { IconComponent } from '../core/icon.component';
+import { HomeworkApi, StudentTurn } from '../homework/homework-api.service';
+import { Turn, TurnClockComponent, turnOf } from '../homework/turn-clock.component';
+@Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent], template: `
+  <div class="page-head"><div><h1>Мои ученики</h1><p class="subtitle">Выберите ученика, чтобы открыть его занятия, материалы и план обучения.@if(total()){ Учеников: {{total()}}.}</p></div><button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button></div>
+  @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
+  @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
+  @if(loading()){<p class="loading" role="status">Загружаем учеников…</p>}
+  @if(waiting().length){<section aria-labelledby="queue-title"><div class="sh"><div class="title-group"><h2 id="queue-title">Ход за вами</h2><span class="count">{{waitingLabel()}}, первой — та, что отправлена раньше</span></div></div>
+    <ol class="queue">@for(row of waiting();track row.studentId){<li><span class="avatar" aria-hidden="true">{{initial(row.studentName)}}</span><div><h3>{{row.studentName}}</h3><p>{{direction(row.studentId)}}@if(row.awaitingReview>1){ · ещё работ на ревью: {{row.awaitingReview-1}}}</p></div>
+      <div class="work"><b>{{row.lessonTitle}}</b><p>Занятие {{row.lessonDate|date:'dd.MM.yyyy'}} · {{row.filename}}</p>@if(row.comment){<q>{{row.comment}}</q>}</div>
+      <mentor-turn-clock [turn]="clocks()[row.studentId]" viewer="teacher" [name]="row.studentName" [mini]="true"/>
+      <a class="btn primary" [routerLink]="['/teacher/students',row.studentId,'lessons',row.lessonId,'teacher','review']"><mentor-icon name="message"/>Открыть ревью</a></li>}</ol></section>}
+  <div class="sh"><div class="title-group"><h2>{{waiting().length?'Ход у учеников':'Ученики'}}</h2><span class="count">карточки учеников</span></div></div>
+  <div class="students-grid">@for(s of students();track s.id){<a class="student-card" [routerLink]="['/teacher/students',s.id]"><div class="student-card-head"><span class="avatar" aria-hidden="true">{{initial(s.name)}}</span><div><h2>{{s.name}}</h2><p>{{s.direction||'Направление не указано'}}</p></div></div>
+      <dl><div><dt>Цель</dt><dd>{{s.goal||'Цель обучения можно добавить в карточку'}}</dd></div>
+        @if(summaries()[s.id];as summary){<div><dt>Занятий</dt><dd>{{summary.lessonCount}}</dd></div><div><dt>{{summary.focus?.upcoming===false?'Последнее по дате':'Ближайшее занятие'}}</dt><dd>@if(summary.focus;as focus){{{focus.lesson.date|date:'dd.MM.yyyy'}} · {{focus.lesson.time}} МСК}@else{не назначено}</dd></div>}
+        @else{<div><dt>Занятия</dt><dd><span class="skeleton"><i></i></span></dd></div>}</dl>
+      @if(clocks()[s.id];as turn){<mentor-turn-clock [turn]="turn" viewer="teacher" [name]="s.name" [mini]="true"/>}</a>}
+    @empty{@if(!loading()){<div class="empty-state"><h2>Учеников пока нет</h2><p>Создайте отдельную карточку. Материалы других учеников сюда не переносятся.</p></div>}}
+    <button class="student-card new-card" (click)="creating.set(true)"><span class="new-mark" aria-hidden="true"><mentor-icon name="plus"/></span><h2>Новый ученик</h2><p>Отдельная карточка, занятия и материалы</p></button></div>
+  @if(total()>25){<nav class="pagination" aria-label="Страницы учеников"><button class="btn" (click)="page.set(page()-1)" [disabled]="page()===0||loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{page()+1}}</span><button class="btn" (click)="page.set(page()+1)" [disabled]="(page()+1)*25>=total()||loading()">Далее<mentor-icon name="chevron-right"/></button></nav>}` })
 export class StudentsPageComponent {
     readonly session = inject(SessionStore);
     private readonly api = inject(StudentsApi);
+    private readonly homework = inject(HomeworkApi);
     private readonly router = inject(Router);
-    private readonly context = inject(WorkspaceContext);
     private readonly refresh = signal(0);
     readonly page = signal(0);
     readonly total = signal(0);
     readonly students = signal<StudentView[]>([]);
     readonly summaries = signal<Record<string, Dashboard>>({});
+    // One homework turn per student; the queue shows works awaiting review, oldest first as the server orders them.
+    readonly queue = signal<StudentTurn[]>([]);
+    readonly clocks = computed(() => Object.fromEntries(this.queue().map(row => [row.studentId, turnOf(row)])) as Record<string, Turn>);
+    readonly waiting = computed(() => this.queue().filter(row => row.status === 'submitted'));
     readonly creating = signal(false);
     readonly loading = signal(false);
     readonly error = signal('');
-    constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(); this.refresh(); this.students.set([]); this.summaries.set({}); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
-        return; this.loading.set(true); const sub = this.api.list(w, page).pipe(switchMap(view => { this.students.set(view.items); this.total.set(view.total); return view.items.length ? forkJoin(view.items.map(s => this.api.dashboard(w, s.id))) : of([]); })).subscribe({ next: summaries => { this.summaries.set(Object.fromEntries(summaries.map(s => [s.student.id, s]))); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
+    constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(); this.refresh(); this.students.set([]); this.summaries.set({}); this.queue.set([]); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
+        return; this.loading.set(true); const sub = this.api.list(w, page).pipe(switchMap(view => { this.students.set(view.items); this.total.set(view.total); return view.items.length ? forkJoin({ summaries: forkJoin(view.items.map(s => this.api.dashboard(w, s.id))), turns: this.homework.studentTurns(w).pipe(catchError(() => of(null))) }) : of({ summaries: [], turns: null }); })).subscribe({ next: ({ summaries, turns }) => { this.summaries.set(Object.fromEntries(summaries.map(s => [s.student.id, s]))); this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
     reload() { this.refresh.update(v => v + 1); }
+    initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }
+    direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }
+    waitingLabel() { const n = this.waiting().length, last = n % 10, tens = n % 100; return n + (last === 1 && tens !== 11 ? ' работа ждёт' : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? ' работы ждут' : ' работ ждут') + ' ревью'; }
     created(student: StudentView) { this.creating.set(false); void this.router.navigate(['/teacher/students', student.id]); }
 }

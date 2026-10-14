@@ -18,7 +18,7 @@ public class InvitationController {
     public record AccessChange(Boolean disabled){public AccessChange{if(disabled==null)throw new IllegalArgumentException("Disabled required.");}}
     public record PasswordResetRequest(String currentPassword){public PasswordResetRequest{if(currentPassword==null)throw new IllegalArgumentException("Current password required.");}}
     @PostMapping("/auth/register") public AuthController.SessionView register(@RequestBody RegistrationRequest input,HttpServletRequest r,HttpServletResponse response){
-        Actor actor=invitations.redeem(input.token(),input.login(),input.password());sessions.establish(r,actor);CsrfToken token=csrf.generateToken(r);csrf.saveToken(token,r,response);return new AuthController.SessionView(actor,token.getToken());
+        Actor actor=invitations.redeem(input.token(),input.login(),input.password());sessions.establish(r,actor);CsrfToken token=csrf.generateToken(r);csrf.saveToken(token,r,response);return new AuthController.SessionView(actor,token.getToken(),sessions.login(actor));
     }
     @PostMapping("/auth/reset-password") public ResponseEntity<Void> reset(@RequestBody ResetPasswordRequest input,HttpServletRequest r){invitations.resetPassword(input.token(),input.password());var session=r.getSession(false);if(session!=null)session.invalidate();return empty();}
     @GetMapping("/admin/teachers") public Page<IdentityRepository.TeacherView> teachers(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,HttpServletRequest r){return access.teachers(sessions.requireCurrent(r),page,size);}

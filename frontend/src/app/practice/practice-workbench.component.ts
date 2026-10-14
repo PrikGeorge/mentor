@@ -12,44 +12,66 @@ import { PracticeDraft } from './practice-draft.service';
 import { AttemptPoller } from './attempt-poller.service';
 import { MonacoEditorComponent } from './monaco-editor.component';
 import { TeacherPracticeComponent, lessonKey } from './teacher-practice.component';
-@Component({ selector: 'mentor-practice-workbench', imports: [MonacoEditorComponent, TeacherPracticeComponent, DatePipe], providers: [PracticeDraft], template: `
-@if(checking()){<p role="status">Проверяем сессию перед возвратом к коду…</p>}
-@if(sessionError()){<p class="auth-error" role="alert">{{sessionError()}}</p><button class="btn" (click)="revalidate()">Повторить проверку сессии</button>}
+import { IconComponent } from '../core/icon.component';
+import { CodeReviewComponent } from '../comments/code-review.component';
+const THEME_KEY = 'mentor.trainer-theme';
+const storedTheme = () => { try { return localStorage.getItem(THEME_KEY) === 'dark'; } catch { return false; } };
+@Component({ selector: 'mentor-practice-workbench', imports: [MonacoEditorComponent, TeacherPracticeComponent, DatePipe, IconComponent, CodeReviewComponent], providers: [PracticeDraft], template: `
+@if(checking()){<p class="loading" role="status">Проверяем сессию перед возвратом к коду…</p>}
+@if(sessionError()){<div class="shell-error"><p class="auth-error" role="alert">{{sessionError()}}</p><button class="btn" (click)="revalidate()"><mentor-icon name="refresh"/>Повторить проверку сессии</button></div>}
+<div class="trainer" [class.theme-dark]="dark()">
 <section class="practice-page" [hidden]="!owned()">
- <div class="practice-heading"><div><p class="eyebrow">JAVA · ПРАКТИКА</p><h2>Тренажёр занятия</h2><p class="subtitle">Код сохраняется отдельно для каждого упражнения.</p></div><button class="btn" (click)="refreshCatalog()" [disabled]="loading()">Обновить задания</button></div>
+ <div class="practice-heading"><div><h2>Тренажёр занятия</h2><p class="subtitle">Java · код сохраняется отдельно для каждого упражнения.</p></div><div class="actions"><button class="btn sm theme-toggle" type="button" (click)="toggleTheme()" [attr.aria-pressed]="dark()"><mentor-icon [name]="dark()?'sun':'moon'"/>{{dark()?'Светлая тема':'Тёмная тема'}}</button><button class="btn sm" (click)="refreshCatalog()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить задания</button></div></div>
  @if(error()){<p class="auth-error" role="alert">{{error()}}</p>}
- @if(loading()){<p role="status">Загружаем упражнения…</p>}
+ @if(loading()){<p class="loading" role="status">Загружаем упражнения…</p>}
  @if(view();as practice){
   @if(teacher()){<mentor-teacher-practice [lesson]="lesson()" [view]="practice" (saved)="assignmentsSaved($event)"/>}
-  <nav class="practice-exercises" aria-label="Упражнения занятия">
-   @for(row of practice.exercises;track row.exercise.id){<button class="btn" [attr.aria-current]="selectedId()===row.exercise.id?'page':null" (click)="choose(row.exercise.id)">{{row.exercise.title}} <small>{{row.placement==='homework'?'Домой':'На занятии'}}</small></button>}
-   @for(row of removed();track row.exerciseId){<button class="btn" [attr.aria-current]="selectedId()===row.exerciseId?'page':null" (click)="choose(row.exerciseId)">История · {{row.exerciseId}}</button>}
-  </nav>
-  @if(!practice.exercises.length&&!history().length){<p class="empty-state">Упражнения пока не назначены.</p>}
+  @if(!practice.exercises.length&&!history().length){<div class="empty-state"><h3>Упражнения пока не назначены</h3><p>{{teacher()?'Выберите упражнения в каталоге выше — они появятся у ученика.':'Наставник добавит упражнения к занятию. Загляни позже или открой задания.'}}</p></div>}
  }
  @if(selectedId()){
-  @if(displayExercise();as exercise){<div class="practice-panes"><article class="panel panel-inner practice-reading"><p class="eyebrow">УСЛОВИЕ · ТОЛЬКО ДЛЯ ЧТЕНИЯ</p><h3>{{exercise.title}}</h3><div class="markdown-body" [innerHTML]="renderer.render(exercise.statement)"></div><p class="small-muted">{{exercise.environment.title}} · Java {{exercise.environment.javaVersion}}@for(dependency of exercise.environment.dependencies;track dependency){ · {{dependency}}}</p>
-   <details class="practice-reference"><summary>Исходные заготовки · только чтение</summary>@for(name of names(exercise.starterFiles);track name){<h4>{{name}}</h4><pre><code>{{exercise.starterFiles[name]}}</code></pre>}<p class="small-muted">Для сравнения с вашим кодом. Заготовки не заменяют черновик автоматически.</p></details>
-   @if(notes()){<details><summary>Материалы занятия</summary><div class="markdown-body" [innerHTML]="renderer.render(notes())"></div></details>}
-   @for(reference of references();track reference.id){@if(reference.kind==='code'&&!reference.code.teacher){<details class="practice-reference"><summary>{{reference.title||reference.filename}} · исходная заготовка</summary><pre><code>{{reference.code.text}}</code></pre><p class="small-muted">Только для чтения. Этот исходник не заменяет ваш черновик.</p></details>}}
-  </article><section class="panel practice-editor"><header><h3>Ваши файлы</h3><span class="small-muted" role="status">{{draft.busy()?'Сохраняем…':draft.dirty()?'Есть несохранённые изменения':'Черновик сохранён'}}</span></header>
-   @if(!draft.compatible()){<p class="callout">Упражнение обновилось. Ваш код остался на прежней ревизии. Экспортируйте его перед переходом.</p>}
+ <div class="trainer-grid">
+  <aside class="trainer-side" aria-label="Упражнения и условие">
+   <h3>Упражнения</h3>
+   <nav class="practice-exercises" aria-label="Упражнения занятия">
+    @for(row of view()?.exercises??[];track row.exercise.id){<button type="button" [attr.aria-current]="selectedId()===row.exercise.id?'page':null" (click)="choose(row.exercise.id)">{{row.exercise.title}} <small>{{row.placement==='homework'?'Домашняя работа':'На занятии'}}</small></button>}
+    @for(row of removed();track row.exerciseId){<button type="button" [attr.aria-current]="selectedId()===row.exerciseId?'page':null" (click)="choose(row.exerciseId)">История · {{row.exerciseId}} <small>Снято с назначения</small></button>}
+   </nav>
+   @if(displayExercise();as exercise){<article class="practice-reading"><p class="eyebrow">Условие, только чтение · Java {{exercise.environment.javaVersion}}</p><h3>{{exercise.title}}</h3><div class="markdown-body" [innerHTML]="renderer.render(exercise.statement)"></div><p class="small-muted">{{exercise.environment.title}}@for(dependency of exercise.environment.dependencies;track dependency){ · {{dependency}}}</p>
+    <details class="practice-reference"><summary>Исходные заготовки · только чтение</summary>@for(name of names(exercise.starterFiles);track name){<h4>{{name}}</h4><pre><code>{{exercise.starterFiles[name]}}</code></pre>}<p class="small-muted">Для сравнения с вашим кодом. Заготовки не заменяют черновик автоматически.</p></details>
+    @if(notes()){<details><summary>Материалы занятия</summary><div class="markdown-body" [innerHTML]="renderer.render(notes())"></div></details>}
+    @for(reference of references();track reference.id){@if(reference.kind==='code'&&!reference.code.teacher){<details class="practice-reference"><summary>{{reference.title||reference.filename}} · исходная заготовка</summary><pre><code>{{reference.code.text}}</code></pre><p class="small-muted">Только для чтения. Этот исходник не заменяет ваш черновик.</p></details>}}
+   </article>}
+  </aside>
+  @if(displayExercise()){<section class="practice-editor" aria-label="Ваши файлы"><header><nav class="practice-files" aria-label="Файлы решения">@for(name of fileNames();track name){<button type="button" [attr.aria-pressed]="file()===name" (click)="file.set(name)">{{name}}</button>}</nav>
+    <div class="file-actions">@if(writable()){<button class="btn text sm" (click)="draft.save()" [disabled]="draft.busy()||!draft.compatible()"><mentor-icon name="save"/>Сохранить код</button>}@if(writable()||sourceOwner()){<button class="btn text sm" (click)="exportFiles()"><mentor-icon name="download"/>Экспортировать код</button>}</div></header>
+   <span class="draft-state" role="status">{{draft.busy()?'Сохраняем…':draft.dirty()?'Есть несохранённые изменения':'Черновик сохранён'}}</span>
+   @if(!draft.compatible()){<p class="warning-banner">Упражнение обновилось. Ваш код остался на прежней ревизии. Экспортируйте его перед переходом.</p>}
    @if(draft.error()){<p class="auth-error" role="alert">{{draft.error()}}</p>}
-   <nav class="practice-files" aria-label="Файлы решения">@for(name of fileNames();track name){<button [attr.aria-pressed]="file()===name" (click)="file.set(name)">{{name}}</button>}</nav>
-   @if(file();as name){<mentor-monaco-editor [value]="draft.files()[name]||''" [file]="name" [context]="editorContext()" [readonly]="!writable()||draft.paused()||resetting()" (changed)="draft.edit(name,$event)"/>}
-   @if(writable()){<div class="practice-controls"><button class="btn" (click)="draft.save()" [disabled]="draft.busy()||!draft.compatible()">Сохранить код</button><button class="btn" (click)="exportFiles()">Экспортировать код</button><button class="btn" data-action="run" (click)="run('run')" [disabled]="sending()||!runnable()">Проверить примеры</button><button class="btn primary" data-action="submit" (click)="run('submit')" [disabled]="sending()||!runnable()">Отправить на все проверки</button></div>
-    @if(!draft.compatible()||draft.conflict()){<div class="callout"><p>Переход выполняется только по вашему выбору. Сервер сохранит архив прежнего сохранённого черновика.</p><button class="btn" (click)="resetChoice.set('keep')">Перенести мой код</button><button class="btn" (click)="resetChoice.set('template')">Взять новые заготовки</button></div>}
-   }@else{<p class="callout">Просмотр сохранённого кода · только чтение. Сохранение и запуск недоступны.</p>@if(sourceOwner()){<button class="btn" (click)="exportFiles()">Экспортировать код</button>}}
-  </section></div>}
-  @else{<section class="panel panel-inner"><h3>История упражнения {{selectedId()}}</h3><p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>@for(name of historicalNames();track name){<h4>{{name}}</h4><pre class="code-view"><code>{{historicalFiles()[name]}}</code></pre>}</section>}
-  @if(sourceOwner()&&draft.pending()&&!attempt()){<button class="btn" (click)="recoverAttempt()" [disabled]="sending()">Восстановить отправленную попытку</button>}
-  @if(resetChoice()){<section class="panel panel-inner reset-confirm" role="region" aria-label="Подтверждение перехода"><h3>Перейти на новую ревизию?</h3><p>{{resetChoice()==='template'?'Новые заготовки заменят код только после подтверждённого сохранения.':'Ваши файлы будут сохранены в новой ревизии, если их имена соответствуют объявленным файлам.'}}</p><button class="btn" (click)="exportFiles()">Сначала экспортировать код</button><button class="btn primary" [disabled]="resetting()" (click)="reset()">Подтвердить переход</button><button class="btn" [disabled]="resetting()" (click)="resetChoice.set(null)">Отмена</button></section>}
-  @if(attempt();as result){<section class="panel panel-inner attempt-result" aria-live="polite"><h3>{{stateLabel(result)}}</h3><p class="small-muted">Попытка {{result.id}} · {{result.mode==='run'?'Примеры':'Все проверки'}} · {{result.createdAt|date:'dd.MM.yyyy HH:mm'}}</p>@if(result.environmentRevision===null){<p class="small-muted">Версия окружения не сохранена</p>}@if(result.result;as check){<p>{{check.passed}} / {{check.total}} · {{check.elapsedMs}} мс</p>@if(check.diagnostics){<pre class="code-view">{{check.diagnostics}}</pre>}@for(test of check.tests;track $index){<article><h4>{{test.name}} · {{test.status}}</h4>@if(test.expected!==undefined){<p>Ожидалось: <code>{{scalar(test.expected)}}</code></p>}@if(test.actual!==undefined){<p>Получено: <code>{{scalar(test.actual)}}</code></p>}@if(test.message){<pre class="code-view">{{test.message}}</pre>}@if(test.stdout){<pre class="code-view">{{test.stdout}}</pre>}</article>}}<details><summary>Точный код этой попытки · только чтение</summary>@for(name of names(result.files);track name){<h4>{{name}}</h4><pre class="code-view"><code>{{result.files[name]}}</code></pre>}</details></section>}
-  <section class="panel panel-inner practice-history"><h3>История попыток</h3>@for(row of attempts();track row.id){<button class="history-row" (click)="showAttempt(row.id)"><span>{{row.mode==='run'?'Примеры':'Все проверки'}} · {{row.createdAt|date:'dd.MM.yyyy HH:mm'}}</span><span>{{row.result?.status||row.jobState}}</span></button>}@if(!attempts().length){<p>Попыток пока нет.</p>}<nav class="pagination" aria-label="Страницы попыток"><button class="btn" [disabled]="attemptPage()===0" (click)="attemptPage.set(attemptPage()-1)">Назад</button><span>Страница {{attemptPage()+1}}</span><button class="btn" [disabled]="(attemptPage()+1)*25>=attemptTotal()" (click)="attemptPage.set(attemptPage()+1)">Далее</button></nav>
-   <h3>Архив черновиков</h3>@for(row of archives();track row.id){<button class="history-row" (click)="showArchive(row.id)">{{row.updatedAt|date:'dd.MM.yyyy HH:mm'}} · Ревизия {{row.exerciseRevision}}</button>}@if(archive();as item){<details open><summary>Архив {{item.id}} · только чтение</summary>@for(name of names(item.files);track name){<h4>{{name}}</h4><pre class="code-view"><code>{{item.files[name]}}</code></pre>}</details>}<nav class="pagination" aria-label="Страницы архива"><button class="btn" [disabled]="archivePage()===0" (click)="archivePage.set(archivePage()-1)">Назад</button><span>Страница {{archivePage()+1}}</span><button class="btn" [disabled]="(archivePage()+1)*25>=archiveTotal()" (click)="archivePage.set(archivePage()+1)">Далее</button></nav>
+   @if(file();as name){<mentor-monaco-editor [value]="draft.files()[name]||''" [file]="name" [context]="editorContext()" [readonly]="!writable()||draft.paused()||resetting()" [dark]="dark()" (changed)="draft.edit(name,$event)"/>}
+   @if(writable()){<div class="practice-controls"><button class="btn" data-action="run" (click)="run('run')" [disabled]="sending()||!runnable()"><mentor-icon name="play"/>Проверить примеры</button><button class="btn primary" data-action="submit" (click)="run('submit')" [disabled]="sending()||!runnable()">@if(sending()){<mentor-icon class="spin" name="loader"/>}@else{<mentor-icon name="send"/>}Отправить на все проверки</button></div>
+    @if(!draft.compatible()||draft.conflict()){<div class="callout reset-choice"><p>Переход выполняется только по вашему выбору. Сервер сохранит архив прежнего сохранённого черновика.</p><div class="actions"><button class="btn sm" (click)="resetChoice.set('keep')">Перенести мой код</button><button class="btn sm" (click)="resetChoice.set('template')">Взять новые заготовки</button></div></div>}
+   }@else{<p class="callout">Просмотр сохранённого кода · только чтение. Сохранение и запуск недоступны.</p>}
+  </section>}
+  @else{<section class="practice-editor history-only"><h3>История упражнения {{selectedId()}}</h3><p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>@for(name of historicalNames();track name){<h4>{{name}}</h4><pre class="code-view"><code>{{historicalFiles()[name]}}</code></pre>}</section>}
+  <section class="trainer-result" aria-label="Результат проверки">
+   @if(sourceOwner()&&draft.pending()&&!attempt()){<button class="btn" (click)="recoverAttempt()" [disabled]="sending()"><mentor-icon name="history"/>Восстановить отправленную попытку</button>}
+   @if(resetChoice()){<section class="reset-confirm" role="region" aria-label="Подтверждение перехода"><h3>Перейти на новую ревизию?</h3><p>{{resetChoice()==='template'?'Новые заготовки заменят код только после подтверждённого сохранения.':'Ваши файлы будут сохранены в новой ревизии, если их имена соответствуют объявленным файлам.'}}</p><div class="actions"><button class="btn sm" (click)="exportFiles()"><mentor-icon name="download"/>Сначала экспортировать код</button><button class="btn sm primary" [disabled]="resetting()" (click)="reset()">Подтвердить переход</button><button class="btn sm text" [disabled]="resetting()" (click)="resetChoice.set(null)">Отмена</button></div></section>}
+   @if(attempt();as result){<section class="attempt-result" aria-live="polite"><p class="small-muted">Попытка · {{result.mode==='run'?'Примеры':'Все проверки'}} · {{result.createdAt|date:'dd.MM.yyyy HH:mm'}}</p>
+    <h3 class="attempt-state" [class.ok]="result.result?.status==='accepted'" [class.bad]="isFailure(result)"><mentor-icon [class.spin]="result.jobState==='running'" [name]="stateIcon(result)"/>{{stateLabel(result)}}</h3>
+    @if(result.environmentRevision===null){<p class="small-muted">Версия окружения не сохранена</p>}
+    @if(result.result;as check){<p class="check-summary">Тесты: {{check.passed}} из {{check.total}} пройдены · {{check.elapsedMs}} мс</p>
+     @if(check.tests.length){<div class="test-cells" role="img" [attr.aria-label]="'Пройдено '+check.passed+' из '+check.total">@for(test of check.tests;track $index){<span [class.pass]="test.status==='accepted'" [class.fail]="test.status!=='accepted'"><mentor-icon [name]="test.status==='accepted'?'check':'x'"/></span>}</div>}
+     @if(check.diagnostics){<pre class="diagnostics">{{check.diagnostics}}</pre>}
+     <ul class="test-list">@for(test of check.tests;track $index){<li [class.fail]="test.status!=='accepted'"><h4><mentor-icon [name]="test.status==='accepted'?'check':'x'"/><span>{{$index+1}}. {{test.name}} · <span class="status-word">{{testLabel(test.status)}}</span></span></h4>
+      @if(test.expected!==undefined||test.actual!==undefined){<div class="io">@if(test.expected!==undefined){<p>Ожидалось: <code>{{scalar(test.expected)}}</code></p>}@if(test.actual!==undefined){<p>Получено: <code>{{scalar(test.actual)}}</code></p>}</div>}@if(test.message){<pre class="code-view">{{test.message}}</pre>}@if(test.stdout){<pre class="code-view">{{test.stdout}}</pre>}</li>}</ul>}
+    <details class="attempt-code" [open]="teacher()||noted()>0"><summary>{{teacher()?'Код этой попытки · комментарии по строкам':noted()?'Точный код этой попытки · комментарии наставника: '+noted():'Точный код этой попытки · только чтение'}}</summary><mentor-code-review [lesson]="lesson()" targetKind="attempt" [targetId]="result.id" [files]="filesOf(result)" [editable]="teacher()" [preview]="preview()" (noted)="noted.set($event)"/></details></section>}
+   <section class="practice-history"><h3>История попыток</h3>@for(row of attempts();track row.id){<button class="history-row" (click)="showAttempt(row.id)"><span>{{row.mode==='run'?'Примеры':'Все проверки'}} · {{row.createdAt|date:'dd.MM.yyyy HH:mm'}}</span><span>{{historyLabel(row)}}</span></button>}@if(!attempts().length){<p class="small-muted">Попыток пока нет.</p>}@if(attemptTotal()>25){<nav class="pagination" aria-label="Страницы попыток"><button class="btn" [disabled]="attemptPage()===0" (click)="attemptPage.set(attemptPage()-1)"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{attemptPage()+1}}</span><button class="btn" [disabled]="(attemptPage()+1)*25>=attemptTotal()" (click)="attemptPage.set(attemptPage()+1)">Далее<mentor-icon name="chevron-right"/></button></nav>}
+    <h3>Архив черновиков</h3>@for(row of archives();track row.id){<button class="history-row" (click)="showArchive(row.id)"><span>{{row.updatedAt|date:'dd.MM.yyyy HH:mm'}}</span><span>Ревизия {{row.exerciseRevision}}</span></button>}@if(!archives().length){<p class="small-muted">Архивных черновиков нет.</p>}@if(archive();as item){<details open><summary>Архив {{item.id}} · только чтение</summary>@for(name of names(item.files);track name){<h4>{{name}}</h4><pre class="code-view"><code>{{item.files[name]}}</code></pre>}</details>}@if(archiveTotal()>25){<nav class="pagination" aria-label="Страницы архива"><button class="btn" [disabled]="archivePage()===0" (click)="archivePage.set(archivePage()-1)"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{archivePage()+1}}</span><button class="btn" [disabled]="(archivePage()+1)*25>=archiveTotal()" (click)="archivePage.set(archivePage()+1)">Далее<mentor-icon name="chevron-right"/></button></nav>}
+   </section>
   </section>
+ </div>
  }
-</section>` })
+</section></div>` })
 export class PracticeWorkbench {
     readonly checking=signal(false);readonly sessionError=signal('');private checkRequest:Subscription|null=null;private readonly loadTick=signal(0);private readonly selectionTick=signal(0);
     readonly lesson = input.required<LessonRef>();
@@ -91,6 +113,11 @@ export class PracticeWorkbench {
     readonly historicalNames = computed(() => Object.keys(this.historicalFiles()));
     readonly editorContext = computed(() => this.bound + ':' + this.selectedId() + ':' + this.file());
     readonly teacher = computed(() => this.session.actor()?.role === 'TEACHER' && !this.preview());
+    // Mentor comments on the shown attempt; the code opens by itself once the student has some to read.
+    readonly noted = signal(0);
+    filesOf(attempt: Attempt): Record<string, string> { return attempt.files ?? {}; }
+    // Display preference only: no lesson data is kept in browser storage.
+    readonly dark = signal(storedTheme());
     private bound = '';
     private selection = '';
     private alive = true;
@@ -268,7 +295,12 @@ export class PracticeWorkbench {
         this.error.set('Экспорт недоступен. Скопируйте файлы перед выходом.');
         return false;
     } }
-    names(files: SourceFiles) { return Object.keys(files); }
+    names(files: SourceFiles | null | undefined) { return Object.keys(files ?? {}); }
     scalar(value: components['schemas']['PublicResultValue']) { return value === null ? 'null' : String(value); }
+    toggleTheme() { const dark = !this.dark(); this.dark.set(dark); try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch { /* the toggle still works for this page */ } }
+    isFailure(attempt: Attempt) { const status = attempt.result?.status; return status === 'wrong_answer' || status === 'compile_error' || status === 'runtime_error' || status === 'time_limit'; }
+    stateIcon(attempt: Attempt) { return attempt.jobState === 'queued' ? 'hourglass' : attempt.jobState === 'running' ? 'loader' : attempt.result?.status === 'accepted' ? 'circle-check' : attempt.result?.status === 'wrong_answer' ? 'circle-x' : attempt.result?.status === 'compile_error' ? 'file-x' : attempt.result?.status === 'runtime_error' ? 'bug' : attempt.result?.status === 'time_limit' ? 'timer-off' : 'cloud-off'; }
+    testLabel(status: string) { return ({ accepted: 'пройден', wrong_answer: 'не пройден', runtime_error: 'ошибка выполнения', time_limit: 'превышено время' } as Record<string, string>)[status] ?? status; }
+    historyLabel(row: components['schemas']['AttemptSummary']) { const status = row.result?.status; return status ? ({ accepted: 'Все проверки пройдены', wrong_answer: 'Есть неверный ответ', compile_error: 'Ошибка компиляции', runtime_error: 'Ошибка выполнения', time_limit: 'Превышено время', error: 'Проверка временно недоступна', unavailable: 'Проверка временно недоступна' } as Record<string, string>)[status] ?? status : row.jobState === 'queued' ? 'В очереди' : row.jobState === 'running' ? 'Выполняется' : row.jobState; }
     stateLabel(attempt: Attempt) { return attempt.jobState === 'queued' ? 'В очереди' : attempt.jobState === 'running' ? 'Выполняется' : attempt.result?.status === 'accepted' ? 'Все проверки пройдены' : attempt.result?.status === 'wrong_answer' ? 'Есть неверный ответ' : attempt.result?.status === 'compile_error' ? 'Ошибка компиляции' : attempt.result?.status === 'runtime_error' ? 'Ошибка выполнения' : attempt.result?.status === 'time_limit' ? 'Превышено время' : attempt.jobState === 'failed' ? 'Проверка временно недоступна' : 'Результат проверки'; }
 }

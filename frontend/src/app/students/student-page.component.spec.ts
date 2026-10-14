@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, student, lesson, base, click, fill } from './domain-test-support';
+import { configure, open, page, student, lesson, base, click, fill, flushTurns } from './domain-test-support';
 describe('Student workspace', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -11,7 +11,7 @@ describe('Student workspace', () => {
         session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'another-teacher', workspaceId: 'w2', role: 'TEACHER', authVersion: 1 }, csrfToken: 'synthetic-new' });
         oldForm.dispatchEvent(new Event('submit'));
         http.expectNone(request => request.method === 'PATCH');
-        fixture.detectChanges(); http.match(request => request.method === 'GET').forEach(request => request.flush({items:[],page:0,size:25,total:0}));
+        fixture.detectChanges(); http.match(request => request.method === 'GET').forEach(request => { if (!request.cancelled) request.flush({items:[],page:0,size:25,total:0}); });
     });
     it('opens the selected pupil, separate account access, paged lessons and archive', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -27,7 +27,7 @@ describe('Student workspace', () => {
         click(element, 'Далее');
         fixture.detectChanges();
         http.expectOne(base + '/lessons?page=1&size=25').flush({ ...page([], 26), page: 1 });
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('retains profile fields and expected revision on failed save', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -48,7 +48,7 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe('Новое имя');
         expect(element.querySelector('[role="alert"]')?.textContent).toContain('Конфликт');
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('cancels pending private reads and clears the selected pupil after account generation changes', async () => {
         const { fixture, http, session, element } = await open('/teacher/students/s1');
@@ -59,7 +59,7 @@ describe('Student workspace', () => {
         expect(request.cancelled).toBe(true);
         expect(lessons.cancelled).toBe(true);
         expect(element.textContent).not.toContain('Тестовая Анна');
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('refreshes access after a bodyless 204 and never stores a reset link', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -88,7 +88,7 @@ describe('Student workspace', () => {
         expect(element.querySelector<HTMLInputElement>('[name="accessLink"]')?.value).toContain('/reset-password?token=synthetic-only');
         expect(element.querySelector('[name="currentPassword"]')).toBeNull();
         expect(localStorage.length).toBe(0);
-        http.verify();
+        flushTurns(http); http.verify();
     });
     it('revokes pending invitation with DELETE then hides its transient link', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -110,6 +110,6 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         expect(element.querySelector('[name="accessLink"]')).toBeNull();
         expect(element.textContent).toContain('Приглашение отозвано');
-        http.verify();
+        flushTurns(http); http.verify();
     });
 });

@@ -25,6 +25,16 @@ describe('Scoped material reading', () => {
         const { fixture, http, element } = view('roadmap', false, null);
         http.expectOne('/api/v1/workspaces/w1/students/s1/materials?page=0&size=25').flush({ items: [], page: 0, size: 25, total: 0 }); fixture.detectChanges(); expect(element.textContent).toContain('Материалы пока не добавлены');
     });
+    it('groups the lesson listing by audience and hides download twins of code files', () => {
+        const { fixture, http, element } = view('materials', false);
+        const item = (id: string, audience: 'student' | 'teacher', kind: 'doc' | 'code' | 'download', contentKey: string | null, filename: string) => ({ ...metadata, id, audience, kind, contentKey, filename, title: filename });
+        http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials?page=0&size=25').flush({ items: [item('guide', 'teacher', 'doc', 'guide', 'guide.md'), item('hw', 'student', 'doc', 'homework', 'homework.md'), item('tasks', 'student', 'doc', 'student', 'student.md'), item('code1', 'student', 'code', 'Task', 'Task.java'), item('dl1', 'student', 'download', null, 'Task.java'), item('zip', 'student', 'download', null, 'kit.zip')], page: 0, size: 25, total: 6 }); fixture.detectChanges();
+        const groups = Array.from(element.querySelectorAll('.material-group'));
+        expect(groups.map(group => group.querySelector('h2')?.textContent)).toEqual(['Для ученика', 'Только для вас']);
+        expect(Array.from(groups[0].querySelectorAll('.material-text strong')).map(node => node.textContent)).toEqual(['student.md', 'homework.md', 'Task.java', 'kit.zip']);
+        expect(groups[0].querySelector('a[download]')?.getAttribute('href')).toBe('/api/v1/workspaces/w1/materials/zip/file');
+        expect(element.querySelector('nav.pagination')).toBeNull();
+    });
     it('shows code text read-only beside a separately authorized download', () => {
         const { fixture, http, element } = view('code'); fixture.componentRef.setInput('detail', 'ListTask'); fixture.detectChanges();
         const list = http.match(request => request.url.endsWith('/lessons/l1/materials')); for (const request of list) if (!request.cancelled) request.flush({ items: [{ ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask' }], page: 0, size: 25, total: 1 });

@@ -673,6 +673,152 @@ export interface paths {
         patch: operations["reviewHomework"];
         trace?: never;
     };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        /** @description Inline view of a single-file submission for line comments. Only .java, .txt or .md files up to 262144 bytes that decode as strict UTF-8; anything else, including every archive, returns 415 NOT_TEXT and is never unpacked. Same readers as the submission history. */
+        get: operations["getHomeworkText"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/code-comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        /** @description Teacher's line comments on one homework file or trainer attempt of this lesson, ordered by file, line, createdAt. Student-visible; readable by the owning TEACHER and the card's own STUDENT. */
+        get: operations["listCodeComments"];
+        put?: never;
+        /** @description Owning TEACHER only. The target must belong to this lesson; homework targets must be text-viewable submissions and file must equal their filename; attempt targets must contain file. line counts from 1 and must exist in that file. At most 200 comments per target. */
+        post: operations["createCodeComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/code-comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Owning TEACHER removes one comment of this lesson. */
+        delete: operations["deleteCodeComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Ordered learning-route stages of the card. Student-visible; readable by the owning TEACHER and the card's own STUDENT. A card without stages returns an empty list. */
+        get: operations["getRoadmap"];
+        /** @description Owning TEACHER replaces the whole list under its own revision; a stale revision returns 409 and leaves the stages unchanged. At most 30 stages and at most one current stage. */
+        put: operations["replaceRoadmap"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Journal of the exchange on this card, newest first. homework and attempt are the student's moves; review and conducted are the teacher's. Facts are student-visible; readable by the owning TEACHER and the card's own STUDENT. lessonId narrows to one lesson. */
+        get: operations["listMoves"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/students/{studentId}/homework/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        /** @description Whose turn it is per lesson. Exact membership; the owning TEACHER or the card's own STUDENT; ADMIN and foreign cards return 404. One row per lesson with at least one submission, holding only that lesson's latest submission (createdAt, then id). Ordered by that submission's createdAt descending, then lessonId descending. All fields are student-visible; audience=student only narrows a TEACHER preview. */
+        get: operations["listLessonHomeworkTurns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/homework/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** @description The teacher's review queue. Exact TEACHER membership only; STUDENT, ADMIN and foreign workspaces return 404. One row per student with at least one submission. Per lesson only its latest submission counts; per student the row is the oldest lesson whose latest submission awaits review, otherwise the latest exchange. Rows awaiting review come first, oldest createdAt first; the rest follow by createdAt descending. awaitingReview counts the student's lessons whose latest submission awaits review. */
+        get: operations["listStudentHomeworkTurns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts": {
         parameters: {
             query?: never;
@@ -755,6 +901,8 @@ export interface components {
         Session: {
             account: components["schemas"]["Actor"] | null;
             csrfToken: string;
+            /** @description Login of the signed-in account for the interface header; omitted for anonymous clients. */
+            login?: string;
         };
         ApiProblem: {
             status: number;
@@ -955,6 +1103,8 @@ export interface components {
             date?: components["schemas"]["LessonDate"];
             time?: components["schemas"]["LessonTime"];
             duration?: components["schemas"]["LessonDuration"];
+            /** @description Teacher's explicit mark that the lesson took place. true keeps the first conductedAt; false clears it. */
+            conducted?: boolean;
             revision: components["schemas"]["LessonRevision"];
         };
         /** @enum {string} */
@@ -989,6 +1139,16 @@ export interface components {
              * @description UTC creation instant.
              */
             createdAt: string;
+            /**
+             * Format: int64
+             * @description Position of the lesson in its student's calendar (date, time, createdAt, id ascending).
+             */
+            number: number;
+            /**
+             * Format: date-time
+             * @description When the teacher marked the lesson as held; omitted until then.
+             */
+            conductedAt?: string;
             teacherNotes: components["schemas"]["LessonMarkdown"];
             studentNotes: components["schemas"]["LessonMarkdown"];
             reviewNotes: components["schemas"]["LessonMarkdown"];
@@ -1012,6 +1172,16 @@ export interface components {
              * @description UTC creation instant.
              */
             createdAt: string;
+            /**
+             * Format: int64
+             * @description Position of the lesson in its student's calendar (date, time, createdAt, id ascending).
+             */
+            number: number;
+            /**
+             * Format: date-time
+             * @description When the teacher marked the lesson as held; omitted until then.
+             */
+            conductedAt?: string;
             studentNotes: components["schemas"]["LessonMarkdown"];
             reviewNotes: components["schemas"]["LessonMarkdown"];
         };
@@ -1320,6 +1490,7 @@ export interface components {
             reviewedAt?: string;
             /** Format: int64 */
             revision: number;
+            grade?: components["schemas"]["Grade"];
         };
         HomeworkReviewInput: {
             /** Format: int64 */
@@ -1328,9 +1499,147 @@ export interface components {
             status: "reviewed" | "needs_revision";
             /** @description JavaScript-compatible trimmed text; bound checked before trim. */
             feedback: string;
+            /** @description Optional mentor's mark; absent or null clears it. */
+            grade?: components["schemas"]["Grade"] | null;
         };
         HomeworkPage: {
             items: components["schemas"]["Submission"][];
+            page: number;
+            size: number;
+            total: number;
+        };
+        /**
+         * @description Mentor's mark, always shown with its word: excellent !! отлично, good ! хорошо, interesting !? интересно, dubious ?! сомнительно, mistake ? ошибка.
+         * @enum {string}
+         */
+        Grade: "excellent" | "good" | "interesting" | "dubious" | "mistake";
+        HomeworkText: {
+            filename: string;
+            text: string;
+        };
+        CodeComment: {
+            id: string;
+            /** @enum {string} */
+            targetKind: "homework" | "attempt";
+            targetId: string;
+            file: string;
+            line: number;
+            grade?: components["schemas"]["Grade"];
+            body: string;
+            /** @description Suggested code; indentation preserved, trailing whitespace removed. Empty when absent. */
+            variant: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CodeCommentInput: {
+            /** @enum {string} */
+            targetKind: "homework" | "attempt";
+            targetId: string;
+            file: string;
+            line: number;
+            grade?: components["schemas"]["Grade"] | null;
+            /** @description Trimmed; must not be empty. */
+            body: string;
+            variant?: string;
+        };
+        CodeCommentList: {
+            items: components["schemas"]["CodeComment"][];
+        };
+        RoadmapStage: {
+            title: string;
+            note: string;
+            /** @enum {string} */
+            state: "done" | "current" | "ahead";
+        };
+        RoadmapStageInput: {
+            /** @description Trimmed; must not be empty. */
+            title: string;
+            note?: string;
+            /** @enum {string} */
+            state: "done" | "current" | "ahead";
+        };
+        Roadmap: {
+            stages: components["schemas"]["RoadmapStage"][];
+            /** Format: int64 */
+            revision: number;
+        };
+        RoadmapInput: {
+            stages: components["schemas"]["RoadmapStageInput"][];
+            /** Format: int64 */
+            revision: number;
+        };
+        Move: {
+            /** @enum {string} */
+            kind: "homework" | "review" | "attempt" | "conducted";
+            /** @enum {string} */
+            side: "student" | "teacher";
+            /** Format: date-time */
+            at: string;
+            lessonId: string;
+            lessonTitle: string;
+            /** @description Submission, attempt or lesson id. */
+            refId: string;
+            /** @description Homework filename or exercise title. */
+            subject?: string;
+            /** @description Homework comment, review feedback (first 300 characters) or attempt mode. */
+            detail?: string;
+            /** @description Submission status or attempt result status (job state while unfinished). */
+            status?: string;
+            grade?: components["schemas"]["Grade"];
+            passed?: number;
+            total?: number;
+            /** @description Which submission of its lesson this is. */
+            ordinal?: number;
+        };
+        MovePage: {
+            items: components["schemas"]["Move"][];
+            page: number;
+            size: number;
+            total: number;
+        };
+        LessonTurn: {
+            lessonId: string;
+            submissionId: string;
+            filename: string;
+            /** @enum {string} */
+            status: "submitted" | "reviewed" | "needs_revision";
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Omitted before the first review.
+             */
+            reviewedAt?: string;
+        };
+        LessonTurnPage: {
+            items: components["schemas"]["LessonTurn"][];
+            page: number;
+            size: number;
+            total: number;
+        };
+        StudentTurn: {
+            studentId: string;
+            studentName: string;
+            lessonId: string;
+            lessonTitle: string;
+            lessonDate: components["schemas"]["LessonDate"];
+            submissionId: string;
+            filename: string;
+            comment: string;
+            /** @enum {string} */
+            status: "submitted" | "reviewed" | "needs_revision";
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Omitted before the first review.
+             */
+            reviewedAt?: string;
+            /** Format: int64 */
+            awaitingReview: number;
+        };
+        StudentTurnPage: {
+            items: components["schemas"]["StudentTurn"][];
             page: number;
             size: number;
             total: number;
@@ -3107,6 +3416,300 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getHomeworkText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                submissionId: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File text */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeworkText"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listCodeComments: {
+        parameters: {
+            query: {
+                targetKind: "homework" | "attempt";
+                targetId: string;
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeCommentList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    createCodeComment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeCommentInput"];
+            };
+        };
+        responses: {
+            /** @description Created comment */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeComment"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    deleteCodeComment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getRoadmap: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Route stages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    replaceRoadmap: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapInput"];
+            };
+        };
+        responses: {
+            /** @description Saved route */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listMoves: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+                lessonId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Moves */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovePage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listLessonHomeworkTurns: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+                /** @description Optional narrowing to student projection; never changes Actor or permissions. Omitted uses actor's projection; STUDENT always gets public projection. Unsupported values return 400. TEACHER preview is read-only in UI and grants no student submission rights. */
+                audience?: components["parameters"]["Task3Audience"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest submission per lesson */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonTurnPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listStudentHomeworkTurns: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Task3Page"];
+                size?: components["parameters"]["Task3Size"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One turn row per student */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentTurnPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };

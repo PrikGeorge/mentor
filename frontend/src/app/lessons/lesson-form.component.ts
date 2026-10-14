@@ -3,12 +3,14 @@ import { Component, DestroyRef, effect, inject, input, output, signal } from '@a
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LessonsApi, LessonView } from './lessons-api.service';
+import { IconComponent } from '../core/icon.component';
 const moscowDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-@Component({ selector: 'mentor-lesson-form', imports: [ReactiveFormsModule], template: `
-  <section class="panel panel-inner editor" aria-labelledby="lesson-form-title"><h2 id="lesson-form-title">{{lesson()?'Изменить занятие':'Новое занятие'}}</h2><p>Время по Москве. Материалы можно добавить после создания.</p>
-    <form [formGroup]="form" (submit)="save($event)"><label class="auth-field">Тема занятия<input name="title" formControlName="title" required maxlength="200"></label>
-      <div class="form-grid"><label class="auth-field">Дата<input name="date" type="date" formControlName="date" required></label><label class="auth-field">Время<input name="time" type="time" formControlName="time" required></label><label class="auth-field">Длительность, мин<input name="duration" type="number" formControlName="duration" min="15" max="240" step="1" required></label></div>
-      @if(error()){<p role="alert" class="auth-error">{{error()}}</p>}<div class="actions"><button type="submit" class="btn primary" [disabled]="busy()">{{lesson()?'Сохранить':'Создать занятие'}}</button><button type="button" class="btn" (click)="cancel.emit()" [disabled]="busy()">Отмена</button></div></form></section>` })
+@Component({ selector: 'mentor-lesson-form', imports: [ReactiveFormsModule, IconComponent], template: `
+  <section class="editor box" aria-labelledby="lesson-form-title"><h2 id="lesson-form-title">{{lesson()?'Изменить занятие':'Новое занятие'}}</h2>
+    <form [formGroup]="form" (submit)="save($event)"><label class="auth-field">Тема занятия<input name="title" formControlName="title" required maxlength="200" autocomplete="off"></label>
+      <div class="form-grid"><label class="auth-field">Дата<input name="date" type="date" formControlName="date" required></label><label class="auth-field">Время (по Москве)<input name="time" type="time" formControlName="time" required></label><label class="auth-field">Длительность, мин<input name="duration" type="number" formControlName="duration" min="15" max="240" step="1" required><small>От 15 до 240 минут.</small></label></div>
+      <p class="auth-note"><mentor-icon name="info"/>Материалы можно добавить после создания.</p>
+      @if(error()){<p role="alert" class="auth-error">{{error()}}</p>}<div class="form-actions"><button type="submit" class="btn primary" [disabled]="busy()">@if(busy()){<mentor-icon class="spin" name="loader"/>Сохраняем…}@else{{{lesson()?'Сохранить':'Создать занятие'}}}</button><button type="button" class="btn" (click)="cancel.emit()" [disabled]="busy()">Отмена</button></div></form></section>` })
 export class LessonFormComponent {
     readonly workspaceId = input.required<string>();
     readonly studentId = input.required<string>();

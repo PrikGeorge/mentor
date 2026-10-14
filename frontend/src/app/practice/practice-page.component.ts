@@ -6,7 +6,7 @@ import { StudentsApi } from '../students/students-api.service';
 import { LessonsApi, LessonView } from '../lessons/lessons-api.service';
 import { PracticeWorkbench } from './practice-workbench.component';
 export { PracticeWorkbench } from './practice-workbench.component';
-@Component({ selector: 'mentor-practice-page', imports: [RouterLink, PracticeWorkbench], template: `<a class="text-link" [routerLink]="base()+'/lessons'" [queryParams]="previewQuery()">← Все занятия</a>@if(error()){<p class="auth-error" role="alert">{{error()}}</p>}@if(lesson();as l){<mentor-practice-workbench [lesson]="l" [preview]="preview()" [notes]="l.studentNotes" [initialExercise]="params().get('detail')"/>}@else if(!error()){<p role="status">Загружаем занятие…</p>}` })
+@Component({ selector: 'mentor-practice-page', imports: [RouterLink, PracticeWorkbench], template: `@if(error()){<p class="auth-error" role="alert">{{error()}}</p><a class="text-link" [routerLink]="base()+'/lessons'" [queryParams]="previewQuery()">← Все занятия</a>}@if(lesson();as l){<mentor-practice-workbench [lesson]="l" [preview]="preview()" [notes]="l.studentNotes" [initialExercise]="params().get('detail')"/>}@else if(!error()){<p class="loading" role="status">Загружаем занятие…</p>}` })
 export class PracticePageComponent extends DomainPage {
     readonly lesson = signal<LessonView | null>(null);
     readonly error = signal('');

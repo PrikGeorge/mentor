@@ -2,6 +2,7 @@ import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { components } from '../src/app/api/schema';
+async function signOut(page: Page) { const menu = page.getByRole('button', { name: 'Меню', exact: true }); if (await menu.isVisible()) await menu.click(); else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); }
 test.describe.configure({ mode: 'serial' });
 type Session = components['schemas']['Session'];
 type Student = components['schemas']['TeacherStudentView'];
@@ -74,7 +75,7 @@ async function login(page: Page, user: User) {
     await expect(page).toHaveURL(user.actor.role === 'STUDENT' ? '/learn' : '/teacher/students');
 }
 async function logout(page: Page) {
-    await page.getByRole('button', { name: 'Выйти', exact: true }).click(); await expect(page).toHaveURL('/login');
+    await signOut(page); await expect(page).toHaveURL('/login');
 }
 for (const width of [1280, 390]) {
     test(`real isolated workspace, short create and public learner preview at ${width}px`, async ({ page }) => {
@@ -85,7 +86,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('heading', { name: boris.name, exact: true })).toBeVisible();
         await page.goto(`/teacher/students/${anna.id}`);
         await expect(page.getByRole('heading', { name: 'Доступ к кабинету', exact: true })).toBeVisible();
-        await page.getByRole('button', { name: '+ Добавить занятие', exact: true }).click();
+        await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(1);
         expect(await page.locator('form input').count()).toBe(4);
         const title = `Новое занятие ${width}`;
@@ -130,8 +131,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
         await expect(page.locator('h1')).toHaveCount(1);
         if (width === 390) await page.getByRole('button', { name: 'Меню', exact: true }).click();
-        await expect(page.locator('.sidebar .brand')).toBeVisible();
-        await expect(page.locator('.sidebar .brand')).toContainText(anna.name);
+        await expect(page.locator('.profile-name:visible, .mobile-me:visible b')).toContainText(anna.name);
         await expect(page.locator('.selected-student')).toHaveCount(0);
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('PRIVATE_');

@@ -51,6 +51,9 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             await route.fulfill({ json: publicView ? publicStudent(s) : s });
             return;
         }
+        // The card's journal and roadmap panels: an empty exchange so far.
+        if (suffix === '/moves') { await route.fulfill({ json: { items: [], page: 0, size: 10, total: 0 } }); return; }
+        if (suffix === '/roadmap' && method === 'GET') { await route.fulfill({ json: { stages: [], revision: 0 } }); return; }
         if (suffix === '/access') {
             expect(actor.role).toBe('TEACHER');
             await route.fulfill({ json: { account: s.userId ? { userId: s.userId, login: s.id, disabled: false } : null, invitation: null } });
@@ -105,11 +108,10 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
     return errors;
 }
 async function learnerIdentity(page: Page) {
-    await expect(page.locator('.sidebar .brand')).toBeVisible();
-    await expect(page.locator('.sidebar .brand')).toContainText(anna.name);
-    await expect(page.locator('.sidebar .brand')).toContainText(anna.direction);
-    await expect(page.locator('.sidebar .selected-student')).toHaveCount(0);
-    await expect(page.locator('.sidebar .brand')).toHaveCount(1);
+    // The learner's name is the profile in the header (desktop) or in the open mobile menu.
+    await expect(page.locator('.profile-name:visible, .mobile-me:visible b')).toContainText(anna.name);
+    await expect(page.locator('.selected-student')).toHaveCount(0);
+    await expect(page.locator('.brand')).toHaveCount(1);
     await expect(page.locator('.site-footer')).toContainText('Кабинет ученика');
     await expect(page.locator('.site-footer')).not.toContainText('Кабинет наставника');
 }
@@ -122,7 +124,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('heading', { name: 'Тестовый Борис', exact: true })).toBeVisible();
         await page.getByRole('link').filter({ has: page.getByRole('heading', { name: 'Тестовая Анна', exact: true }) }).click();
         await expect(page.getByRole('heading', { name: 'Доступ к кабинету' })).toBeVisible();
-        await page.getByRole('button', { name: '+ Добавить занятие', exact: true }).click();
+        await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(1);
         await page.locator('[name="title"]').fill('Ошибка формы');
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
@@ -160,8 +162,8 @@ for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
         const errors = await fixtures(page, 'anna');
         await page.goto('/learn');
-        await expect(page.getByRole('heading', { name: 'Тестовая Анна', exact: true })).toBeVisible();
-        await expect(page.getByText('БЛИЖАЙШЕЕ ЗАНЯТИЕ', { exact: true })).toBeVisible();
+        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByText('Ближайшее занятие', { exact: true })).toBeVisible();
         await page.getByRole('link', { name: 'Открыть задания', exact: true }).click();
         await expect(page.locator('h1')).toHaveCount(1);
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
@@ -182,7 +184,7 @@ for (const width of [1280, 390]) {
         await page.goto('/teacher/students');
         await expect(page.getByRole('heading', { name: 'Учеников пока нет', exact: true })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('Миха');
-        await page.getByRole('button', { name: '+ Добавить ученика', exact: true }).click();
+        await page.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
         await page.locator('[name="name"]').fill('Новый ученик теста');
         await page.getByRole('button', { name: 'Добавить', exact: true }).click();
         await expect(page).toHaveURL('/teacher/students/s-new');
@@ -201,7 +203,7 @@ for (const width of [1280, 390]) {
             await page.goto('/teacher/students/s1/lessons/l1');
             await expect(page.locator('h1')).toHaveCount(1);
             await page.getByRole('button', { name: 'Меню', exact: true }).click();
-            await page.getByRole('link', { name: 'Мои ученики', exact: true }).click({ timeout: 1500 });
+            await page.getByRole('navigation', { name: 'Главное меню' }).getByRole('link', { name: 'Мои ученики', exact: true }).click({ timeout: 1500 });
             await expect(page).toHaveURL('/teacher/students');
         });
 }

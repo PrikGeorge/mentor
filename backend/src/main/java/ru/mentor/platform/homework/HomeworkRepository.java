@@ -14,7 +14,7 @@ public class HomeworkRepository {
     private Submission submission(ResultSet r)throws SQLException {
         Timestamp reviewed=r.getTimestamp("reviewed_at");
         return new Submission(r.getString("id"),r.getString("filename"),r.getLong("size"),r.getTimestamp("created_at").toInstant(),
-            r.getString("comment"),r.getString("repository_url"),ReviewStatus.valueOf(r.getString("status")),r.getString("feedback"),reviewed==null?null:reviewed.toInstant(),r.getLong("revision"));
+            r.getString("comment"),r.getString("repository_url"),ReviewStatus.valueOf(r.getString("status")),r.getString("feedback"),reviewed==null?null:reviewed.toInstant(),r.getLong("revision"),r.getString("grade")==null?null:Grade.valueOf(r.getString("grade")));
     }
     public List<Submission> list(LessonRef l,int page,int size){
         return jdbc.query("SELECT * FROM homework_submission WHERE workspace_id=? AND student_id=? AND lesson_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",(r,n)->submission(r),l.workspaceId(),l.studentId(),l.id(),size,(long)page*size);
@@ -27,8 +27,37 @@ public class HomeworkRepository {
         jdbc.update("INSERT INTO homework_submission(workspace_id,student_id,lesson_id,id,blob_id,filename,size,created_at,comment,repository_url,status,feedback,revision) VALUES(?,?,?,?,?,?,?,?,?,?,'submitted','',1)",
             l.workspaceId(),l.studentId(),l.id(),s.id(),blob,s.filename(),s.size(),Timestamp.from(s.createdAt()),s.comment(),s.repositoryUrl());
     }
+    public List<HomeworkTurns.LessonTurn> lessonTurns(String workspace,String student,int page,int size){
+        return jdbc.query("SELECT * FROM (SELECT DISTINCT ON (lesson_id) lesson_id,id,filename,status,created_at,reviewed_at FROM homework_submission WHERE workspace_id=? AND student_id=? ORDER BY lesson_id,created_at DESC,id DESC) latest ORDER BY created_at DESC,lesson_id DESC LIMIT ? OFFSET ?",
+            (r,n)->new HomeworkTurns.LessonTurn(r.getString("lesson_id"),r.getString("id"),r.getString("filename"),ReviewStatus.valueOf(r.getString("status")),r.getTimestamp("created_at").toInstant(),instant(r,"reviewed_at")),
+            workspace,student,size,(long)page*size);
+    }
+    public long countLessonTurns(String workspace,String student){return jdbc.queryForObject("SELECT count(DISTINCT lesson_id) FROM homework_submission WHERE workspace_id=? AND student_id=?",Long.class,workspace,student);}
+    // Per lesson only the latest submission counts; per student the oldest one awaiting review wins over the latest reviewed exchange.
+    public List<HomeworkTurns.StudentTurn> studentTurns(String workspace,int page,int size){
+        return jdbc.query("""
+            WITH latest AS (
+              SELECT DISTINCT ON (student_id,lesson_id) student_id,lesson_id,id,filename,comment,status,created_at,reviewed_at
+              FROM homework_submission WHERE workspace_id=? ORDER BY student_id,lesson_id,created_at DESC,id DESC
+            ), ranked AS (
+              SELECT latest.*,count(*) FILTER (WHERE status='submitted') OVER (PARTITION BY student_id) AS awaiting,
+                row_number() OVER (PARTITION BY student_id ORDER BY (status='submitted') DESC,CASE WHEN status='submitted' THEN created_at END ASC,created_at DESC,id DESC) AS position
+              FROM latest
+            )
+            SELECT r.*,p.name AS student_name,l.title AS lesson_title,l.local_date AS lesson_date
+            FROM ranked r JOIN student_profile p ON p.workspace_id=? AND p.id=r.student_id
+            JOIN lesson l ON l.workspace_id=? AND l.student_id=r.student_id AND l.id=r.lesson_id
+            WHERE r.position=1
+            ORDER BY (r.status='submitted') DESC,CASE WHEN r.status='submitted' THEN r.created_at END ASC,r.created_at DESC,r.student_id
+            LIMIT ? OFFSET ?""",
+            (r,n)->new HomeworkTurns.StudentTurn(r.getString("student_id"),r.getString("student_name"),r.getString("lesson_id"),r.getString("lesson_title"),r.getString("lesson_date"),r.getString("id"),
+                r.getString("filename"),r.getString("comment"),ReviewStatus.valueOf(r.getString("status")),r.getTimestamp("created_at").toInstant(),instant(r,"reviewed_at"),r.getLong("awaiting")),
+            workspace,workspace,workspace,size,(long)page*size);
+    }
+    public long countStudentTurns(String workspace){return jdbc.queryForObject("SELECT count(DISTINCT student_id) FROM homework_submission WHERE workspace_id=?",Long.class,workspace);}
+    private static java.time.Instant instant(ResultSet r,String column)throws SQLException {Timestamp value=r.getTimestamp(column);return value==null?null:value.toInstant();}
     public void review(LessonRef l,Submission s){
-        jdbc.update("UPDATE homework_submission SET status=?,feedback=?,reviewed_at=?,revision=? WHERE workspace_id=? AND student_id=? AND lesson_id=? AND id=?",
-            s.status().name(),s.feedback(),Timestamp.from(s.reviewedAt()),s.revision(),l.workspaceId(),l.studentId(),l.id(),s.id());
+        jdbc.update("UPDATE homework_submission SET status=?,feedback=?,reviewed_at=?,revision=?,grade=? WHERE workspace_id=? AND student_id=? AND lesson_id=? AND id=?",
+            s.status().name(),s.feedback(),Timestamp.from(s.reviewedAt()),s.revision(),s.grade()==null?null:s.grade().name(),l.workspaceId(),l.studentId(),l.id(),s.id());
     }
 }

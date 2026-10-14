@@ -1541,6 +1541,287 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/homework/{submissionId}/text:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - $ref: '#/components/parameters/SubmissionId'
+    get:
+      operationId: getHomeworkText
+      description: Inline view of a single-file submission for line comments. Only .java, .txt or .md files up to 262144
+        bytes that decode as strict UTF-8; anything else, including every archive, returns 415 NOT_TEXT and is never unpacked.
+        Same readers as the submission history.
+      responses:
+        '200':
+          description: File text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeworkText'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/code-comments:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    get:
+      operationId: listCodeComments
+      description: Teacher's line comments on one homework file or trainer attempt of this lesson, ordered by file, line,
+        createdAt. Student-visible; readable by the owning TEACHER and the card's own STUDENT.
+      parameters:
+      - name: targetKind
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - homework
+          - attempt
+      - name: targetId
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodeCommentList'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createCodeComment
+      description: Owning TEACHER only. The target must belong to this lesson; homework targets must be text-viewable
+        submissions and file must equal their filename; attempt targets must contain file. line counts from 1 and must
+        exist in that file. At most 200 comments per target.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeCommentInput'
+      responses:
+        '201':
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodeComment'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/code-comments/{commentId}:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    - $ref: '#/components/parameters/Task3LessonId'
+    - name: commentId
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 100
+    delete:
+      operationId: deleteCodeComment
+      description: Owning TEACHER removes one comment of this lesson.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '204':
+          description: Removed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/roadmap:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    get:
+      operationId: getRoadmap
+      description: Ordered learning-route stages of the card. Student-visible; readable by the owning TEACHER and the
+        card's own STUDENT. A card without stages returns an empty list.
+      parameters:
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Route stages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Roadmap'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: replaceRoadmap
+      description: Owning TEACHER replaces the whole list under its own revision; a stale revision returns 409 and leaves
+        the stages unchanged. At most 30 stages and at most one current stage.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoadmapInput'
+      responses:
+        '200':
+          description: Saved route
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Roadmap'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/moves:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    get:
+      operationId: listMoves
+      description: Journal of the exchange on this card, newest first. homework and attempt are the student's moves;
+        review and conducted are the teacher's. Facts are student-visible; readable by the owning TEACHER and the card's
+        own STUDENT. lessonId narrows to one lesson.
+      parameters:
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      - $ref: '#/components/parameters/Task3Audience'
+      - name: lessonId
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+      responses:
+        '200':
+          description: Moves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovePage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/homework/turns:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    - $ref: '#/components/parameters/Task3StudentId'
+    get:
+      operationId: listLessonHomeworkTurns
+      description: Whose turn it is per lesson. Exact membership; the owning TEACHER or the card's own STUDENT;
+        ADMIN and foreign cards return 404. One row per lesson with at least one submission, holding only that
+        lesson's latest submission (createdAt, then id). Ordered by that submission's createdAt descending, then
+        lessonId descending. All fields are student-visible; audience=student only narrows a TEACHER preview.
+      parameters:
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      - $ref: '#/components/parameters/Task3Audience'
+      responses:
+        '200':
+          description: Latest submission per lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonTurnPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/homework/turns:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    get:
+      operationId: listStudentHomeworkTurns
+      description: The teacher's review queue. Exact TEACHER membership only; STUDENT, ADMIN and foreign workspaces
+        return 404. One row per student with at least one submission. Per lesson only its latest submission counts;
+        per student the row is the oldest lesson whose latest submission awaits review, otherwise the latest exchange.
+        Rows awaiting review come first, oldest createdAt first; the rest follow by createdAt descending.
+        awaitingReview counts the student's lessons whose latest submission awaits review.
+      parameters:
+      - $ref: '#/components/parameters/Task3Page'
+      - $ref: '#/components/parameters/Task3Size'
+      responses:
+        '200':
+          description: One turn row per student
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentTurnPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/exercises/{exerciseId}/attempts:
     parameters:
     - $ref: '#/components/parameters/Task3WorkspaceId'
@@ -2028,6 +2309,9 @@ components:
           - type: 'null'
         csrfToken:
           type: string
+        login:
+          type: string
+          description: Login of the signed-in account for the interface header; omitted for anonymous clients.
     ApiProblem:
       type: object
       additionalProperties: false
@@ -2540,6 +2824,9 @@ components:
           $ref: '#/components/schemas/LessonTime'
         duration:
           $ref: '#/components/schemas/LessonDuration'
+        conducted:
+          type: boolean
+          description: Teacher's explicit mark that the lesson took place. true keeps the first conductedAt; false clears it.
         revision:
           $ref: '#/components/schemas/LessonRevision'
     TextKind:
@@ -2596,6 +2883,7 @@ components:
       - bundleId
       - revision
       - createdAt
+      - number
       - teacherNotes
       - studentNotes
       - reviewNotes
@@ -2632,6 +2920,15 @@ components:
           type: string
           format: date-time
           description: UTC creation instant.
+        number:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Position of the lesson in its student's calendar (date, time, createdAt, id ascending).
+        conductedAt:
+          type: string
+          format: date-time
+          description: When the teacher marked the lesson as held; omitted until then.
         teacherNotes:
           $ref: '#/components/schemas/LessonMarkdown'
         studentNotes:
@@ -2654,6 +2951,7 @@ components:
       - bundleId
       - revision
       - createdAt
+      - number
       - studentNotes
       - reviewNotes
       properties:
@@ -2689,6 +2987,15 @@ components:
           type: string
           format: date-time
           description: UTC creation instant.
+        number:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Position of the lesson in its student's calendar (date, time, createdAt, id ascending).
+        conductedAt:
+          type: string
+          format: date-time
+          description: When the teacher marked the lesson as held; omitted until then.
         studentNotes:
           $ref: '#/components/schemas/LessonMarkdown'
         reviewNotes:
@@ -3468,6 +3775,8 @@ components:
           type: integer
           format: int64
           minimum: 1
+        grade:
+          $ref: '#/components/schemas/Grade'
     HomeworkReviewInput:
       type: object
       additionalProperties: false
@@ -3489,6 +3798,11 @@ components:
           type: string
           x-max-utf16-units: 20000
           description: JavaScript-compatible trimmed text; bound checked before trim.
+        grade:
+          description: Optional mentor's mark; absent or null clears it.
+          oneOf:
+          - $ref: '#/components/schemas/Grade'
+          - type: 'null'
     HomeworkPage:
       type: object
       additionalProperties: false
@@ -3502,6 +3816,389 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Submission'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    Grade:
+      description: 'Mentor''s mark, always shown with its word: excellent !! отлично, good ! хорошо, interesting !? интересно,
+        dubious ?! сомнительно, mistake ? ошибка.'
+      type: string
+      enum:
+      - excellent
+      - good
+      - interesting
+      - dubious
+      - mistake
+    HomeworkText:
+      type: object
+      additionalProperties: false
+      required:
+      - filename
+      - text
+      properties:
+        filename:
+          type: string
+          x-max-utf16-units: 180
+        text:
+          type: string
+    CodeComment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - targetKind
+      - targetId
+      - file
+      - line
+      - body
+      - variant
+      - createdAt
+      properties:
+        id:
+          type: string
+        targetKind:
+          type: string
+          enum:
+          - homework
+          - attempt
+        targetId:
+          type: string
+        file:
+          type: string
+        line:
+          type: integer
+          minimum: 1
+        grade:
+          $ref: '#/components/schemas/Grade'
+        body:
+          type: string
+          x-max-utf16-units: 2000
+        variant:
+          type: string
+          x-max-utf16-units: 2000
+          description: Suggested code; indentation preserved, trailing whitespace removed. Empty when absent.
+        createdAt:
+          type: string
+          format: date-time
+    CodeCommentInput:
+      type: object
+      additionalProperties: false
+      required:
+      - targetKind
+      - targetId
+      - file
+      - line
+      - body
+      properties:
+        targetKind:
+          type: string
+          enum:
+          - homework
+          - attempt
+        targetId:
+          type: string
+          maxLength: 100
+        file:
+          type: string
+        line:
+          type: integer
+          minimum: 1
+        grade:
+          oneOf:
+          - $ref: '#/components/schemas/Grade'
+          - type: 'null'
+        body:
+          type: string
+          x-max-utf16-units: 2000
+          description: Trimmed; must not be empty.
+        variant:
+          type: string
+          x-max-utf16-units: 2000
+    CodeCommentList:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/CodeComment'
+    RoadmapStage:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - note
+      - state
+      properties:
+        title:
+          type: string
+          minLength: 1
+          x-max-utf16-units: 200
+        note:
+          type: string
+          x-max-utf16-units: 120
+        state:
+          type: string
+          enum:
+          - done
+          - current
+          - ahead
+    RoadmapStageInput:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - state
+      properties:
+        title:
+          type: string
+          x-max-utf16-units: 200
+          description: Trimmed; must not be empty.
+        note:
+          type: string
+          x-max-utf16-units: 120
+        state:
+          type: string
+          enum:
+          - done
+          - current
+          - ahead
+    Roadmap:
+      type: object
+      additionalProperties: false
+      required:
+      - stages
+      - revision
+      properties:
+        stages:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/RoadmapStage'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+    RoadmapInput:
+      type: object
+      additionalProperties: false
+      required:
+      - stages
+      - revision
+      properties:
+        stages:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/RoadmapStageInput'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+    Move:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - side
+      - at
+      - lessonId
+      - lessonTitle
+      - refId
+      properties:
+        kind:
+          type: string
+          enum:
+          - homework
+          - review
+          - attempt
+          - conducted
+        side:
+          type: string
+          enum:
+          - student
+          - teacher
+        at:
+          type: string
+          format: date-time
+        lessonId:
+          type: string
+        lessonTitle:
+          type: string
+        refId:
+          type: string
+          description: Submission, attempt or lesson id.
+        subject:
+          type: string
+          description: Homework filename or exercise title.
+        detail:
+          type: string
+          description: Homework comment, review feedback (first 300 characters) or attempt mode.
+        status:
+          type: string
+          description: Submission status or attempt result status (job state while unfinished).
+        grade:
+          $ref: '#/components/schemas/Grade'
+        passed:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+        ordinal:
+          type: integer
+          minimum: 1
+          description: Which submission of its lesson this is.
+    MovePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    LessonTurn:
+      type: object
+      additionalProperties: false
+      required:
+      - lessonId
+      - submissionId
+      - filename
+      - status
+      - createdAt
+      properties:
+        lessonId:
+          type: string
+        submissionId:
+          type: string
+        filename:
+          type: string
+          x-max-utf16-units: 180
+        status:
+          type: string
+          enum:
+          - submitted
+          - reviewed
+          - needs_revision
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Omitted before the first review.
+    LessonTurnPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonTurn'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    StudentTurn:
+      type: object
+      additionalProperties: false
+      required:
+      - studentId
+      - studentName
+      - lessonId
+      - lessonTitle
+      - lessonDate
+      - submissionId
+      - filename
+      - comment
+      - status
+      - createdAt
+      - awaitingReview
+      properties:
+        studentId:
+          type: string
+        studentName:
+          type: string
+        lessonId:
+          type: string
+        lessonTitle:
+          type: string
+        lessonDate:
+          $ref: '#/components/schemas/LessonDate'
+        submissionId:
+          type: string
+        filename:
+          type: string
+          x-max-utf16-units: 180
+        comment:
+          type: string
+          x-max-utf16-units: 10000
+        status:
+          type: string
+          enum:
+          - submitted
+          - reviewed
+          - needs_revision
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Omitted before the first review.
+        awaitingReview:
+          type: integer
+          format: int64
+          minimum: 0
+    StudentTurnPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentTurn'
         page:
           type: integer
           minimum: 0

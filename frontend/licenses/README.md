@@ -5,3 +5,5 @@ punycode.js 2.3.1 — MIT; license retained in punycode.js.LICENSE.
 uc.micro 3.0.0 — MIT; license retained in uc.micro.LICENSE.
 entities 8.1.0 — BSD-2-Clause; license retained in entities.LICENSE.
 argparse 3.0.2 — PSF-2.0; license retained in argparse.LICENSE.
+Fonts are self-hosted (CSP allows only 'self'): @fontsource/fira-sans 5.3.0, @fontsource/old-standard-tt 5.3.0 and @fontsource/pt-mono 5.3.0 — SIL OFL 1.1; licenses retained in fira-sans.LICENSE, old-standard-tt.LICENSE and pt-mono.LICENSE. Angular copies the woff2/woff files referenced by their CSS into the build.
+Interface icons are Lucide shapes inlined in src/app/core/icon.component.ts — ISC; license retained in lucide.LICENSE.

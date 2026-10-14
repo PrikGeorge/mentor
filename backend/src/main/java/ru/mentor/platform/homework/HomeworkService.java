@@ -33,6 +33,17 @@ public class HomeworkService {
     private void student(Actor actor,LessonRef lesson){reader(actor,lesson);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can submit homework.");}
     private void lock(Actor actor,LessonRef lesson){access.lockMember(actor,lesson.workspaceId());students.lockCard(lesson.workspaceId(),lesson.studentId());reader(actor,lesson);}
     public Page<Submission> list(Actor actor,LessonRef lesson,int page,int size){reader(actor,lesson);new Page<>(List.of(),page,size,0);return new Page<>(repository.list(lesson,page,size),page,size,repository.count(lesson));}
+    // Whose turn it is: the latest submission per lesson of one card, readable by its teacher and its own student.
+    public Page<HomeworkTurns.LessonTurn> lessonTurns(Actor actor,String workspace,String student,int page,int size,String audience){
+        new Page<>(List.of(),page,size,0);if(audience!=null&&!audience.equals("student"))throw new IllegalArgumentException("Invalid audience.");
+        students.requireReader(actor,workspace,student);
+        return new Page<>(repository.lessonTurns(workspace,student,page,size),page,size,repository.countLessonTurns(workspace,student));
+    }
+    // The teacher's review queue: one row per student of the exact workspace, works awaiting review first and oldest first.
+    public Page<HomeworkTurns.StudentTurn> studentTurns(Actor actor,String workspace,int page,int size){
+        new Page<>(List.of(),page,size,0);access.requireTeacher(actor,workspace);
+        return new Page<>(repository.studentTurns(workspace,page,size),page,size,repository.countStudentTurns(workspace));
+    }
     public Submission submit(Actor actor,LessonRef lesson,InputStream input,String filename,String comment,String repositoryUrl)throws IOException {
         return submit(actor,lesson,input,filename,comment,repositoryUrl,null);
     }
@@ -48,21 +59,35 @@ public class HomeworkService {
             return transaction.execute(status->{
                 lock(actor,lesson);student(actor,lesson);
                 var blob=blobs.attach(actor,lesson,staged,name,"application/octet-stream");
-                var submission=new Submission(UUID.randomUUID().toString(),name,blob.size(),clock.instant().truncatedTo(ChronoUnit.MICROS),note,url,ReviewStatus.submitted,"",null,1);
+                var submission=new Submission(UUID.randomUUID().toString(),name,blob.size(),clock.instant().truncatedTo(ChronoUnit.MICROS),note,url,ReviewStatus.submitted,"",null,1,null);
                 repository.insert(lesson,submission,blob.id());return submission;
             });
         } catch(TooLarge failure){throw oversized();}
     }
-    public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback){
+    public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback){return review(actor,lesson,id,revision,status,feedback,null);}
+    public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback,Grade grade){
         String text=form(feedback,20000);if(revision<1||status==null||status==ReviewStatus.submitted)throw new IllegalArgumentException("Invalid review.");
         return transaction.execute(tx->{
             lock(actor,lesson);if(actor.role()!=Actor.Role.TEACHER)throw new ApiFailure(403,"FORBIDDEN","Only the teacher can review homework.");
             var existing=repository.find(lesson,id,true).orElseThrow(WorkspaceAccess::missing).submission();
             if(existing.revision()!=revision)throw new ApiFailure(409,"REVISION_CONFLICT","Review changed. Refresh before saving.");
-            var changed=new Submission(existing.id(),existing.filename(),existing.size(),existing.createdAt(),existing.comment(),existing.repositoryUrl(),status,text,clock.instant().truncatedTo(ChronoUnit.MICROS),Math.addExact(revision,1));
+            var changed=new Submission(existing.id(),existing.filename(),existing.size(),existing.createdAt(),existing.comment(),existing.repositoryUrl(),status,text,clock.instant().truncatedTo(ChronoUnit.MICROS),Math.addExact(revision,1),grade);
             repository.review(lesson,changed);return changed;
         });
     }
+    public static final int MAXIMUM_TEXT=262144;
+    public record TextFile(String filename,String text) {}
+    // Only a single small UTF-8 text file is shown inline; archives stay closed and are never unpacked.
+    public TextFile text(Actor actor,LessonRef lesson,String id)throws IOException {
+        reader(actor,lesson);var submission=repository.find(lesson,id,false).orElseThrow(WorkspaceAccess::missing).submission();
+        if(!submission.filename().toLowerCase(Locale.ROOT).matches(".*[.](java|txt|md)")||submission.size()>MAXIMUM_TEXT)throw notText();
+        try(var input=open(actor,lesson,id)){
+            byte[] bytes=input.readNBytes(MAXIMUM_TEXT+1);if(bytes.length>MAXIMUM_TEXT)throw notText();
+            try{return new TextFile(submission.filename(),StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString());}
+            catch(java.nio.charset.CharacterCodingException malformed){throw notText();}
+        }
+    }
+    private static ApiFailure notText(){return new ApiFailure(415,"NOT_TEXT","Only a single UTF-8 text file up to 256 KiB can be shown.");}
     public Download download(Actor actor,LessonRef lesson,String id){reader(actor,lesson);var stored=repository.find(lesson,id,false).orElseThrow(WorkspaceAccess::missing);return new Download(stored.submission(),blobs.describe(actor,lesson,stored.blobId()));}
     public InputStream open(Actor actor,LessonRef lesson,String id)throws IOException {reader(actor,lesson);var stored=repository.find(lesson,id,false).orElseThrow(WorkspaceAccess::missing);return blobs.open(actor,lesson,stored.blobId());}
     private static String filename(String value){

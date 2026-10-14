@@ -17,6 +17,7 @@ public class SessionPolicy {
     private final Clock clock;
     private final WorkspaceService workspaces;
     public SessionPolicy(IdentityRepository identities,Clock clock,WorkspaceService workspaces) { this.identities = identities; this.clock = clock; this.workspaces=workspaces; }
+    public String login(Actor actor) { return actor == null ? null : identities.findById(actor.userId()).map(IdentityRepository.Account::login).orElse(null); }
     public Actor current(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if(session == null) return null;

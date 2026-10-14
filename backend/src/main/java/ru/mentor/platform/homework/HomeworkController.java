@@ -36,8 +36,13 @@ public class HomeworkController {
     }
     @PatchMapping(value="/{id}/review",consumes={MediaType.APPLICATION_JSON_VALUE,"application/*+json"})
     public ResponseEntity<Submission> review(HttpServletRequest r,@PathVariable String workspace,@PathVariable String student,@PathVariable String lesson,@PathVariable String id,@RequestBody JsonNode body){
-        if(!body.isObject()||!body.propertyNames().equals(Set.of("revision","status","feedback"))||!body.get("revision").isIntegralNumber()||!body.get("revision").canConvertToLong()||!body.get("status").isString()||!body.get("feedback").isString())throw new IllegalArgumentException("Review fields required.");
-        return ResponseEntity.ok().headers(headers()).body(homework.review(sessions.requireCurrent(r),new LessonRef(workspace,student,lesson),id,body.get("revision").asLong(),ReviewStatus.valueOf(body.get("status").asText()),body.get("feedback").asText()));
+        if(!body.isObject()||!Set.of("revision","status","feedback","grade").containsAll(body.propertyNames())||!body.propertyNames().containsAll(Set.of("revision","status","feedback"))||!body.get("revision").isIntegralNumber()||!body.get("revision").canConvertToLong()||!body.get("status").isString()||!body.get("feedback").isString())throw new IllegalArgumentException("Review fields required.");
+        // grade is optional: absent or null clears the mark, otherwise it must be a known sign.
+        JsonNode grade=body.get("grade");if(grade!=null&&!grade.isNull()&&!grade.isString())throw new IllegalArgumentException("Invalid grade.");
+        return ResponseEntity.ok().headers(headers()).body(homework.review(sessions.requireCurrent(r),new LessonRef(workspace,student,lesson),id,body.get("revision").asLong(),ReviewStatus.valueOf(body.get("status").asText()),body.get("feedback").asText(),grade==null||grade.isNull()?null:Grade.valueOf(grade.asText())));
+    }
+    @GetMapping("/{id}/text") public ResponseEntity<HomeworkService.TextFile> text(HttpServletRequest r,@PathVariable String workspace,@PathVariable String student,@PathVariable String lesson,@PathVariable String id)throws IOException {
+        return ResponseEntity.ok().headers(headers()).body(homework.text(sessions.requireCurrent(r),new LessonRef(workspace,student,lesson),id));
     }
     @RequestMapping(value="/{id}/file",method={RequestMethod.GET,RequestMethod.HEAD})
     public ResponseEntity<?> file(HttpServletRequest r,@PathVariable String workspace,@PathVariable String student,@PathVariable String lesson,@PathVariable String id)throws IOException {

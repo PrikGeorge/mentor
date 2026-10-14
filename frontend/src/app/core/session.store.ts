@@ -10,11 +10,14 @@ export class SessionStore {
   private readonly account = signal<Actor | null>(null);
   private readonly epoch = signal(0);
   private readonly token = signal<string | null>(null);
+  // The account login for the header only; it never decides access.
+  private readonly name = signal<string | null>(null);
   private readonly changes = new Subject<number>();
   private pendingLogoutAccount: string | null = null;
   readonly actor = this.account.asReadonly();
   readonly generation = this.epoch.asReadonly();
   readonly csrfToken = this.token.asReadonly();
+  readonly login = this.name.asReadonly();
   readonly loaded = signal(false);
 
   load(): Observable<SessionView> {
@@ -87,6 +90,7 @@ export class SessionStore {
   invalidate(expectedGeneration = this.generation()): void {
     if (expectedGeneration !== this.generation()) return;
     this.account.set(null);
+    this.name.set(null);
     this.epoch.update(value => value + 1);
     this.changes.next(this.generation());
   }
@@ -106,6 +110,7 @@ export class SessionStore {
       this.changes.next(this.generation());
     }
     this.account.set(next);
+    this.name.set(next ? view.login ?? null : null);
     if (next) this.pendingLogoutAccount = null;
     this.token.set(view.csrfToken);
     this.loaded.set(true);

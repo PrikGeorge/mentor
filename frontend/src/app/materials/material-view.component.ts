@@ -6,11 +6,12 @@ import { SessionStore } from '../core/session.store';
 import { MaterialsApi, MaterialView, MaterialSummary } from './materials-api.service';
 import { DocumentNavigationComponent } from './document-navigation.component';
 import { LegacyHtmlComponent } from './legacy-blocks.component';
-@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent], template: `
-@if(error()){<p class="auth-error" role="alert">{{error()}}</p><button class="btn" type="button" (click)="refresh.update(increment)">Повторить загрузку</button>}
-@if(loading()){<p role="status">Загружаем материалы…</p>}
+import { IconComponent } from '../core/icon.component';
+@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, IconComponent], template: `
+@if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" type="button" (click)="refresh.update(increment)"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
+@if(loading()){<p class="loading" role="status">Загружаем материалы…</p>}
 @if(selected();as material){
-  <section class="material-document panel panel-inner"><p class="eyebrow">{{material.audience==='teacher'?'ТОЛЬКО ДЛЯ ПРЕПОДАВАТЕЛЯ':'УЧЕБНЫЙ МАТЕРИАЛ'}}</p><h2>{{displayTitle(material)}}</h2>
+  <section class="material-document"><p class="eyebrow">@if(material.audience==='teacher'){<span class="vis private"><mentor-icon name="eye-off"/>Только вам</span>}@else{Учебный материал}</p><h2>{{displayTitle(material)}}</h2>
   @switch(material.kind){
     @case('doc'){<div class="doc-layout"><div class="doc-main"><mentor-legacy-html [html]="material.document.intro" [base]="base()" [preview]="preview()" [targets]="targets()"/>
       @for(section of material.document.sections;track section.id){<section class="doc-section" [id]="section.id"><h3 tabindex="-1">{{section.title}}</h3>
@@ -20,8 +21,8 @@ import { LegacyHtmlComponent } from './legacy-blocks.component';
       @if(!publicView()&&profileFacts()){<section class="profile-facts"><h3>Наблюдения наставника</h3><mentor-legacy-html [html]="profileFacts()" [base]="base()" [targets]="targets()"/></section>}
       <details class="raw-material-source"><summary>Исходный Markdown · только для чтения</summary><pre><code>{{material.document.raw}}</code></pre></details>
       </div><mentor-document-navigation [sections]="material.document.sections"/></div>}
-    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · Только для чтения. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download>↓ Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
-    @case('download'){<p>Файл {{material.filename}} · {{material.blob.size}} байт</p><a class="btn" [href]="api.file(workspaceId(),material.id,preview())" download>↓ Скачать комплект</a>}
+    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · Только для чтения. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download><mentor-icon name="download"/>Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
+    @case('download'){<p>Файл <code>{{material.filename}}</code> · {{material.blob.size}} байт</p><a class="btn" [href]="api.file(workspaceId(),material.id,preview())" download><mentor-icon name="download"/>Скачать комплект</a>}
     @case('view'){
       @if(material.viewData.goalHtml){<section>@if(displayTitle(material)!=='Цель обучения'){<h3>Цель обучения</h3>}<mentor-legacy-html [html]="material.viewData.goalHtml||''" [base]="base()" [preview]="preview()" [targets]="targets()"/></section>}
             @if(!publicView()){
@@ -34,12 +35,13 @@ import { LegacyHtmlComponent } from './legacy-blocks.component';
             @if(!publicView()){@if(material.viewData.answersCards?.length){<section id="material-answers"><h3>Эталоны и подсказки</h3>@for(card of material.viewData.answersCards||[];track $index){<article class="resource-card"><p class="eyebrow">JAVA / ЭТАЛОН</p><h4>{{card[1]}}</h4><p>{{card[2]}}</p>@if(answerMaterial(card[0]);as linked){<a class="text-link" [routerLink]="routeFor(linked)">Посмотреть код →</a>}</article>}</section>}}
     }
   }
-  @if(downloads().length){<div class="doc-tools">@for(download of downloads();track download.id){<a class="btn" [href]="api.file(workspaceId(),download.id,preview())" download>↓ {{download.title||download.filename}}</a>}</div>}
+  @if(downloads().length){<div class="doc-tools">@for(download of downloads();track download.id){<a class="btn" [href]="api.file(workspaceId(),download.id,preview())" download><mentor-icon name="download"/>{{download.title||download.filename}}</a>}</div>}
   </section>
 }@else if(!loading()&&!error()){
-  @if(section()==='materials'&&!detail()&&items().length){<div class="resource-grid">@for(item of items();track item.id){<article class="panel panel-inner"><p class="eyebrow">{{item.audience==='teacher'?'ДЛЯ ПРЕПОДАВАТЕЛЯ':'МАТЕРИАЛ'}}</p><h3>{{displayTitle(item)}}</h3><a class="btn" [routerLink]="routeFor(item)" [queryParams]="preview()?{preview:'student'}:{}">Открыть →</a></article>}</div>}
-  @else{<p class="empty-state">Материалы пока не добавлены.</p>}
-  @if(section()==='materials'&&!detail()){<nav class="pagination" aria-label="Страницы материалов"><button class="btn" type="button" [disabled]="page()===0" (click)="page.set(page()-1)">Назад</button><span>Страница {{page()+1}}</span><button class="btn" type="button" [disabled]="(page()+1)*25>=total()" (click)="page.set(page()+1)">Далее</button></nav>}
+  @if(section()==='materials'&&!detail()&&groups().length){<div class="material-groups">@for(group of groups();track group.audience){<section class="material-group" [class.private]="group.audience==='teacher'" [attr.aria-label]="group.title"><header><h2>{{group.title}}</h2><p class="small-muted">{{group.hint}}</p></header>
+    @for(part of group.parts;track part.title){<h3 class="material-part">{{part.title}}</h3><ul class="material-list">@for(item of part.items;track item.id){<li>@if(item.kind==='download'){<a class="material-row" [href]="api.file(workspaceId(),item.id,preview())" download><span class="material-kind">ZIP</span><span class="material-text"><strong>{{displayTitle(item)}}</strong><small>{{item.filename}}</small></span><span class="material-go" aria-hidden="true"><mentor-icon name="download"/></span></a>}@else{<a class="material-row" [routerLink]="routeFor(item)" [queryParams]="preview()?{preview:'student'}:{}"><span class="material-kind">{{kindLabel(item)}}</span><span class="material-text"><strong>{{displayTitle(item)}}</strong>@if(roleLabel(item);as role){<small>{{role}}</small>}@else if(item.kind==='code'&&item.title!==item.filename){<small>{{item.filename}}</small>}</span><span class="material-go" aria-hidden="true"><mentor-icon name="chevron-right"/></span></a>}</li>}</ul>}
+  </section>}</div>}
+  @else{<div class="empty-state"><h3>Материалы пока не добавлены</h3><p>Здесь появятся документы, код и файлы к занятиям.</p></div>}
 }` })
 export class MaterialViewComponent {
     readonly workspaceId = input.required<string>();
@@ -57,8 +59,6 @@ export class MaterialViewComponent {
     readonly items = signal<MaterialSummary[]>([]);
     readonly selected = signal<MaterialView | null>(null);
     readonly downloads = signal<MaterialSummary[]>([]);
-    readonly page = signal(0);
-    readonly total = signal(0);
     readonly error = signal('');
     readonly loading = signal(false);
     readonly refresh = signal(0);
@@ -70,7 +70,7 @@ export class MaterialViewComponent {
     constructor() {
         this.destroyRef.onDestroy(() => this.alive = false);
         effect(onCleanup => {
-            const generation = this.session.generation(), workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId(), section = this.section(), detail = this.detail(), preview = this.preview(), page = this.page();
+            const generation = this.session.generation(), workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId(), section = this.section(), detail = this.detail(), preview = this.preview();
             this.refresh();
             this.selected.set(null);
             this.items.set([]);
@@ -84,7 +84,7 @@ export class MaterialViewComponent {
                 return;
             this.loading.set(true);
             const listing = section === 'materials' && !detail;
-            const source = listing ? this.api.list(workspace, student, lesson, page, preview).pipe(switchMap(result => { this.items.set(result.items.filter(item => this.inScope(item))); this.total.set(result.total); return of(null); })) : this.api.catalog(workspace, student, lesson, preview).pipe(switchMap(items => {
+            const source = listing ? this.api.catalog(workspace, student, lesson, preview).pipe(switchMap(items => { this.items.set(items.filter(item => this.inScope(item))); return of(null); })) :this.api.catalog(workspace, student, lesson, preview).pipe(switchMap(items => {
                 if (!this.alive || generation !== this.session.generation())
                     return EMPTY;
                 const scoped = items.filter(item => this.inScope(item));
@@ -157,5 +157,24 @@ export class MaterialViewComponent {
     descriptors(material: MaterialView) { return material.kind === 'view' ? Object.entries(material.viewData.descriptors ?? {}).map(([key, values]) => ({ key, values })) : []; }
     displayTitle(material: MaterialSummary) { return material.kind === 'view' ? material.lessonId ? material.audience === 'teacher' ? 'План и ревью занятия' : 'Материалы занятия' : material.audience === 'teacher' ? 'Наблюдения наставника' : 'Цель обучения' : material.title || material.filename; }
     readonly targets = computed(() => Object.fromEntries(this.items().filter(item => this.inScope(item) && item.contentKey && this.resourceMaterial(item.contentKey)?.id === item.id).map(item => [item.contentKey!, this.routeFor(item)])));
+    readonly groups = computed(() => {
+        const items = this.items().filter(item => this.inScope(item));
+        return (['student', 'teacher'] as const).map(audience => {
+            const own = items.filter(item => item.audience === audience);
+            // A code file already offers its own download, so the twin download entry is noise.
+            const code = new Set(own.filter(item => item.kind === 'code').map(item => item.filename));
+            const parts = [
+                { title: 'Документы', items: own.filter(item => item.kind === 'doc' || item.kind === 'view').sort((a, b) => rank(a) - rank(b) || this.displayTitle(a).localeCompare(this.displayTitle(b), 'ru')) },
+                { title: 'Код', items: own.filter(item => item.kind === 'code').sort((a, b) => a.filename.localeCompare(b.filename)) },
+                { title: 'Архивы и файлы', items: own.filter(item => item.kind === 'download' && !code.has(item.filename)) }
+            ].filter(part => part.items.length);
+            return { audience, title: audience === 'student' ? 'Для ученика' : 'Только для вас', hint: audience === 'student' ? 'То, что ученик видит в своём кабинете.' : 'Сценарий, методичка и эталонные решения. Ученику не видны.', parts };
+        }).filter(group => group.parts.length);
+    });
+    kindLabel(item: MaterialSummary) { return item.kind === 'code' ? 'JAVA' : item.kind === 'view' ? 'СВОДКА' : 'MD'; }
+    roleLabel(item: MaterialSummary) { return item.contentKey ? ROLES[item.contentKey] ?? '' : ''; }
     routeFor(item: MaterialSummary) { return this.lessonId() ? `${this.base()}/${this.learner() ? 'student' : 'teacher'}/materials/${encodeURIComponent(item.id)}` : `${this.base()}/materials/${encodeURIComponent(item.id)}`; }
 }
+const ROLES: Record<string, string> = { student: 'Задания на занятие', homework: 'Домашняя работа', 'student-materials': 'Материалы урока', review: 'Ревью ДЗ', 'student-review': 'Ревью ДЗ', 'student-roadmap': 'Маршрут обучения', lesson: 'Сценарий занятия', guide: 'Методичка', source: 'Описание комплекта', roadmap: 'Маршрут обучения', profile: 'Профиль ученика' };
+const ORDER = ['student', 'homework', 'student-materials', 'review', 'student-review', 'student-roadmap', 'lesson', 'guide', 'source', 'roadmap', 'profile'];
+function rank(item: MaterialSummary) { const index = item.contentKey ? ORDER.indexOf(item.contentKey) : -1; return index < 0 ? ORDER.length : index; }
