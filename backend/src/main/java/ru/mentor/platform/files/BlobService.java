@@ -111,6 +111,11 @@ public class BlobService implements AutoCloseable {
     public InputStream open(Actor actor,StudentRef owner,String id)throws IOException {return store.open(readable(actor,owner,null,id).key());}
     public InputStream open(Actor actor,LessonRef owner,String id)throws IOException {return store.open(readable(actor,students.requireReader(actor,owner.workspaceId(),owner.studentId()),owner.id(),id).key());}
     private static BlobRef ref(BlobRepository.Stored value){return new BlobRef(value.id(),value.size(),value.sha256());}
+    // The owner removes a stored file once nothing references it; the bytes disappear with the next janitor pass.
+    @Transactional public void release(Actor actor,StudentRef owner,String lesson,String id){
+        lockOwner(actor,owner,lesson);var found=readable(actor,owner,lesson,id);
+        if(!repository.release(owner.workspaceId(),found.id(),clock.instant()))throw WorkspaceAccess.missing();
+    }
     public int cleanExpired(int maximum)throws IOException {
         if(maximum<1||maximum>1000)throw new IllegalArgumentException("Invalid cleanup batch.");
         var claims=reservationTransaction.execute(status->repository.claimExpiredForDelete(clock.instant(),maximum,policy.deleteLease(),policy.grace()));

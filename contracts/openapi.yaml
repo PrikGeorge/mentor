@@ -1021,6 +1021,27 @@ paths:
           description: Resource unavailable; no body
         '503':
           description: Service unavailable; no body
+    delete:
+      operationId: deleteMaterial
+      description: Owning TEACHER only. Removes the material row; a download's stored bytes are released to the
+        object janitor. The lesson keeps its status and bundle. Students and other teachers get 404.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '204':
+          description: Material removed
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/materials/{materialId}/file:
     parameters:
     - $ref: '#/components/parameters/MaterialWorkspaceId'
@@ -1106,6 +1127,36 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+    post:
+      operationId: createLessonMaterial
+      description: Owning TEACHER only. Adds a Markdown document (kind doc, rendered server-side into title, intro and
+        one section per level-two heading) or a downloadable file (kind download, exactly one nonempty file part up to
+        20 MiB) to this exact lesson. The first material makes the lesson prepared under a bundle minted once; later
+        materials join the same bundle. One document per role (contentKey) and audience; a repeat is 409
+        MATERIAL_EXISTS. The audience query parameter is ignored.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        $ref: '#/components/requestBodies/MaterialAuthoring'
+      responses:
+        '201':
+          $ref: '#/components/responses/MaterialCreated'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/{studentId}/materials:
     parameters:
     - $ref: '#/components/parameters/MaterialWorkspaceId'
@@ -1125,6 +1176,33 @@ paths:
         '401':
           $ref: '#/components/responses/Problem'
         '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createProfileMaterial
+      description: Owning TEACHER only. Same form as createLessonMaterial, bound to the card itself (lessonId and
+        bundleId null), for roadmap and profile documents. The audience query parameter is ignored.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      requestBody:
+        $ref: '#/components/requestBodies/MaterialAuthoring'
+      responses:
+        '201':
+          $ref: '#/components/responses/MaterialCreated'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
@@ -2202,6 +2280,51 @@ components:
       required: true
       schema:
         type: string
+  requestBodies:
+    MaterialAuthoring:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            additionalProperties: false
+            required:
+            - kind
+            - audience
+            properties:
+              kind:
+                type: string
+                enum:
+                - doc
+                - download
+                description: doc renders markdown server-side; download stores exactly one file part.
+              audience:
+                type: string
+                enum:
+                - student
+                - teacher
+              title:
+                type: string
+                maxLength: 200
+                description: Trimmed. For a document it defaults to the first level-one heading, else "Материал"; for a
+                  file it defaults to the filename.
+              contentKey:
+                type: string
+                pattern: ^[a-z][a-z0-9-]{0,39}$(?![\s\S])
+                description: The material's role in the screens (student, homework, guide, lesson, answers, review,
+                  student-materials, source, student-roadmap, roadmap, profile). Optional; unique per lesson,
+                  audience and kind doc.
+              markdown:
+                type: string
+                minLength: 1
+                maxLength: 200000
+                description: Required for kind doc, forbidden for download. The first "# " line becomes the title, each
+                  "## " line opens a section.
+              file:
+                type: string
+                format: binary
+                x-max-bytes: 20971520
+                description: Required for kind download, forbidden for doc. Safe filename rules as for homework.
   responses:
     Problem:
       description: Structured application error
@@ -2209,6 +2332,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiProblem'
+    MaterialCreated:
+      description: Stored material metadata
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/MaterialNoStore'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/MaterialNoSniff'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MaterialSummary'
     RateLimited:
       description: Too many authentication requests
       headers:
@@ -2843,6 +2977,13 @@ components:
         conducted:
           type: boolean
           description: Teacher's explicit mark that the lesson took place. true keeps the first conductedAt; false clears it.
+        status:
+          type: string
+          enum:
+          - planned
+          - prepared
+          description: prepared publishes the lesson's materials to the student and mints bundleId once; planned hides
+            them again while keeping the bundle. Adding the first material sets prepared automatically.
         revision:
           $ref: '#/components/schemas/LessonRevision'
     TextKind:

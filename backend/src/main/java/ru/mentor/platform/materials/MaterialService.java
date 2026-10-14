@@ -3,6 +3,8 @@ package ru.mentor.platform.materials;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.*;
 import ru.mentor.platform.shared.*;
 import ru.mentor.platform.students.*;
@@ -19,10 +21,56 @@ public class MaterialService {
     public record MaterialSummary(String id,String workspaceId,String studentId,String lessonId,String bundleId,String audience,String kind,String contentKey,String filename,String contentType,String title) {}
     public record MaterialView(@JsonValue Map<String,Object> fields) {}
     public record Download(MaterialSummary metadata,BlobService.BlobRef blob) {}
-    private final MaterialRepository repository;private final StudentService students;private final LessonService lessons;private final BlobService blobs;private final ObjectMapper json;private final long maximumObjectBytes;
-    public MaterialService(MaterialRepository repository,StudentService students,LessonService lessons,BlobService blobs,ObjectMapper json,@Value("${mentor.materials.maximum-bytes:67108864}")long maximumObjectBytes){if(maximumObjectBytes<1)throw new IllegalArgumentException("Positive prepared-material limit required.");this.repository=repository;this.students=students;this.lessons=lessons;this.blobs=blobs;this.json=json;this.maximumObjectBytes=maximumObjectBytes;}
-    /** Trusted importers use this bound for BlobService.stage; no browser ingestion endpoint exists. */
+    private final MaterialRepository repository;private final StudentService students;private final LessonService lessons;private final BlobService blobs;private final ObjectMapper json;private final long maximumObjectBytes;private final TransactionTemplate transaction;
+    public MaterialService(MaterialRepository repository,StudentService students,LessonService lessons,BlobService blobs,ObjectMapper json,PlatformTransactionManager manager,@Value("${mentor.materials.maximum-bytes:67108864}")long maximumObjectBytes){if(maximumObjectBytes<1)throw new IllegalArgumentException("Positive prepared-material limit required.");this.repository=repository;this.students=students;this.lessons=lessons;this.blobs=blobs;this.json=json;this.maximumObjectBytes=maximumObjectBytes;this.transaction=new TransactionTemplate(manager);}
+    /** Trusted importers use this bound for BlobService.stage; browser uploads are bounded by MAXIMUM_UPLOAD below. */
     public long maximumObjectBytes(){return maximumObjectBytes;}
+    public static final long MAXIMUM_UPLOAD=20971520,MAXIMUM_MARKDOWN=200000;
+    private static final Set<String> AUDIENCES=Set.of("student","teacher");
+    public record Authoring(String audience,String contentKey,String title) {}
+    // The owning teacher adds a Markdown document to a lesson (or to the card when lesson is null). The first lesson material
+    // makes the lesson prepared under one bundle; one document per role and audience, so the screens know which one to open.
+    public MaterialSummary createDocument(Actor actor,String workspace,String student,String lesson,Authoring input,String markdown){
+        String audience=audience(input.audience()),key=contentKey(input.contentKey()),title=title(input.title());
+        if(markdown==null||markdown.isBlank()||markdown.length()>MAXIMUM_MARKDOWN||markdown.indexOf(0)>=0)throw new IllegalArgumentException("Markdown up to 200000 characters required.");
+        students.requireReader(actor,workspace,student);if(actor.role()!=Actor.Role.TEACHER)throw new ApiFailure(403,"FORBIDDEN","Only the teacher can add materials.");
+        var payload=MarkdownDocument.payload(markdown,title==null?"Материал":title);String heading=title!=null?title:(String)payload.get("title");
+        String filename=(key==null?"material":key)+".md";
+        return transaction.execute(status->{
+            var owner=students.lockTeacherCard(actor,workspace,student);String bundle=lesson==null?null:lessons.prepare(actor,new LessonRef(workspace,student,lesson));
+            if(key!=null&&repository.documentExists(workspace,student,lesson,audience,key))throw new ApiFailure(409,"MATERIAL_EXISTS","A document with this role already exists here. Delete it first.");
+            String id=UUID.randomUUID().toString();repository.insert(workspace,id,owner.id(),lesson,bundle,audience,"doc",key,filename,"text/markdown;charset=UTF-8",heading,encode(payload),null);
+            return summary(repository.find(workspace,id).orElseThrow().metadata());
+        });
+    }
+    // The owning teacher uploads a file (kit archive, PDF, source) as a downloadable material; bytes are staged before the transaction.
+    public MaterialSummary createFile(Actor actor,String workspace,String student,String lesson,Authoring input,InputStream content,String filename,String contentType,long expectedSize)throws IOException {
+        String audience=audience(input.audience()),key=contentKey(input.contentKey()),title=title(input.title());
+        String safeName=BlobService.filename(filename),safeType=BlobService.contentType(contentType==null||contentType.isBlank()?"application/octet-stream":contentType);
+        if(content==null||expectedSize<=0)throw new IllegalArgumentException("Nonempty file required.");if(expectedSize>MAXIMUM_UPLOAD)throw new ApiFailure(413,"INVALID_INPUT","Material file exceeds its byte limit.");
+        var card=students.requireReader(actor,workspace,student);if(actor.role()!=Actor.Role.TEACHER)throw new ApiFailure(403,"FORBIDDEN","Only the teacher can add materials.");
+        var staged=lesson==null?blobs.stage(actor,card,content,MAXIMUM_UPLOAD,expectedSize):blobs.stage(actor,new LessonRef(workspace,student,lesson),content,MAXIMUM_UPLOAD,expectedSize);
+        return transaction.execute(status->{
+            var owner=students.lockTeacherCard(actor,workspace,student);String bundle=lesson==null?null:lessons.prepare(actor,new LessonRef(workspace,student,lesson));
+            var blob=lesson==null?blobs.attach(actor,owner,staged,safeName,safeType):blobs.attach(actor,new LessonRef(workspace,student,lesson),staged,safeName,safeType);
+            String id=UUID.randomUUID().toString();repository.insert(workspace,id,owner.id(),lesson,bundle,audience,"download",key,safeName,safeType,title==null?safeName:title,null,blob.id());
+            return summary(repository.find(workspace,id).orElseThrow().metadata());
+        });
+    }
+    // Only the owning teacher deletes; a download's bytes are released to the janitor together with the row.
+    public void delete(Actor actor,String workspace,String id){
+        transaction.execute(status->{
+            var stored=repository.find(workspace,id).orElseThrow(WorkspaceAccess::missing).metadata();students.requireReader(actor,workspace,stored.studentId());
+            if(actor.role()!=Actor.Role.TEACHER)throw new ApiFailure(403,"FORBIDDEN","Only the teacher can remove materials.");var owner=students.lockTeacherCard(actor,workspace,stored.studentId());
+            if(!repository.delete(workspace,id))throw WorkspaceAccess.missing();
+            if(stored.kind().equals("download")&&stored.blobId()!=null)blobs.release(actor,owner,stored.lessonId(),stored.blobId());
+            return null;
+        });
+    }
+    private static String audience(String value){if(value==null||!AUDIENCES.contains(value))throw new IllegalArgumentException("Audience must be student or teacher.");return value;}
+    private static String contentKey(String value){if(value==null||value.isBlank())return null;if(!value.matches("[a-z][a-z0-9-]{0,39}"))throw new IllegalArgumentException("Invalid material role.");return value;}
+    private static String title(String value){if(value==null)return null;String trimmed=value.strip();if(trimmed.isEmpty())return null;if(trimmed.length()>200||trimmed.indexOf(0)>=0)throw new IllegalArgumentException("Invalid title.");return trimmed;}
+    private String encode(Object value){return json.writeValueAsString(value);}
     public MaterialView read(Actor actor,String workspace,String id){return read(actor,workspace,id,null);}
     public MaterialView read(Actor actor,String workspace,String id,String audience){
         boolean publicView=publicView(actor,audience);var stored=authorized(actor,workspace,id,publicView);var meta=stored.metadata();

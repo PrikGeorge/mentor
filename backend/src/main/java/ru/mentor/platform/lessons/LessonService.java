@@ -28,12 +28,21 @@ public class LessonService {
         return view(repository.create(w,student,title(input.get("title")),date(input.get("date")),time(input.get("time")),duration(input.get("duration")),clock.instant()),false);
     }
     @Transactional public Map<String,Object> update(Actor actor,LessonRef ref,Map<String,Object> input){
-        lockTeacher(actor,ref);checkFields(input,Set.of("title","date","time","duration","conducted","revision"));long revision=revision(input.get("revision"));var old=metadata(ref);
+        lockTeacher(actor,ref);checkFields(input,Set.of("title","date","time","duration","conducted","status","revision"));long revision=revision(input.get("revision"));var old=metadata(ref);
         Object conducted=input.get("conducted");if(input.containsKey("conducted")&&!(conducted instanceof Boolean))throw new IllegalArgumentException("Conducted must be a boolean.");
         // Marking keeps the first instant; unmarking clears it.
         Instant conductedAt=conducted==null?old.conductedAt():(Boolean)conducted?(old.conductedAt()==null?clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS):old.conductedAt()):null;
+        // prepared publishes the lesson's materials to the student (the bundle id is minted once); planned hides them again.
+        String status=old.status(),bundleId=old.bundleId();
+        if(input.containsKey("status")){if(!(input.get("status") instanceof String s)||!Set.of("planned","prepared").contains(s))throw new IllegalArgumentException("Status must be planned or prepared.");status=s;if(s.equals("prepared")&&bundleId==null)bundleId=UUID.randomUUID().toString();}
         String title=input.containsKey("title")?title(input.get("title")):old.title(),date=input.containsKey("date")?date(input.get("date")):old.date(),time=input.containsKey("time")?time(input.get("time")):old.time();int duration=input.containsKey("duration")?duration(input.get("duration")):old.duration();
-        if(!repository.update(old,title,date,time,duration,conductedAt,revision))throw conflict();return view(metadata(ref),false);
+        if(!repository.update(old,title,date,time,duration,conductedAt,status,bundleId,revision))throw conflict();return view(metadata(ref),false);
+    }
+    // Adding a material makes the lesson prepared under one bundle; call inside the material transaction after locking the card.
+    public String prepare(Actor actor,LessonRef ref){
+        lockTeacher(actor,ref);var old=metadata(ref);if(old.bundleId()!=null&&old.status().equals("prepared"))return old.bundleId();
+        String bundleId=old.bundleId()==null?UUID.randomUUID().toString():old.bundleId();
+        if(!repository.update(old,old.title(),old.date(),old.time(),old.duration(),old.conductedAt(),"prepared",bundleId,old.revision()))throw conflict();return bundleId;
     }
     public LessonText text(Actor actor,LessonRef ref,TextKind kind,String audience){requireReader(actor,ref.workspaceId(),ref.studentId(),ref.id());if(publicView(actor,audience)&&kind==TextKind.teacherNotes)throw WorkspaceAccess.missing();return repository.text(ref,kind);}
     @Transactional public LessonText saveText(Actor actor,LessonRef ref,TextKind kind,String markdown,long expectedRevision){

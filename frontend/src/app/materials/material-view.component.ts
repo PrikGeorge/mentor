@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EMPTY, forkJoin, map, of, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
@@ -6,8 +6,9 @@ import { SessionStore } from '../core/session.store';
 import { MaterialsApi, MaterialView, MaterialSummary } from './materials-api.service';
 import { DocumentNavigationComponent } from './document-navigation.component';
 import { LegacyHtmlComponent } from './legacy-blocks.component';
+import { MaterialFormComponent } from './material-form.component';
 import { IconComponent } from '../core/icon.component';
-@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, IconComponent], template: `
+@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, MaterialFormComponent, IconComponent], template: `
 @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" type="button" (click)="refresh.update(increment)"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
 @if(loading()){<p class="loading" role="status">Загружаем материалы…</p>}
 @if(selected();as material){
@@ -38,10 +39,14 @@ import { IconComponent } from '../core/icon.component';
   @if(downloads().length){<div class="doc-tools">@for(download of downloads();track download.id){<a class="btn" [href]="api.file(workspaceId(),download.id,preview())" download><mentor-icon name="download"/>{{download.title||download.filename}}</a>}</div>}
   </section>
 }@else if(!loading()&&!error()){
+  @if(section()==='materials'&&!detail()&&editable()){@defer (on immediate) {<mentor-material-form class="mb-16" [workspaceId]="workspaceId()" [studentId]="studentId()" [lessonId]="lessonId()" (saved)="changedMaterials()"/>} @placeholder {<p class="loading" role="status">Загружаем форму материалов…</p>}}
+  @if(removeError()){<p class="auth-error" role="alert">{{removeError()}}</p>}
   @if(section()==='materials'&&!detail()&&groups().length){<div class="material-groups">@for(group of groups();track group.audience){<section class="material-group" [class.private]="group.audience==='teacher'" [attr.aria-label]="group.title"><header><h2>{{group.title}}</h2><p class="small-muted">{{group.hint}}</p></header>
-    @for(part of group.parts;track part.title){<h3 class="material-part">{{part.title}}</h3><ul class="material-list">@for(item of part.items;track item.id){<li>@if(item.kind==='download'){<a class="material-row" [href]="api.file(workspaceId(),item.id,preview())" download><span class="material-kind">ZIP</span><span class="material-text"><strong>{{displayTitle(item)}}</strong><small>{{item.filename}}</small></span><span class="material-go" aria-hidden="true"><mentor-icon name="download"/></span></a>}@else{<a class="material-row" [routerLink]="routeFor(item)" [queryParams]="preview()?{preview:'student'}:{}"><span class="material-kind">{{kindLabel(item)}}</span><span class="material-text"><strong>{{displayTitle(item)}}</strong>@if(roleLabel(item);as role){<small>{{role}}</small>}@else if(item.kind==='code'&&item.title!==item.filename){<small>{{item.filename}}</small>}</span><span class="material-go" aria-hidden="true"><mentor-icon name="chevron-right"/></span></a>}</li>}</ul>}
+    @for(part of group.parts;track part.title){<h3 class="material-part">{{part.title}}</h3><ul class="material-list">@for(item of part.items;track item.id){<li class="material-item">@if(item.kind==='download'){<a class="material-row" [href]="api.file(workspaceId(),item.id,preview())" download><span class="material-kind">ZIP</span><span class="material-text"><strong>{{displayTitle(item)}}</strong><small>{{item.filename}}</small></span><span class="material-go" aria-hidden="true"><mentor-icon name="download"/></span></a>}@else{<a class="material-row" [routerLink]="routeFor(item)" [queryParams]="preview()?{preview:'student'}:{}"><span class="material-kind">{{kindLabel(item)}}</span><span class="material-text"><strong>{{displayTitle(item)}}</strong>@if(roleLabel(item);as role){<small>{{role}}</small>}@else if(item.kind==='code'&&item.title!==item.filename){<small>{{item.filename}}</small>}</span><span class="material-go" aria-hidden="true"><mentor-icon name="chevron-right"/></span></a>}
+      @if(editable()){@if(pendingRemoval()===item.id){<span class="material-confirm" role="group" aria-label="Подтверждение удаления"><span class="small-muted">Удалить?</span><button class="btn sm danger" type="button" (click)="remove(item)" [disabled]="removing()">Удалить</button><button class="btn sm text" type="button" (click)="pendingRemoval.set(null)" [disabled]="removing()">Отмена</button></span>}@else{<button class="btn sm text material-remove" type="button" (click)="pendingRemoval.set(item.id)" [attr.aria-label]="'Удалить '+displayTitle(item)" [disabled]="removing()"><mentor-icon name="trash-2"/></button>}}</li>}</ul>}
   </section>}</div>}
-  @else{<div class="empty-state"><h3>Материалы пока не добавлены</h3><p>Здесь появятся документы, код и файлы к занятиям.</p></div>}
+  @else if(!(section()==='materials'&&!detail()&&editable())){<div class="empty-state"><h3>Материалы пока не добавлены</h3><p>Здесь появятся документы, код и файлы к занятиям.</p></div>}
+  @else{<p class="small-muted">Материалов пока нет. Добавьте первый документ или файл выше.</p>}
 }` })
 export class MaterialViewComponent {
     readonly workspaceId = input.required<string>();
@@ -52,6 +57,10 @@ export class MaterialViewComponent {
     readonly base = input.required<string>();
     readonly preview = input(false);
     readonly learner = input(false);
+    // The owning teacher adds and removes materials in the listing; every change is reported so the lesson can refresh its status.
+    readonly editable = input(false);
+    readonly changed = output<void>();
+    readonly pendingRemoval = signal<string | null>(null); readonly removing = signal(false); readonly removeError = signal('');
     readonly api = inject(MaterialsApi);
     private readonly session = inject(SessionStore);
     private readonly owner = this.session.generation();
@@ -171,6 +180,11 @@ export class MaterialViewComponent {
             return { audience, title: audience === 'student' ? 'Для ученика' : 'Только для вас', hint: audience === 'student' ? 'То, что ученик видит в своём кабинете.' : 'Сценарий, методичка и эталонные решения. Ученику не видны.', parts };
         }).filter(group => group.parts.length);
     });
+    changedMaterials() { this.pendingRemoval.set(null); this.removeError.set(''); this.refresh.update(this.increment); this.changed.emit(); }
+    remove(item: MaterialSummary) {
+        if (!this.editable() || this.removing() || this.owner !== this.session.generation()) return; this.removing.set(true); this.removeError.set('');
+        this.api.remove(this.workspaceId(), item.id).subscribe({ next: () => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.changedMaterials(); }, error: error => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.removeError.set(error.error?.message ?? 'Не удалось удалить материал.'); } });
+    }
     kindLabel(item: MaterialSummary) { return item.kind === 'code' ? 'JAVA' : item.kind === 'view' ? 'СВОДКА' : 'MD'; }
     roleLabel(item: MaterialSummary) { return item.contentKey ? ROLES[item.contentKey] ?? '' : ''; }
     routeFor(item: MaterialSummary) { return this.lessonId() ? `${this.base()}/${this.learner() ? 'student' : 'teacher'}/materials/${encodeURIComponent(item.id)}` : `${this.base()}/materials/${encodeURIComponent(item.id)}`; }

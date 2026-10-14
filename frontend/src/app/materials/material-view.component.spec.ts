@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { DeferBlockBehavior, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -8,7 +8,7 @@ import { sessionInterceptor } from '../core/session.interceptor';
 import type { components } from '../api/schema';
 const metadata: components['schemas']['MaterialMetadata'] = { id: 'doc1', workspaceId: 'w1', studentId: 's1', lessonId: 'l1', bundleId: 'bundle', audience: 'student', kind: 'doc', contentKey: 'student', filename: 'tasks.md', contentType: 'text/markdown', title: 'Задания' };
 describe('Scoped material reading', () => {
-    beforeEach(() => TestBed.configureTestingModule({ imports: [MaterialViewComponent], providers: [provideRouter([]), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting()] }));
+    beforeEach(() => TestBed.configureTestingModule({ imports: [MaterialViewComponent], deferBlockBehavior: DeferBlockBehavior.Playthrough, providers: [provideRouter([]), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting()] }));
     afterEach(() => { TestBed.inject(HttpTestingController).verify(); TestBed.resetTestingModule(); });
     function view(section = 'tasks', preview = true, lesson: string | null = 'l1') {
         const session = TestBed.inject(SessionStore), http = TestBed.inject(HttpTestingController);
@@ -40,6 +40,16 @@ describe('Scoped material reading', () => {
         const list = http.match(request => request.url.endsWith('/lessons/l1/materials')); for (const request of list) if (!request.cancelled) request.flush({ items: [{ ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask' }], page: 0, size: 25, total: 1 });
         http.expectOne('/api/v1/workspaces/w1/materials/code1?audience=student').flush({ ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask', code: { text: '  class ListTask {}\n', teacher: false, materialId: 'download1', excerpt: { start: 0, end: 1 } } }); fixture.detectChanges();
         expect(element.querySelector('pre code')?.textContent).toBe('  class ListTask {}\n'); expect(element.textContent).toContain('Только для чтения'); expect(element.querySelector('a[download]')?.getAttribute('href')).toBe('/api/v1/workspaces/w1/materials/download1/file?audience=student');
+    });
+    it('lets the owning teacher add and remove materials and reports each change', async () => {
+        const { fixture, http, element } = view('materials', false); fixture.componentRef.setInput('editable', true); let changes = 0; fixture.componentInstance.changed.subscribe(() => changes++); fixture.detectChanges();
+        http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials?page=0&size=25').flush({ items: [metadata], page: 0, size: 25, total: 1 }); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        expect(element.querySelector('mentor-material-form')).toBeTruthy(); expect(element.querySelector('.empty-state')).toBeNull();
+        element.querySelector<HTMLButtonElement>('.material-remove')!.click(); fixture.detectChanges(); expect(element.textContent).toContain('Удалить?');
+        element.querySelector<HTMLButtonElement>('.material-confirm .btn.danger')!.click();
+        const request = http.expectOne('/api/v1/workspaces/w1/materials/doc1'); expect(request.request.method).toBe('DELETE'); request.flush(null, { status: 204, statusText: 'No Content' }); fixture.detectChanges();
+        http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials?page=0&size=25').flush({ items: [], page: 0, size: 25, total: 0 }); fixture.detectChanges();
+        expect(changes).toBe(1); expect(element.textContent).toContain('Материалов пока нет');
     });
     it('cancels pending material content when the account changes', () => {
         const { http, session } = view(); http.expectOne(request => request.url.endsWith('/lessons/l1/materials')).flush({ items: [metadata], page: 0, size: 25, total: 1 }); const request = http.expectOne('/api/v1/workspaces/w1/materials/doc1?audience=student'); session.invalidate(); expect(request.cancelled).toBe(true);

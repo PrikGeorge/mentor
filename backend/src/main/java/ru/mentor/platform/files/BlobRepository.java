@@ -37,6 +37,13 @@ public class BlobRepository {
         if(jdbc.update("UPDATE blob_reservation SET state='ATTACHED',attached_blob_id=? WHERE id=? AND state='STAGED' AND lease_until>?",blobId,id,Timestamp.from(now))!=1)throw new IllegalStateException("Attachment lease lost.");
     }
     public void insert(Reservation r,String id,String filename,String type,Instant now){jdbc.update("INSERT INTO stored_blob(workspace_id,id,student_id,lesson_id,reservation_id,filename,content_type,size,sha256,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",r.workspaceId(),id,r.studentId(),r.lessonId(),r.id(),filename,type,r.size(),r.sha256(),Timestamp.from(now));}
+    // Detaching returns the reservation to an already expired STAGED state, so the janitor deletes the object like any abandoned upload.
+    public boolean release(String workspace,String blobId,Instant now){
+        var found=jdbc.query("SELECT reservation_id FROM stored_blob WHERE workspace_id=? AND id=?",(r,n)->r.getString(1),workspace,blobId).stream().findFirst();if(found.isEmpty())return false;
+        Timestamp at=Timestamp.from(now);
+        if(jdbc.update("UPDATE blob_reservation SET state='STAGED',attached_blob_id=NULL,lease_until=?,expires_at=?,settle_after=? WHERE workspace_id=? AND id=? AND state='ATTACHED'",at,at,at,workspace,found.get())!=1)return false;
+        return jdbc.update("DELETE FROM stored_blob WHERE workspace_id=? AND id=?",workspace,blobId)==1;
+    }
     public Optional<Stored> stored(String workspace,String id){return jdbc.query("SELECT b.*,r.object_key FROM stored_blob b JOIN blob_reservation r ON r.workspace_id=b.workspace_id AND r.id=b.reservation_id WHERE b.workspace_id=? AND b.id=? AND r.state='ATTACHED'",(r,n)->new Stored(r.getString("id"),r.getString("workspace_id"),r.getString("student_id"),r.getString("lesson_id"),r.getString("object_key"),r.getString("filename"),r.getString("content_type"),r.getLong("size"),r.getString("sha256")),workspace,id).stream().findFirst();}
     public List<DeleteClaim> claimExpiredForDelete(Instant now,int batchSize,Duration lease){return claimExpiredForDelete(now,batchSize,lease,Duration.ofSeconds(60));}
     public List<DeleteClaim> claimExpiredForDelete(Instant now,int batchSize,Duration lease,Duration grace){

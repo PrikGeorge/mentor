@@ -397,7 +397,8 @@ export interface paths {
         get: operations["getMaterial"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** @description Owning TEACHER only. Removes the material row; a download's stored bytes are released to the object janitor. The lesson keeps its status and bundle. Students and other teachers get 404. */
+        delete: operations["deleteMaterial"];
         options?: never;
         /** @description Same authorization as GET. No response body on success or failure. */
         head: operations["headMaterial"];
@@ -447,7 +448,8 @@ export interface paths {
         /** @description Only material rows attached to this exact lesson and visible in the caller projection. No raw/html/code/viewData in list items. */
         get: operations["listLessonMaterials"];
         put?: never;
-        post?: never;
+        /** @description Owning TEACHER only. Adds a Markdown document (kind doc, rendered server-side into title, intro and one section per level-two heading) or a downloadable file (kind download, exactly one nonempty file part up to 20 MiB) to this exact lesson. The first material makes the lesson prepared under a bundle minted once; later materials join the same bundle. One document per role (contentKey) and audience; a repeat is 409 MATERIAL_EXISTS. The audience query parameter is ignored. */
+        post: operations["createLessonMaterial"];
         delete?: never;
         options?: never;
         head?: never;
@@ -472,7 +474,8 @@ export interface paths {
         /** @description Only this card's profile-bound rows; lessonId and bundleId are null. No fabricated lesson and no descendant lesson materials. */
         get: operations["listProfileMaterials"];
         put?: never;
-        post?: never;
+        /** @description Owning TEACHER only. Same form as createLessonMaterial, bound to the card itself (lessonId and bundleId null), for roadmap and profile documents. The audience query parameter is ignored. */
+        post: operations["createProfileMaterial"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1105,6 +1108,11 @@ export interface components {
             duration?: components["schemas"]["LessonDuration"];
             /** @description Teacher's explicit mark that the lesson took place. true keeps the first conductedAt; false clears it. */
             conducted?: boolean;
+            /**
+             * @description prepared publishes the lesson's materials to the student and mints bundleId once; planned hides them again while keeping the bundle. Adding the first material sets prepared automatically.
+             * @enum {string}
+             */
+            status?: "planned" | "prepared";
             revision: components["schemas"]["LessonRevision"];
         };
         /** @enum {string} */
@@ -1740,6 +1748,17 @@ export interface components {
                 "application/json": components["schemas"]["ApiProblem"];
             };
         };
+        /** @description Stored material metadata */
+        MaterialCreated: {
+            headers: {
+                "Cache-Control": components["headers"]["MaterialNoStore"];
+                "X-Content-Type-Options": components["headers"]["MaterialNoSniff"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["MaterialSummary"];
+            };
+        };
         /** @description Too many authentication requests */
         RateLimited: {
             headers: {
@@ -1841,7 +1860,32 @@ export interface components {
         AttemptIdempotencyKey: string;
         PracticeAttemptId: string;
     };
-    requestBodies: never;
+    requestBodies: {
+        MaterialAuthoring: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * @description doc renders markdown server-side; download stores exactly one file part.
+                     * @enum {string}
+                     */
+                    kind: "doc" | "download";
+                    /** @enum {string} */
+                    audience: "student" | "teacher";
+                    /** @description Trimmed. For a document it defaults to the first level-one heading, else "Материал"; for a file it defaults to the filename. */
+                    title?: string;
+                    /** @description The material's role in the screens (student, homework, guide, lesson, answers, review, student-materials, source, student-roadmap, roadmap, profile). Optional; unique per lesson, audience and kind doc. */
+                    contentKey?: string;
+                    /** @description Required for kind doc, forbidden for download. The first "# " line becomes the title, each "## " line opens a section. */
+                    markdown?: string;
+                    /**
+                     * Format: binary
+                     * @description Required for kind download, forbidden for doc. Safe filename rules as for homework.
+                     */
+                    file?: string;
+                };
+            };
+        };
+    };
     headers: {
         MaterialNoStore: "no-store";
         MaterialNoSniff: "nosniff";
@@ -2829,6 +2873,39 @@ export interface operations {
             503: components["responses"]["Problem"];
         };
     };
+    deleteMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+            };
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Material removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
     headMaterial: {
         parameters: {
             query?: {
@@ -3001,6 +3078,38 @@ export interface operations {
             503: components["responses"]["Problem"];
         };
     };
+    createLessonMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+                lessonId: components["parameters"]["MaterialLessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["MaterialAuthoring"];
+        responses: {
+            201: components["responses"]["MaterialCreated"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
     listProfileMaterials: {
         parameters: {
             query?: {
@@ -3022,6 +3131,37 @@ export interface operations {
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    createProfileMaterial: {
+        parameters: {
+            query?: {
+                /** @description Optional narrowing only. Student always receives student projection. Teacher preview never changes Actor or allows student writes. Unknown values return400. */
+                audience?: components["parameters"]["MaterialAudience"];
+                page?: components["parameters"]["MaterialPageNumber"];
+                size?: components["parameters"]["MaterialPageSize"];
+            };
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["MaterialWorkspaceId"];
+                studentId: components["parameters"]["MaterialStudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["MaterialAuthoring"];
+        responses: {
+            201: components["responses"]["MaterialCreated"];
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };

@@ -1000,3 +1000,13 @@ mentor-roadmap, mentor-moves, mentor-code-review, mentor-turn-clock { display: b
   .markdown-body pre, .legacy-html pre, .code-view, .task-code pre { white-space: pre-wrap; overflow: visible; overflow-wrap: anywhere; background: #fff; border: 1px solid #999; }
   a { text-decoration: none; }
 }
+/* Teacher authoring of materials: the form above the listing and a remove control beside each row. */
+.material-form { margin-bottom: 24px; }
+.material-form .sh { margin-bottom: 12px; }
+.material-form form { display: grid; gap: 14px; }
+.material-form textarea { font: 400 14px/20px var(--font-mono); min-height: 240px; resize: vertical; }
+.material-item { display: flex; align-items: center; gap: 8px; }
+.material-item .material-row { flex: 1; min-width: 0; }
+.material-remove { flex: 0 0 auto; color: var(--muted); }
+.material-remove:hover { color: var(--danger); }
+.material-confirm { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
