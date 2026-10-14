@@ -620,7 +620,7 @@ export interface paths {
         /** @description Authorized lesson history, createdAt descending then id descending. Actual student sees only their own lesson. Teacher preview retains teacher Actor; all returned fields are student-visible. */
         get: operations["listHomework"];
         put?: never;
-        /** @description Actual owning STUDENT only. Each successful upload creates a new submission; teacher preview never submits. Exactly one nonempty ZIP, Java, TXT, Markdown or PDF file, at most 20 MiB. Multipart request at most 21 MiB. Reject duplicate or unknown parts. Recheck authority before transactional attach; no201 before commit. Never unpack or execute uploaded projects. */
+        /** @description Actual owning STUDENT only. Each successful upload creates a new submission unless the same Idempotency-Key was already stored in this lesson with the same file bytes, filename, comment and link; then the stored submission is returned again with 201 and no second work exists. The same key with other content answers 409 IDEMPOTENCY_CONFLICT. Teacher preview never submits. Exactly one nonempty ZIP, Java, TXT, Markdown or PDF file, at most 20 MiB. Multipart request at most 21 MiB. Reject duplicate or unknown parts. Recheck authority before transactional attach; no201 before commit. Never unpack or execute uploaded projects. */
         post: operations["submitHomework"];
         delete?: never;
         options?: never;
@@ -1835,6 +1835,8 @@ export interface components {
         PracticeExerciseId: string;
         PracticeArchiveId: string;
         SubmissionId: string;
+        /** @description Optional for homework; the web client always sends one. Case-sensitive untrimmed ASCII token kept for the whole upload attempt and resent unchanged after response loss, dropped once the form resets. Scope is one lesson of one card; retained for the lifetime of the submission. Duplicate, empty or invalid values return 400 INVALID_INPUT. */
+        HomeworkIdempotencyKey: string;
         /** @description Case-sensitive untrimmed ASCII token, reused with the same exact payload after response loss. UUIDs are suitable. Missing, duplicate, empty or invalid values return 400 INVALID_INPUT. Scope is account plus stable assignment; retain for the lifetime of attempt history. */
         AttemptIdempotencyKey: string;
         PracticeAttemptId: string;
@@ -3248,6 +3250,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Optional for homework; the web client always sends one. Case-sensitive untrimmed ASCII token kept for the whole upload attempt and resent unchanged after response loss, dropped once the form resets. Scope is one lesson of one card; retained for the lifetime of the submission. Duplicate, empty or invalid values return 400 INVALID_INPUT. */
+                "Idempotency-Key"?: components["parameters"]["HomeworkIdempotencyKey"];
                 "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
                 "X-Mentor-Client": components["parameters"]["WebClient"];
                 "X-Mentor-Account": components["parameters"]["Account"];

@@ -15,14 +15,14 @@ import { CodeReviewComponent } from '../comments/code-review.component';
 <section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или отдельный файл. Обратная связь появится под отправленной работой.</p>
 <form (submit)="upload($event)" [attr.aria-busy]="busy()">
 <label>Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
-<label>Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="repositoryUrl.set($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
-<label>Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="comment.set($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
+<label>Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="setRepositoryUrl($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
+<label>Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="setComment($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
 @if(busy()){<div class="upload-progress" role="status" aria-live="polite">{{progress()===null?'Передаём файл…':progress()===100?'Файл передан. Ожидаем подтверждение сохранения…':'Передаём файл: '+progress()+'%'}}@if(progress()!==null){<progress max="100" [value]="progress()" aria-label="Передача файла"></progress>}</div>}
-<div class="form-actions"><button class="btn primary" type="submit" [disabled]="busy()||unknown()||loading()">@if(busy()){<mentor-icon class="spin" name="loader"/>}@else{<mentor-icon name="send"/>}Отправить на ревью</button></div>
+<div class="form-actions"><button class="btn primary" type="submit" [disabled]="busy()||loading()">@if(busy()){<mentor-icon class="spin" name="loader"/>}@else{<mentor-icon name="send"/>}{{unknown()?'Повторить отправку':'Отправить на ревью'}}</button></div>
 </form>
 @if(succeeded()){<p class="success-banner mt-20" role="status">Работа отправлена на ревью.</p>}
 @if(error()){<p class="auth-error mt-20" role="alert">{{error()}}</p>}
-@if(unknown()){<div class="warning-banner mt-20"><p>Результат отправки неизвестен. Работа могла сохраниться. Обнови историю перед повторной отправкой — новая отправка создаёт отдельную работу.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
+@if(unknown()){<div class="warning-banner mt-20"><p>Результат отправки неизвестен. Ответ сервера не дошёл. Повторить безопасно: сервер узнает ту же работу и не создаст дубликат. Можно и сначала обновить историю.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
 </section>
 }@else if(preview()){<p class="callout">Предпросмотр ученика · Только для чтения. Работу отправляет ученик из своего кабинета.</p>}
 <section class="homework-history" aria-labelledby="homework-history-title">@if(latest()!==undefined){<mentor-turn-clock class="mb-16" [turn]="turn()" [viewer]="canReview()?'teacher':'student'" [name]="studentName()" [mini]="true"/>}<div class="sh"><h2 id="homework-history-title">{{mode()==='review'?'Ревью сданных работ':'Отправленные работы'}}</h2>@if(!unknown()){<button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()||busy()"><mentor-icon name="refresh"/>Обновить историю</button>}</div>
@@ -54,7 +54,7 @@ export class HomeworkPageComponent {
     readonly canSubmit = computed(() => this.active() && this.session.actor()?.role === 'STUDENT' && !this.preview() && this.mode() === 'homework');
     readonly canReview = computed(() => this.active() && this.session.actor()?.role === 'TEACHER' && !this.preview());
     constructor() {
-        effect(() => { const lesson = this.lesson(); this.session.generation(); this.preview(); this.mode(); this.cancel(); this.bound.set({ ...lesson }); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); if (this.active()) this.load(0); });
+        effect(() => { const lesson = this.lesson(); this.session.generation(); this.preview(); this.mode(); this.cancel(); this.bound.set({ ...lesson }); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); if (this.active()) this.load(0); });
         inject(DestroyRef).onDestroy(() => { this.alive = false; this.cancel(); });
     }
     private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); this.listRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls.clear(); this.busy.set(false); this.loading.set(false); }
@@ -64,15 +64,25 @@ export class HomeworkPageComponent {
     }
     refreshHistory() { if (!this.active() || this.busy()) return; this.page.set(0); this.load(0); }
     setPage(page: number) { if (!this.active() || this.busy() || this.loading()) return; this.page.set(page); this.load(page); }
-    chooseFile(event: Event) { if (!this.canSubmit() || this.busy()) return; this.file.set((event.target as HTMLInputElement).files?.[0] ?? null); this.succeeded.set(false); this.error.set(''); }
+    // One Idempotency-Key per upload attempt: kept while the same file, comment and link are retried after a lost
+    // response, dropped as soon as any of them changes or the work is confirmed, so a changed form never collides.
+    private idempotencyKey: string | null = null;
+    private resetKey() { this.idempotencyKey = null; this.unknown.set(false); }
+    private newKey() { return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
+    chooseFile(event: Event) { if (!this.canSubmit() || this.busy()) return; this.file.set((event.target as HTMLInputElement).files?.[0] ?? null); this.succeeded.set(false); this.error.set(''); this.resetKey(); }
+    setComment(value: string) { if (this.busy()) return; this.comment.set(value); this.resetKey(); }
+    setRepositoryUrl(value: string) { if (this.busy()) return; this.repositoryUrl.set(value); this.resetKey(); }
+    // After a confirmed upload the form is emptied so a second click cannot send the same work again by accident.
+    private clearForm() { this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.comment.set(''); this.repositoryUrl.set(''); this.resetKey(); }
     upload(event?: Event) {
-        event?.preventDefault(); if (!this.canSubmit() || this.busy() || this.unknown() || this.loading()) return; this.succeeded.set(false); this.error.set('');
+        event?.preventDefault(); if (!this.canSubmit() || this.busy() || this.loading()) return; this.succeeded.set(false); this.error.set('');
         const file = this.file(), invalid = validateHomework(file, this.comment(), this.repositoryUrl()); if (invalid) { this.error.set(invalid); return; }
+        const key = this.idempotencyKey ??= this.newKey();
         this.busy.set(true); this.progress.set(null); const stamp = this.sequence;
-        this.uploadRequest = this.api.upload(this.lesson(), file!, this.comment(), this.repositoryUrl(), () => this.canSubmit() && stamp === this.sequence).subscribe({ next: event => {
+        this.uploadRequest = this.api.upload(this.lesson(), file!, this.comment(), this.repositoryUrl(), () => this.canSubmit() && stamp === this.sequence, key).subscribe({ next: event => {
             if (!this.active() || stamp !== this.sequence) return;
             if (event.type === HttpEventType.UploadProgress) this.progress.set(event.total ? Math.min(100, Math.floor(event.loaded/event.total*100)) : null);
-            if (event instanceof HttpResponse && event.status === 201 && event.body) { this.busy.set(false); this.succeeded.set(true); this.page.set(0); this.load(0); }
+            if (event instanceof HttpResponse && event.status === 201 && event.body) { this.busy.set(false); this.clearForm(); this.succeeded.set(true); this.page.set(0); this.load(0); }
         }, error: error => { if (this.active() && stamp === this.sequence) { this.busy.set(false); this.progress.set(null); this.unknown.set(error.status === 0 || error.status === 503); this.error.set(error.error?.message ?? error.message ?? 'Не удалось подтвердить отправку.'); } } });
     }
     updatedReview(result: Submission) { if (!this.canReview()) return; this.submissions.update(items => items.map(item => item.id === result.id ? result : item)); if (this.latest()?.id === result.id) this.latest.set(result); }

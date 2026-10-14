@@ -273,6 +273,29 @@ class HomeworkFlowTest extends IdentityHttpTest {
         CLOCK.advance(Duration.ofMinutes(10));assertEquals(1,context.getBean(BlobService.class).cleanExpired(100));
     }
 
+    // Catches a retry after a lost response creating a second work, and a reused key hiding another file or comment.
+    @Test void sameIdempotencyKeyReturnsTheStoredWorkInsteadOfASecondCopy()throws Exception {
+        var f=fixture("hw-idem");
+        var first=data(upload(f.learner(),f.path(),"work.java",TEXT,"note","",List.of("retry-1")),201);
+        assertEquals(first,data(upload(f.learner(),f.path(),"work.java",TEXT,"note","",List.of("retry-1")),201));
+        assertEquals(1,data(get(f.learner().client(),f.path()),200).get("total").asLong());
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM stored_blob",Integer.class));
+        var conflict=upload(f.learner(),f.path(),"work.java","other bytes\n".getBytes(StandardCharsets.UTF_8),"note","",List.of("retry-1"));
+        assertEquals(409,conflict.statusCode());assertEquals("IDEMPOTENCY_CONFLICT",data(conflict,409).get("code").asText());
+        assertEquals(409,upload(f.learner(),f.path(),"work.java",TEXT,"другой комментарий","",List.of("retry-1")).statusCode());
+        assertEquals(409,upload(f.learner(),f.path(),"renamed.java",TEXT,"note","",List.of("retry-1")).statusCode());
+        assertEquals(409,upload(f.learner(),f.path(),"work.java",TEXT,"note","https://example.test/repo",List.of("retry-1")).statusCode());
+        for(List<String> keys:List.of(List.of(""),List.of("bad key"),List.of("a".repeat(129)),List.of("retry-2","retry-3")))assertEquals(400,upload(f.learner(),f.path(),"work.java",TEXT,"note","",keys).statusCode());
+        assertEquals(1,data(get(f.learner().client(),f.path()),200).get("total").asLong());
+        // Another key and no key at all each create a new work; the same key in another lesson of the card is independent.
+        assertNotEquals(first.get("id").asText(),data(upload(f.learner(),f.path(),"work.java",TEXT,"note","",List.of("retry-2")),201).get("id").asText());
+        assertEquals(201,upload(f.learner(),f.path(),"work.java",TEXT,"note","").statusCode());
+        assertEquals(3,data(get(f.learner().client(),f.path()),200).get("total").asLong());
+        String other=card(f.teacher(),f.student())+"/lessons/"+lesson(f.teacher(),f.student(),"Second lesson")+"/homework";
+        assertEquals(201,upload(f.learner(),other,"work.java",TEXT,"note","",List.of("retry-1")).statusCode());
+        assertEquals(1,data(get(f.learner().client(),other),200).get("total").asLong());
+    }
+
     private Fixture fixture(String login)throws Exception {
         var teacher=teacher(login);String student=student(teacher,"Synthetic homework student").get("id").asText();var learner=enroll(teacher,student,login+"-student");String lesson=lesson(teacher,student,"Homework lesson");
         return new Fixture(teacher,learner,student,lesson,card(teacher,student)+"/lessons/"+lesson+"/homework");
@@ -280,11 +303,15 @@ class HomeworkFlowTest extends IdentityHttpTest {
     private String lesson(User teacher,String student,String title)throws Exception{return data(write(teacher.client(),"POST",card(teacher,student)+"/lessons",Map.of("title",title,"date","2030-01-01","time","12:00","duration",60)),201).get("id").asText();}
     private record Part(String name,String filename,byte[] bytes){}
     private Part field(String name,String value){return new Part(name,null,value.getBytes(StandardCharsets.UTF_8));}
-    private HttpResponse<String> upload(User user,String path,String filename,byte[] bytes,String comment,String url)throws Exception{return multipart(user,path,List.of(new Part("file",filename,bytes),field("comment",comment),field("repositoryUrl",url)),null,true);}
+    private HttpResponse<String> upload(User user,String path,String filename,byte[] bytes,String comment,String url)throws Exception{return upload(user,path,filename,bytes,comment,url,List.of());}
+    private HttpResponse<String> upload(User user,String path,String filename,byte[] bytes,String comment,String url,List<String> idempotencyKeys)throws Exception{return multipart(user,path,List.of(new Part("file",filename,bytes),field("comment",comment),field("repositoryUrl",url)),null,true,false,idempotencyKeys);}
     private HttpResponse<String> multipart(User user,String path,List<Part> parts,String account,boolean csrf)throws Exception {
         return multipart(user,path,parts,account,csrf,false);
     }
     private HttpResponse<String> multipart(User user,String path,List<Part> parts,String account,boolean csrf,boolean chunked)throws Exception {
+        return multipart(user,path,parts,account,csrf,chunked,List.of());
+    }
+    private HttpResponse<String> multipart(User user,String path,List<Part> parts,String account,boolean csrf,boolean chunked,List<String> idempotencyKeys)throws Exception {
         var session=session(user.client());var body=new ByteArrayOutputStream();
         for(var part:parts){
             String disposition="--"+BOUNDARY+"\r\nContent-Disposition: form-data; name=\""+part.name()+"\""+(part.filename()==null?"":"; filename=\""+part.filename()+"\"")+"\r\n";
@@ -293,6 +320,7 @@ class HomeworkFlowTest extends IdentityHttpTest {
         body.write(("--"+BOUNDARY+"--\r\n").getBytes(StandardCharsets.UTF_8));
         var request=HttpRequest.newBuilder(URI.create(origin+"/api/v1"+path)).timeout(Duration.ofSeconds(30)).header("Origin",origin).header("X-Mentor-Client","web").header("X-Mentor-Account",account==null?user.id():account).header("Content-Type","multipart/form-data; boundary="+BOUNDARY);
         if(csrf)request.header("X-CSRF-TOKEN",session.get("csrfToken").asText());
+        for(String key:idempotencyKeys)request.header("Idempotency-Key",key);
         byte[] bytes=body.toByteArray();var publisher=chunked?HttpRequest.BodyPublishers.ofInputStream(()->new ByteArrayInputStream(bytes)):HttpRequest.BodyPublishers.ofByteArray(bytes);
         return user.client().send(request.POST(publisher).build(),HttpResponse.BodyHandlers.ofString());
     }

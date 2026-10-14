@@ -17,6 +17,7 @@ const ICONS: Record<string, Shape[]> = {
     'chevron-down': p('m6 9 6 6 6-6'),
     'chevron-left': p('m15 18-6-6 6-6'),
     'chevron-right': p('m9 18 6-6-6-6'),
+    'chevron-up': p('m18 15-6-6-6 6'),
     'circle-alert': [{ c: [12, 12, 10] }, { l: [12, 8, 12, 12] }, { l: [12, 16, 12.01, 16] }],
     'circle-check': [{ c: [12, 12, 10] }, ...p('m16 9-5.5 5.5L8 12')],
     'circle-pause': [{ c: [12, 12, 10] }, { l: [10, 15, 10, 9] }, { l: [14, 15, 14, 9] }],

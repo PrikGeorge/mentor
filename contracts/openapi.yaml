@@ -1387,11 +1387,14 @@ paths:
           $ref: '#/components/responses/Problem'
     post:
       operationId: submitHomework
-      description: Actual owning STUDENT only. Each successful upload creates a new submission; teacher preview
-        never submits. Exactly one nonempty ZIP, Java, TXT, Markdown or PDF file, at most 20 MiB. Multipart request
-        at most 21 MiB. Reject duplicate or unknown parts. Recheck authority before transactional attach; no201
-        before commit. Never unpack or execute uploaded projects.
+      description: Actual owning STUDENT only. Each successful upload creates a new submission unless the same
+        Idempotency-Key was already stored in this lesson with the same file bytes, filename, comment and link; then
+        the stored submission is returned again with 201 and no second work exists. The same key with other content
+        answers 409 IDEMPOTENCY_CONFLICT. Teacher preview never submits. Exactly one nonempty ZIP, Java, TXT, Markdown
+        or PDF file, at most 20 MiB. Multipart request at most 21 MiB. Reject duplicate or unknown parts. Recheck
+        authority before transactional attach; no201 before commit. Never unpack or execute uploaded projects.
       parameters:
+      - $ref: '#/components/parameters/HomeworkIdempotencyKey'
       - $ref: '#/components/parameters/CsrfToken'
       - $ref: '#/components/parameters/WebClient'
       - $ref: '#/components/parameters/Account'
@@ -2168,6 +2171,19 @@ components:
       required: true
       schema:
         type: string
+    HomeworkIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional for homework; the web client always sends one. Case-sensitive untrimmed ASCII token kept
+        for the whole upload attempt and resent unchanged after response loss, dropped once the form resets. Scope is
+        one lesson of one card; retained for the lifetime of the submission. Duplicate, empty or invalid values return
+        400 INVALID_INPUT.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9._:-]{1,128}$(?![\s\S])
     AttemptIdempotencyKey:
       name: Idempotency-Key
       in: header

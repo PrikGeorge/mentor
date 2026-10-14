@@ -22,7 +22,9 @@ export class HomeworkApi {
     lessonTurns(workspaceId: string, studentId: string, preview = false, size = 100) { return this.session.scope(this.api.get('/workspaces/{workspaceId}/students/{studentId}/homework/turns', { pathParams: { workspaceId, studentId }, query: { page: 0, size, ...(preview ? { audience: 'student' } : {}) } })); }
     // The teacher's queue: one row per student, works awaiting review first.
     studentTurns(workspaceId: string, size = 100) { return this.session.scope(this.api.get('/workspaces/{workspaceId}/homework/turns', { pathParams: { workspaceId }, query: { page: 0, size } })); }
-    upload(lesson: LessonRef, file: File, comment: string, repositoryUrl: string, contextValid: () => boolean = () => true): Observable<HttpEvent<Submission>> {
+    // idempotencyKey is one token per upload attempt: a retry after a lost response resends it so the server returns the
+    // work it already stored instead of creating a second one.
+    upload(lesson: LessonRef, file: File, comment: string, repositoryUrl: string, contextValid: () => boolean = () => true, idempotencyKey?: string): Observable<HttpEvent<Submission>> {
         return defer(() => {
             if (this.session.actor()?.role !== 'STUDENT' || this.session.actor()?.workspaceId !== lesson.workspaceId) return throwError(() => new Error('Сдать работу может только ученик этого занятия.'));
             const invalid = validateHomework(file, comment, repositoryUrl);
@@ -34,7 +36,7 @@ export class HomeworkApi {
                 if (!valid) return throwError(() => new Error('Файл не содержит допустимую сигнатуру ZIP.'));
                 const form = new FormData(); form.append('file', file, file.name); form.append('comment', comment.trim()); form.append('repositoryUrl', repositoryUrl.trim());
                 // The browser supplies the multipart boundary; global interceptors retain actor/CSRF protection.
-                return this.http.post<Submission>(this.url(lesson), form, { observe: 'events', reportProgress: true });
+                return this.http.post<Submission>(this.url(lesson), form, { observe: 'events', reportProgress: true, ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}) });
             })), stamp);
         });
     }

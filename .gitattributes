@@ -1,2 +1,19 @@
+# Normalize everything Git recognizes as text; Windows checkouts get CRLF unless a rule below pins LF.
+* text=auto
+
+# Executed or hashed inside Linux containers and WSL: a CRLF here breaks the script or changes an image digest.
 *.sh text eol=lf
 mvnw text eol=lf
+*.ps1 text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+Dockerfile* text eol=lf
+*.dockerignore text eol=lf
+Caddyfile* text eol=lf
+*.policy text eol=lf
+runner/src/main/resources/harness/** text eol=lf
+infra/systemd/** text eol=lf
+
+# Windows-only launchers.
+*.cmd text eol=crlf
+*.bat text eol=crlf

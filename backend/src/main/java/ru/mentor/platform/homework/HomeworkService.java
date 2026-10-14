@@ -48,7 +48,13 @@ public class HomeworkService {
         return submit(actor,lesson,input,filename,comment,repositoryUrl,null);
     }
     public Submission submit(Actor actor,LessonRef lesson,InputStream input,String filename,String comment,String repositoryUrl,Long expectedSize)throws IOException {
+        return submit(actor,lesson,input,filename,comment,repositoryUrl,expectedSize,null);
+    }
+    // With an Idempotency-Key a retry after a lost response returns the work already stored instead of a second copy;
+    // the same key with another file, comment or link is a conflict. Without a key every upload is a new work.
+    public Submission submit(Actor actor,LessonRef lesson,InputStream input,String filename,String comment,String repositoryUrl,Long expectedSize,String idempotencyKey)throws IOException {
         student(actor,lesson);String name=filename(filename),note=form(comment,10000),url=repositoryUrl(repositoryUrl);
+        if(idempotencyKey!=null&&!idempotencyKey.matches("[A-Za-z0-9._:-]{1,128}"))throw new IllegalArgumentException("Valid Idempotency-Key required.");
         if(input==null||(expectedSize!=null&&expectedSize<=0))throw new IllegalArgumentException("Nonempty file required.");
         if(expectedSize!=null&&expectedSize>MAXIMUM_FILE)throw oversized();
         try(var source=new PushbackInputStream(bounded(input),4)){
@@ -56,13 +62,26 @@ public class HomeworkService {
             if(name.toLowerCase(Locale.ROOT).endsWith(".zip")&&!zip(prefix))throw new IllegalArgumentException("Invalid ZIP signature.");
             source.unread(prefix);
             var staged=blobs.stage(actor,lesson,source,MAXIMUM_FILE,expectedSize);
+            String hash=idempotencyKey==null?null:payloadHash(staged.sha256(),name,note,url);
             return transaction.execute(status->{
                 lock(actor,lesson);student(actor,lesson);
+                if(idempotencyKey!=null){
+                    var prior=repository.replay(lesson,idempotencyKey);
+                    // The staged bytes of a replay stay unattached; the reservation expires and the janitor removes them.
+                    if(prior.isPresent()){if(!prior.get().payloadHash().equals(hash))throw new ApiFailure(409,"IDEMPOTENCY_CONFLICT","Idempotency key already used for another work.");return prior.get().submission();}
+                }
                 var blob=blobs.attach(actor,lesson,staged,name,"application/octet-stream");
                 var submission=new Submission(UUID.randomUUID().toString(),name,blob.size(),clock.instant().truncatedTo(ChronoUnit.MICROS),note,url,ReviewStatus.submitted,"",null,1,null);
-                repository.insert(lesson,submission,blob.id());return submission;
+                repository.insert(lesson,submission,blob.id(),idempotencyKey,hash);return submission;
             });
         } catch(TooLarge failure){throw oversized();}
+    }
+    private static String payloadHash(String sha256,String filename,String comment,String repositoryUrl){
+        try{
+            var digest=java.security.MessageDigest.getInstance("SHA-256");
+            for(String part:List.of(sha256,filename,comment,repositoryUrl)){digest.update(part.getBytes(StandardCharsets.UTF_8));digest.update((byte)0);}
+            return HexFormat.of().formatHex(digest.digest());
+        } catch(java.security.NoSuchAlgorithmException missing){throw new IllegalStateException(missing);}
     }
     public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback){return review(actor,lesson,id,revision,status,feedback,null);}
     public Submission review(Actor actor,LessonRef lesson,String id,long revision,ReviewStatus status,String feedback,Grade grade){

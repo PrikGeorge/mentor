@@ -19,7 +19,7 @@
 - [frontend/](frontend/) — Angular 22 / TypeScript 6, интерфейс и браузерные тесты. Исходники: `frontend/src/`; публичные ресурсы: `frontend/public/`.
 - [runner/](runner/) — отдельный Java-процесс: получает задания от backend и выполняет их в Linux Docker.
 - [contracts/](contracts/) — OpenAPI публичного API и внутреннего протокола исполнителя.
-- [infra/](infra/) — Dockerfiles, Compose, Caddy, PowerShell-скрипты запуска, переноса и резервирования; проверки скриптов в `infra/tests/`.
+- [infra/](infra/) — Dockerfiles, Compose, Caddy, PowerShell-скрипты запуска, переноса, резервирования и восстановления в рабочий контур (`restore-platform.ps1`, по умолчанию только dry-run); `infra/windows/` — задача Windows Task Scheduler для ежедневной копии с offsite и алертом; проверки скриптов в `infra/tests/`.
 - [training/](training/) — доверенный каталог упражнений, Java-заготовки и профили окружений для текущей платформы; также содержит прежний проверяющий Java-мост.
 - [content/](content/) — исходные учебные Markdown/Java-материалы прежнего кабинета. Изменение файла здесь само по себе не обновляет записи текущей платформы в PostgreSQL.
 - [docs/operations/](docs/operations/) — эксплуатационная документация; [docs/legacy/](docs/legacy/) — прежняя Node-инструкция; [docs/team/](docs/team/) — состав команды и сводный бэклог доработок по ролевым аудитам.
@@ -97,7 +97,7 @@ npm.cmd --prefix frontend run build
 - **Angular unit:** `*.spec.ts` рядом с исходниками; Vitest настраивается через [frontend/angular.json](frontend/angular.json).
 - **UI с HTTP fixtures:** `npm.cmd --prefix frontend run test:ui -- --project=chromium`; сценарии в [frontend/e2e/](frontend/e2e/), конфигурация — `frontend/playwright.config.ts`. Нужен установленный Chromium для Playwright.
 - **Браузер с настоящим backend:** `npm.cmd --prefix frontend run e2e -- --project=chromium`; сценарии в [frontend/integration/](frontend/integration/), запуск — `frontend/tools/browser-fixture.mjs`. Сначала скомпилируйте `support/BrowserFixture.java` и запишите classpath в `.runtime/browser-fixture-classpath.txt` по эксплуатационной инструкции. Каждый набор использует отдельные синтетические данные.
-- **Реальная проверка Java из браузера:** `npm.cmd --prefix frontend run e2e:practice -- --project=chromium`; нужны предварительный production build Angular, выделенный контур с runner и `MENTOR_PRACTICE_FIXTURE`. Обычные `test:ui` и `e2e` не подтверждают исполнение Java.
+- **Реальная проверка Java из браузера:** `npm.cmd --prefix frontend run e2e:practice -- --project=chromium`; нужны предварительный production build Angular, выделенный контур с runner и `MENTOR_PRACTICE_FIXTURE`; путь к управляющему скрипту контура берётся из fixture и при заданном `MENTOR_PRACTICE_CONTROL_SCRIPT` должен с ним совпадать. Обычные `test:ui` и `e2e` не подтверждают исполнение Java.
 - **Runner:** тесты в [runner/src/test/java/ru/mentor/runner/](runner/src/test/java/ru/mentor/runner/); `./mvnw -pl runner verify` выполняется в Linux checkout с настоящим Docker, подготовленными образами и зависимостями. Подготовка описана в [runner/README.md](runner/README.md) и эксплуатационной инструкции.
 - **Инфраструктура:** проверки PowerShell в [infra/tests/](infra/tests/); выбирайте сценарий по изменённому скрипту и его параметрам.
 

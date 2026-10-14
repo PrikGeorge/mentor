@@ -11,8 +11,11 @@ const runtime=path.resolve('../.runtime/task14/real');mkdirSync(runtime,{recursi
 const card=`/workspaces/${fixture.workspaceId}/students/${fixture.studentId}`;
 let teacher:APIRequestContext,student:APIRequestContext;let exercises:Exercise[]=[];
 const execute=promisify(execFile);
+// The control script lives outside the repository; its path comes from the fixture and must match MENTOR_PRACTICE_CONTROL_SCRIPT when that is set,
+// otherwise only its basename is checked. This used to be a hard-coded worktree path that no longer exists.
+function controlScriptAllowed(script:string){const expected=process.env['MENTOR_PRACTICE_CONTROL_SCRIPT'];return typeof script==='string'&&script.length>0&&path.posix.basename(script)==='task15-worker-harness.py'&&(!expected||script===expected);}
 async function control(action:'stop-worker'|'start-worker'|'restart-backend'|'publish-next'){
- if(!fixture.controls.actions.includes(action)||fixture.controls.runtime!==process.env['MENTOR_PRACTICE_RUNTIME']||fixture.controls.script!=='/mnt/c/Users/George/.codex/worktrees/java-angular-migration/mentor-site/.superpowers/sdd/2026-10-01-java-angular-migration/task15-worker-harness.py')throw new Error('Unexpected synthetic control metadata.');
+ if(!fixture.controls.actions.includes(action)||fixture.controls.runtime!==process.env['MENTOR_PRACTICE_RUNTIME']||!controlScriptAllowed(fixture.controls.script))throw new Error('Unexpected synthetic control metadata.');
  try{const result=await execute('wsl.exe',['-e','python3',fixture.controls.script,'--runtime',fixture.controls.runtime,'--action',action],{windowsHide:true,timeout:90000});writeFileSync(path.join(runtime,`control-${action}.log`),result.stdout+result.stderr);}catch{throw new Error(`Synthetic ${action} control failed.`);}
 }
 async function get<T>(client:APIRequestContext,route:string):Promise<T>{const response=await client.get('/api/v1'+route);expect(response.status(),`GET ${route}`).toBe(200);return response.json();}

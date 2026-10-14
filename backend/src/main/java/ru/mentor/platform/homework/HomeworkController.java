@@ -29,8 +29,10 @@ public class HomeworkController {
         String disposition=file.getHeader("Content-Disposition");
         if(disposition==null||disposition.indexOf('\\')>=0)throw new IllegalArgumentException("Unsafe filename.");
         String filename=ContentDisposition.parse(disposition).getFilename();
+        // Optional: the web client sends one key per attempt so that a retry after a lost response returns the same work.
+        var keys=Collections.list(r.getHeaders("Idempotency-Key"));if(keys.size()>1)throw new IllegalArgumentException("One Idempotency-Key at most.");
         try(var stream=file.getInputStream()){
-            var result=homework.submit(actor,new LessonRef(workspace,student,lesson),stream,filename,field(parts.get("comment"),10000),field(parts.get("repositoryUrl"),2000),file.getSize());
+            var result=homework.submit(actor,new LessonRef(workspace,student,lesson),stream,filename,field(parts.get("comment"),10000),field(parts.get("repositoryUrl"),2000),file.getSize(),keys.isEmpty()?null:keys.get(0));
             return ResponseEntity.status(201).headers(headers()).body(result);
         }
     }

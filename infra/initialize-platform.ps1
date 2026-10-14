@@ -45,3 +45,4 @@ $settings=@(
 [IO.File]::WriteAllLines((Join-Path $Directory 'compose.env'),$settings,[Text.UTF8Encoding]::new($false))
 Write-Output "Created private configuration: $Directory"
 Write-Output 'No accounts, database, imports, services or public deployment were created. Keep backup-passphrase separately from encrypted backups.'
+Write-Warning ("The backup encryption passphrase was written to '" + (Join-Path $Directory 'backup-passphrase') + "', next to compose.env and the container secrets. Store a copy in a password manager or on offline media now and keep it away from the backup directories: a copy that is lost with this machine makes every encrypted backup unreadable. Procedure: docs/operations/java-angular.md, section 'Хранение секретов и пароля копий'.")

@@ -23,9 +23,15 @@ public class HomeworkRepository {
     public Optional<Stored> find(LessonRef l,String id,boolean lock){
         return jdbc.query("SELECT * FROM homework_submission WHERE workspace_id=? AND student_id=? AND lesson_id=? AND id=?"+(lock?" FOR UPDATE":""),(r,n)->new Stored(submission(r),r.getString("blob_id")),l.workspaceId(),l.studentId(),l.id(),id).stream().findFirst();
     }
-    public void insert(LessonRef l,Submission s,String blob){
-        jdbc.update("INSERT INTO homework_submission(workspace_id,student_id,lesson_id,id,blob_id,filename,size,created_at,comment,repository_url,status,feedback,revision) VALUES(?,?,?,?,?,?,?,?,?,?,'submitted','',1)",
-            l.workspaceId(),l.studentId(),l.id(),s.id(),blob,s.filename(),s.size(),Timestamp.from(s.createdAt()),s.comment(),s.repositoryUrl());
+    public void insert(LessonRef l,Submission s,String blob){insert(l,s,blob,null,null);}
+    public void insert(LessonRef l,Submission s,String blob,String idempotencyKey,String payloadHash){
+        jdbc.update("INSERT INTO homework_submission(workspace_id,student_id,lesson_id,id,blob_id,filename,size,created_at,comment,repository_url,status,feedback,revision,idempotency_key,payload_hash) VALUES(?,?,?,?,?,?,?,?,?,?,'submitted','',1,?,?)",
+            l.workspaceId(),l.studentId(),l.id(),s.id(),blob,s.filename(),s.size(),Timestamp.from(s.createdAt()),s.comment(),s.repositoryUrl(),idempotencyKey,payloadHash);
+    }
+    public record Replay(Submission submission,String payloadHash) {}
+    // The earlier work created under this key within the same lesson, if any; the caller compares the payload hash.
+    public Optional<Replay> replay(LessonRef l,String idempotencyKey){
+        return jdbc.query("SELECT * FROM homework_submission WHERE workspace_id=? AND student_id=? AND lesson_id=? AND idempotency_key=?",(r,n)->new Replay(submission(r),r.getString("payload_hash")),l.workspaceId(),l.studentId(),l.id(),idempotencyKey).stream().findFirst();
     }
     public List<HomeworkTurns.LessonTurn> lessonTurns(String workspace,String student,int page,int size){
         return jdbc.query("SELECT * FROM (SELECT DISTINCT ON (lesson_id) lesson_id,id,filename,status,created_at,reviewed_at FROM homework_submission WHERE workspace_id=? AND student_id=? ORDER BY lesson_id,created_at DESC,id DESC) latest ORDER BY created_at DESC,lesson_id DESC LIMIT ? OFFSET ?",
