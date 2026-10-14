@@ -22,7 +22,7 @@
 - [infra/](infra/) — Dockerfiles, Compose, Caddy, PowerShell-скрипты запуска, переноса и резервирования; проверки скриптов в `infra/tests/`.
 - [training/](training/) — доверенный каталог упражнений, Java-заготовки и профили окружений для текущей платформы; также содержит прежний проверяющий Java-мост.
 - [content/](content/) — исходные учебные Markdown/Java-материалы прежнего кабинета. Изменение файла здесь само по себе не обновляет записи текущей платформы в PostgreSQL.
-- [docs/operations/](docs/operations/) — эксплуатационная документация; [docs/legacy/](docs/legacy/) — прежняя Node-инструкция.
+- [docs/operations/](docs/operations/) — эксплуатационная документация; [docs/legacy/](docs/legacy/) — прежняя Node-инструкция; [docs/team/](docs/team/) — состав команды и сводный бэклог доработок по ролевым аудитам.
 - [promo/](promo/) — маркетинговые материалы вне платформы: `promo/mentorship-reel/` — отдельный Remotion-проект вертикального ролика (свои `package.json` и `node_modules`, с `frontend/` не связан).
 - [docs/superpowers/specs/](docs/superpowers/specs/) и [docs/superpowers/plans/](docs/superpowers/plans/) — дизайн и история реализации, полезные для понимания решений.
 - `data/`, `private/`, `.runtime/` — локальные данные, закрытые материалы, конфигурация, кеши и артефакты работы. Для обычной навигации их содержимое читать не требуется.
