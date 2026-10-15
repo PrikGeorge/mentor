@@ -120,7 +120,10 @@ export class ShellComponent {
   readonly nav = computed<NavItem[]>(() => {
     const role = this.session.actor()?.role, path = this.path();
     if (role === 'ADMIN') return [{ label: 'Преподаватели', link: '/admin/teachers', query: {}, active: path.startsWith('/admin/teachers') }];
-    if (role === 'TEACHER' && !this.preview()) return [{ label: 'Мои ученики', link: '/teacher/students', query: {}, active: path.startsWith('/teacher/students') }];
+    if (role === 'TEACHER' && !this.preview()) return [
+      { label: 'Мои ученики', link: '/teacher/students', query: {}, active: path.startsWith('/teacher/students') },
+      { label: 'Расписание', link: '/teacher/schedule', query: {}, active: path.startsWith('/teacher/schedule') },
+    ];
     if (!role) return [];
     const base = this.learnerBase(), query = this.learnerQuery();
     if (!base) return [{ label: 'Главная', link: '/learn', query, active: path === '/learn' }];

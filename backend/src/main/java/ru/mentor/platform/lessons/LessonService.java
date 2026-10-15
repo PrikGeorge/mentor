@@ -265,7 +265,7 @@ public class LessonService {
         return result;
     }
 
-    private static Map<String, Object> summaryView(LessonRepository.Summary summary) {
+    static Map<String, Object> summaryView(LessonRepository.Summary summary) {
         var result = metadataView(summary.metadata());
         result.put("hasStudentNotes", summary.hasStudentNotes());
         return result;
@@ -300,7 +300,7 @@ public class LessonService {
         return trimmed;
     }
 
-    private static String date(Object value) {
+    static String date(Object value) {
         if (!(value instanceof String s) || !s.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}"))
             throw new IllegalArgumentException("Invalid date.");
         try {

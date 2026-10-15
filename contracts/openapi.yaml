@@ -494,6 +494,42 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StudentInput'
+  /workspaces/{workspaceId}/schedule:
+    get:
+      operationId: getTeacherSchedule
+      description: The teacher's lessons across every active (not archived) card of this exact workspace whose Moscow
+        date lies in the inclusive window from..to (one to 31 days). Ordered by date, time, createdAt and id. Lesson
+        numbers are counted over each card's whole calendar. Only the teacher of the workspace; students, other
+        teachers and administrators receive 404. Not paginated because the window is bounded.
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/LessonDate'
+      - name: to
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/LessonDate'
+      responses:
+        '200':
+          description: Lessons in the window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/dashboards:
     get:
       operationId: listStudentDashboards
@@ -3331,6 +3367,33 @@ components:
         hasStudentNotes:
           type: boolean
           description: Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints.
+    Schedule:
+      type: object
+      additionalProperties: false
+      required:
+      - from
+      - to
+      - items
+      properties:
+        from:
+          $ref: '#/components/schemas/LessonDate'
+        to:
+          $ref: '#/components/schemas/LessonDate'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleItem'
+    ScheduleItem:
+      type: object
+      additionalProperties: false
+      required:
+      - studentName
+      - lesson
+      properties:
+        studentName:
+          type: string
+        lesson:
+          $ref: '#/components/schemas/LessonSummary'
     LessonPage:
       type: object
       additionalProperties: false

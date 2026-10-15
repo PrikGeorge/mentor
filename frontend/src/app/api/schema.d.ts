@@ -214,6 +214,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The teacher's lessons across every active (not archived) card of this exact workspace whose Moscow date lies in the inclusive window from..to (one to 31 days). Ordered by date, time, createdAt and id. Lesson numbers are counted over each card's whole calendar. Only the teacher of the workspace; students, other teachers and administrators receive 404. Not paginated because the window is bounded. */
+        get: operations["getTeacherSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/students/dashboards": {
         parameters: {
             query?: never;
@@ -1271,6 +1288,15 @@ export interface components {
             conductedAt?: string;
             /** @description Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints. */
             hasStudentNotes: boolean;
+        };
+        Schedule: {
+            from: components["schemas"]["LessonDate"];
+            to: components["schemas"]["LessonDate"];
+            items: components["schemas"]["ScheduleItem"][];
+        };
+        ScheduleItem: {
+            studentName: string;
+            lesson: components["schemas"]["LessonSummary"];
         };
         LessonPage: {
             items: components["schemas"]["LessonSummary"][];
@@ -2466,6 +2492,34 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+        };
+    };
+    getTeacherSchedule: {
+        parameters: {
+            query: {
+                from: components["schemas"]["LessonDate"];
+                to: components["schemas"]["LessonDate"];
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lessons in the window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
     listStudentDashboards: {

@@ -75,6 +75,20 @@ test('real workspace A/B/admin boundaries and concurrent invitation/homework req
         expect((await b.client.get('/api/v1'+route+'/homework/'+record.id+'/text')).status()).toBe(404);
         expect((await send(b.client,'POST',route+'/code-comments',{targetKind:'homework',targetId:record.id,file:record.filename,line:1,body:'foreign'})).status()).toBe(404);
     }
+    // T04: the schedule of one workspace belongs to its teacher only; B's own week with the same dates stays empty.
+    const week='/schedule?from=2029-12-31&to=2030-01-06';
+    const own=await (await a.client.get('/api/v1'+aRoot+week)).json();expect(own.items.map((item:{lesson:{id:string}})=>item.lesson.id)).toEqual([lesson.id]);
+    for(const actor of [b.client,learner.client,learnerB.client,admin])expect((await actor.get('/api/v1'+aRoot+week)).status()).toBe(404);
+    expect((await (await b.client.get('/api/v1'+bRoot+week)).json()).items).toEqual([]);
+    await login(page,'isolation-teacher-b','/teacher/students');
+    await page.getByRole('link',{name:'Расписание',exact:true}).first().click();await expect(page).toHaveURL('/teacher/schedule');
+    await page.goto('/teacher/schedule?view=week&from=2030-01-04');await expect(page.getByText('31 декабря 2029 – 6 января 2030',{exact:true})).toBeVisible();
+    await expect(page.getByText('На этой неделе занятий нет.',{exact:true})).toBeVisible();await expect(page.getByText('Проверка границ пространства',{exact:false})).toHaveCount(0);
+    await logout(page);
+    await login(page,'isolation-teacher-a','/teacher/students');await page.goto('/teacher/schedule?view=week&from=2030-01-04');
+    const row=page.locator('.schedule-list > li').filter({hasText:'Проверка границ пространства'});await expect(row).toHaveCount(1);await expect(row).toContainText('Изолированный ученик A');await expect(row).toContainText('12:00–13:00');
+    await row.getByRole('link',{name:/Проверка границ пространства/}).click();await expect(page).toHaveURL('/teacher/students/'+aCard.id+'/lessons/'+lesson.id);
+    await logout(page);
     await login(page,credentials.login,'/admin/teachers');
     await page.goto('/teacher/students/'+aCard.id);await expect(page).toHaveURL('/not-found');
     await expect(page.getByText('Изолированный ученик A',{exact:true})).toHaveCount(0);

@@ -114,6 +114,28 @@ public class LessonRepository {
                 args.toArray());
     }
 
+    public record ScheduleEntry(Summary summary, String studentName) {}
+
+    // The teacher's calendar across active cards: numbers are counted over each card's whole
+    // calendar first, then the date window is applied; the notes flag is computed only for the
+    // window.
+    public List<ScheduleEntry> schedule(String w, String from, String to) {
+        return jdbc.query(
+                "SELECT lesson.*,n.number,p.name AS student_name,EXISTS (SELECT 1 FROM lesson_text t WHERE t.workspace_id=lesson.workspace_id AND t.lesson_id=lesson.id AND t.kind='studentNotes' AND btrim(t.markdown,"
+                        + TRIM_WHITESPACE
+                        + ")<>'') AS has_student_notes FROM lesson"
+                        + " JOIN (SELECT student_id,id,row_number() OVER (PARTITION BY student_id ORDER BY local_date,local_time,created_at,id) AS number FROM lesson WHERE workspace_id=?) n ON n.student_id=lesson.student_id AND n.id=lesson.id"
+                        + " JOIN student_profile p ON p.workspace_id=lesson.workspace_id AND p.id=lesson.student_id AND p.archived_at IS NULL"
+                        + " WHERE lesson.workspace_id=? AND lesson.local_date BETWEEN ? AND ?"
+                        + " ORDER BY lesson.local_date,lesson.local_time,lesson.created_at,lesson.id",
+                (r, n) ->
+                        new ScheduleEntry(SUMMARY_MAPPER.mapRow(r, n), r.getString("student_name")),
+                w,
+                w,
+                from,
+                to);
+    }
+
     public long count(String w, String student) {
         return jdbc.queryForObject(
                 "SELECT count(*) FROM lesson WHERE workspace_id=? AND student_id=?",
