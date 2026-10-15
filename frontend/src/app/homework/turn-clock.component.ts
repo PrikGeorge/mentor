@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { Clock } from '../core/clock';
 import type { Submission } from './homework-api.service';
 type SubmissionStatus = Submission['status'];
 
@@ -37,8 +38,7 @@ export class TurnClockComponent {
     readonly mini = input(false);
     // Lesson start (ISO). Only the time to the lesson is ever counted down, never the mentor's answer time.
     readonly start = input<string | null>(null);
-    private readonly now = signal(Date.now());
-    constructor() { const timer = setInterval(() => this.now.set(Date.now()), 30000); inject(DestroyRef).onDestroy(() => clearInterval(timer)); }
+    private readonly now = inject(Clock).watch();
     readonly countdown = computed(() => {
         const start = this.start(); if (!start) return '';
         const left = Date.parse(start) - this.now(); if (!Number.isFinite(left) || left <= 0) return '';

@@ -1,9 +1,10 @@
-import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, of } from 'rxjs';
 import { createBoundScope } from '../core/bound-scope';
+import { Clock } from '../core/clock';
 import { LessonsApi } from '../lessons/lessons-api.service';
 import { REMINDER_LIMIT, reminderWindow, unmarkedLessons } from './reminder';
 import { SessionStore } from '../core/session.store';
@@ -169,8 +170,8 @@ export class SchedulePageComponent {
     private readonly router = inject(Router);
     private readonly route = inject(ActivatedRoute);
     private readonly query = toSignal(this.route.queryParamMap, { requireSync: true });
-    // Minute resolution is enough for «today» and «Идёт сейчас».
-    readonly now = signal(Date.now());
+    // The shared 30-second clock (FE-17) moves «today» and «Идёт сейчас».
+    readonly now = inject(Clock).watch();
     readonly today = computed(() => moscowDate(this.now()));
     readonly view = computed<'today' | 'week'>(() => (this.query().get('view') === 'week' ? 'week' : 'today'));
     // The week shown: the Monday of ?from when it is a real date, otherwise the current week.
@@ -200,8 +201,6 @@ export class SchedulePageComponent {
     readonly mondayOf = mondayOf;
     readonly endTime = endTime;
     constructor() {
-        const timer = setInterval(() => this.now.set(Date.now()), 60000);
-        inject(DestroyRef).onDestroy(() => clearInterval(timer));
         // A new account never inherits the previous one's pending mark or its messages.
         effect(() => {
             this.session.generation();
