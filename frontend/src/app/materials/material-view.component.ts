@@ -24,9 +24,9 @@ import { FileSizePipe } from '../core/file-size.pipe';
       <mentor-legacy-html [html]="section.html" [code]="code()" [base]="base()" [preview]="preview()" [targets]="targets()"/></section>}
       @if(!material.document.sections.length){<mentor-legacy-html [html]="material.document.html" [code]="code()" [base]="base()" [preview]="preview()" [targets]="targets()"/>}
       @if(!publicView()&&profileFacts()){<section class="profile-facts"><h3>Наблюдения наставника</h3><mentor-legacy-html [html]="profileFacts()" [base]="base()" [targets]="targets()"/></section>}
-      <details class="raw-material-source"><summary>Исходный Markdown · только для чтения</summary><pre><code>{{material.document.raw}}</code></pre></details>
+      <details class="raw-material-source"><summary>Исходный Markdown · только чтение</summary><pre><code>{{material.document.raw}}</code></pre></details>
       </div><mentor-document-navigation [sections]="material.document.sections"/></div>}
-    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · только для чтения. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download><mentor-icon name="download"/>Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
+    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · только чтение. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download><mentor-icon name="download"/>Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
     @case('download'){<p>Файл <code>{{material.filename}}</code> · {{material.blob.size|fileSize}}</p><a class="btn" [href]="api.file(workspaceId(),material.id,preview())" download><mentor-icon name="download"/>Скачать комплект</a>}
     @case('view'){
       @if(material.viewData.goalHtml){<section>@if(displayTitle(material)!=='Цель обучения'){<h3>Цель обучения</h3>}<mentor-legacy-html [html]="material.viewData.goalHtml||''" [base]="base()" [preview]="preview()" [targets]="targets()"/></section>}

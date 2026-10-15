@@ -32,7 +32,7 @@ import type { PublicExercise } from './practice-api.service';
                     <details class="practice-reference">
                         <summary>{{ reference.title || reference.filename }} · исходная заготовка</summary>
                         <pre><code>{{ reference.code.text }}</code></pre>
-                        <p class="small-muted">Только для чтения. Этот исходник не заменяет твой черновик.</p>
+                        <p class="small-muted">Только чтение. Этот исходник не заменяет твой черновик.</p>
                     </details>
                 }
             }

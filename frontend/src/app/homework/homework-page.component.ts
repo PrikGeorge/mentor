@@ -36,7 +36,7 @@ import { afterDeadline, dueLine, HomeworkDue } from './homework-due';
 @if(error()){<mentor-error-banner class="mt-20" [message]="error()"/>}
 @if(unknown()){<div class="warning-banner mt-20"><p>Результат отправки неизвестен. Ответ сервера не дошёл. Повторить безопасно: сервер узнает ту же работу и не создаст дубликат. Можно и сначала обновить историю.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
 </section>
-}@else if(preview()){<p class="callout">Предпросмотр кабинета ученика · только для чтения. Работу отправляет ученик из своего кабинета.</p>}
+}@else if(preview()){<p class="callout">Предпросмотр кабинета ученика · только чтение. Работу отправляет ученик из своего кабинета.</p>}
 <section class="homework-history" aria-labelledby="homework-history-title">@if(latest()!==undefined){<mentor-turn-clock class="mb-16" [turn]="turn()" [viewer]="canReview()?'teacher':'student'" [name]="studentName()" [mini]="true"/>}<div class="sh"><h2 id="homework-history-title">{{mode()==='review'?'Ревью сданных работ':'Отправленные работы'}}</h2>@if(!unknown()){<button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()||busy()"><mentor-icon name="refresh"/>Обновить историю</button>}</div>
 <p class="small-muted mt-6">Ревью к файлу относится только к этой работе. Общее ревью занятия показано отдельно.</p>
 @if(canReview()&&due();as d){<p class="due-line mt-6" [class.overdue]="d.state==='overdue'"><mentor-icon name="clock"/>{{dueText(d,'teacher')}}</p>}

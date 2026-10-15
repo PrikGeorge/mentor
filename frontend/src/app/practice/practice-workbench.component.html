@@ -77,7 +77,7 @@
           } @else {
             <section class="practice-editor history-only">
               <h3>История упражнения {{ selectedId() }}</h3>
-              <p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>
+              <p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки — только чтение.</p>
               @for (name of historicalNames(); track name) {
                 <h4>{{ name }}</h4>
                 <pre class="code-view"><code>{{ store.historicalFiles()[name] }}</code></pre>
@@ -96,7 +96,7 @@
                   @if (displayExercise(); as exercise) {
                     <mentor-exercise-statement [exercise]="exercise" [statementHtml]="statementHtml()" [notesHtml]="notesHtml()" [references]="references()"/>
                   } @else {
-                    <p class="small-muted">Условие снятого упражнения недоступно; сохранённый код и попытки остаются для чтения.</p>
+                    <p class="small-muted">Условие снятого упражнения недоступно; сохранённый код и попытки — только чтение.</p>
                   }
                 }
                 @case ('result') {
