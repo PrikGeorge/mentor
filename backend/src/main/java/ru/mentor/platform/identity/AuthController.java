@@ -29,8 +29,11 @@ public class AuthController {
     }
     @GetMapping("/session") public SessionView session(HttpServletRequest request,CsrfToken token) { Actor actor = sessions.current(request); return new SessionView(actor,token.getToken(),sessions.login(actor)); }
     @PostMapping("/login") public SessionView login(@RequestBody LoginInput input,HttpServletRequest request,HttpServletResponse response) {
-        limits.login(input.login());
-        Actor actor = auth.authenticate(input.login(),input.password()); sessions.establish(request,actor);
+        limits.beforeLogin(input.login());
+        Actor actor;
+        // Wrong passwords are counted after the check, so a known login alone cannot be locked out by a stranger.
+        try { actor = auth.authenticate(input.login(),input.password()); } catch(ru.mentor.platform.shared.ApiFailure rejected) { if(rejected.status()==401) limits.loginFailed(input.login()); throw rejected; }
+        limits.loginSucceeded(input.login()); sessions.establish(request,actor);
         return new SessionView(actor,rotateCsrf(request,response),sessions.login(actor));
     }
     @PostMapping("/logout") public ResponseEntity<Void> logout(HttpServletRequest request) {

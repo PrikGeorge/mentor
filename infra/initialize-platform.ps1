@@ -40,7 +40,27 @@ $settings=@(
     ('MENTOR_HTTP_PORT='+$(if($Production){80}else{$origin.Port})),
     ('MENTOR_HTTPS_PORT='+$(if($Production){$origin.Port}else{8443})),
     ('MENTOR_DB_PASSWORD_FILE="'+(ConvertTo-MentorDockerPath (Join-Path $databaseDirectory 'spring.datasource.password'))+'"'),
-    ('MENTOR_WORKER_SECRETS_DIR="'+(ConvertTo-MentorDockerPath $workerDirectory)+'"')
+    ('MENTOR_WORKER_SECRETS_DIR="'+(ConvertTo-MentorDockerPath $workerDirectory)+'"'),
+    '# Structured JSON console logs of the backend (Spring Boot: ecs | logstash | gelf). Delete the line for plain text.',
+    'LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs',
+    '# Container limits applied by Compose (INF-07); the defaults below suit an 8-16 GB host. Uncomment to override.',
+    '# MENTOR_POSTGRES_MEMORY=1g',
+    '# MENTOR_POSTGRES_CPUS=1.0',
+    '# MENTOR_BACKEND_MEMORY=1536m',
+    '# MENTOR_BACKEND_CPUS=2.0',
+    '# MENTOR_BACKEND_JAVA_OPTIONS=-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError',
+    '# MENTOR_BACKEND_START_PERIOD=120s',
+    '# MENTOR_WEB_MEMORY=256m',
+    '# MENTOR_WEB_CPUS=0.5',
+    '# MENTOR_JOB_GATEWAY_MEMORY=128m',
+    '# MENTOR_JOB_GATEWAY_CPUS=0.5',
+    '# Strict-Transport-Security value for HTTPS responses; empty keeps the Caddyfile default (max-age=31536000; includeSubDomains).',
+    '# MENTOR_HSTS=',
+    '# Private job gateway (profile runner): bind address, port, HTTPS site address and the TLS directory from issue-job-tls.ps1.',
+    '# MENTOR_JOB_BIND_ADDRESS=127.0.0.1',
+    '# MENTOR_JOB_PORT=8444',
+    '# MENTOR_JOB_ADDRESS=https://localhost:8443',
+    ('# MENTOR_JOB_TLS_DIRECTORY="'+(ConvertTo-MentorDockerPath (Join-Path $Directory 'tls'))+'"')
 )
 [IO.File]::WriteAllLines((Join-Path $Directory 'compose.env'),$settings,[Text.UTF8Encoding]::new($false))
 Write-Output "Created private configuration: $Directory"

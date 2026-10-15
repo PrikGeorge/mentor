@@ -1,4 +1,15 @@
+# Build context is the repository root. Allow only what the two JAR sources need; never private/, data/,
+# .runtime/, node_modules or the legacy Node application.
 **
+!pom.xml
 !backend/
+backend/**
+!backend/pom.xml
+!backend/src/
+!backend/src/main/
+!backend/src/main/**
 !backend/target/
-!backend/target/backend-0.1.0-SNAPSHOT.jar
+!backend/target/backend-*.jar
+!runner/
+runner/**
+!runner/pom.xml

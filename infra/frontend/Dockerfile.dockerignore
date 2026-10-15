@@ -1,12 +1,18 @@
+# Build context is the repository root. The Angular sources, the lockfile and a prebuilt dist are visible;
+# node_modules, caches, test output and everything outside frontend/ stay out of the image build.
 **
 !frontend/
-!frontend/dist/
+frontend/node_modules/
+frontend/tools/api/node_modules/
+frontend/.angular/
+frontend/test-results/
+frontend/playwright-report/
+frontend/dist/**
 !frontend/dist/mentor/
 !frontend/dist/mentor/browser/
 !frontend/dist/mentor/browser/**
 !frontend/dist/mentor/3rdpartylicenses.txt
-!frontend/licenses/
-!frontend/licenses/**
 !infra/
+infra/**
 !infra/proxy/
 !infra/proxy/Caddyfile

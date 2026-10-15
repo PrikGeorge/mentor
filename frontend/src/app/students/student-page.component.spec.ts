@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, student, lesson, base, click, fill, flushTurns } from './domain-test-support';
+import { configure, open, page, student, publicStudent, lesson, publicLesson, base, click, fill, flushTurns, flushJournal } from './domain-test-support';
 describe('Student workspace', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -28,6 +28,18 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         http.expectOne(base + '/lessons?page=1&size=25').flush({ ...page([], 26), page: 1 });
         flushTurns(http); http.verify();
+    });
+    it("shows whose turn it is in the learner's list of lessons", async () => {
+        const { fixture, http, element } = await open('/learn/students/s1/lessons', 'STUDENT');
+        http.expectOne(base).flush(publicStudent);
+        http.expectOne(base + '/lessons?page=0&size=25').flush(page([publicLesson]));
+        fixture.detectChanges();
+        const turns = http.expectOne(request => request.url.endsWith('/homework/turns'));
+        turns.flush(page([{ lessonId: 'l1', submissionId: 'h1', kind: 'homework', filename: 'Main.java', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }]));
+        fixture.detectChanges();
+        expect(Array.from(element.querySelectorAll('th')).map(cell => cell.textContent?.trim())).toContain('Чей ход');
+        expect(element.querySelector('.turn-cell')?.textContent).toContain('Ход у наставника');
+        flushJournal(http); http.verify();
     });
     it('retains profile fields and expected revision on failed save', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');

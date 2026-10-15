@@ -6,8 +6,15 @@
 	root * /srv
 	encode zstd gzip
 
-	# Legacy source/download URLs must never fall through to the Angular shell.
-	@private path_regexp private (?i)^/(internal|private|data|content|code|training|downloads|lib|src|backend|runner|infra|contracts|node_modules|\.git|\.runtime|\.superpowers)(/|$)|^/api/(materials|downloads)(/|$)
+	# HSTS only makes sense (and is only honoured by browsers) on TLS responses: in local HTTP mode nothing is
+	# sent, in production the header goes out on every response, API included. Override the value with
+	# MENTOR_HSTS (e.g. a short max-age for a first rollout, or "max-age=0" to withdraw it).
+	@https protocol https
+	header @https Strict-Transport-Security "{$MENTOR_HSTS:max-age=31536000; includeSubDomains}"
+
+	# Legacy source/download URLs and backend management paths must never fall through to the Angular shell.
+	# Actuator is reachable only inside the container network (compose healthcheck), never through this edge.
+	@private path_regexp private (?i)^/(internal|actuator|private|data|content|code|training|downloads|lib|src|backend|runner|infra|contracts|node_modules|\.git|\.runtime|\.superpowers)(/|$)|^/api/(materials|downloads)(/|$)
 	handle @private {
 		header Cache-Control "no-store"
 		respond "Not found" 404
@@ -35,9 +42,22 @@
 			X-Content-Type-Options nosniff
 			Referrer-Policy no-referrer
 			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()"
 			Cache-Control "no-cache"
 		}
 		try_files {path} /index.html
 		file_server
+	}
+}
+
+# Internal readiness listener for the Compose healthcheck: plain HTTP on the container loopback only,
+# never published, unaffected by the production HTTP->HTTPS redirect of the site above.
+http://127.0.0.1:8080 {
+	handle /healthz {
+		header Cache-Control "no-store"
+		respond "ok" 200
+	}
+	handle {
+		respond "Not found" 404
 	}
 }

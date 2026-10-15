@@ -142,8 +142,9 @@ export class StudentPageComponent extends DomainPage {
             const w = this.workspaceId(), s = this.studentId(), section = this.section(), preview = this.preview();
             this.refresh();
             this.turns.set(null);
-            if (!w || !s || section)
-                return;
+            // The teacher's card has no section; the learner's list of lessons is the lessons section.
+            if (!w || !s || (section && section !== 'lessons'))
+                return;
             // The student sees the same latest exchanges in their own words; a preview asks for the student projection.
             const sub = this.homework.lessonTurns(w, s, preview).pipe(catchError(() => of(null))).subscribe(page => this.turns.set(page ? new Map(page.items.map(turn => [turn.lessonId, turn])) : null));
             onCleanup(() => sub.unsubscribe());

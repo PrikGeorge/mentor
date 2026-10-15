@@ -1,4 +1,7 @@
 name: ${MENTOR_COMPOSE_PROJECT:-mentor-platform}
+# Resource limits (INF-07) live under deploy.resources.limits: Docker Compose v2 applies them to plain
+# `docker compose up` (HostConfig.Memory / NanoCPUs), no swarm or --compatibility flag required.
+# Defaults fit an 8-16 GB host; override MENTOR_*_MEMORY / MENTOR_*_CPUS in compose.env.
 services:
   postgres:
     image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
@@ -16,6 +19,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: ${MENTOR_POSTGRES_MEMORY:-1g}
+          cpus: "${MENTOR_POSTGRES_CPUS:-1.0}"
     logging: &bounded_logs
       driver: json-file
       options: { max-size: 10m, max-file: "3" }
@@ -37,7 +45,14 @@ services:
       MENTOR_BLOBS_TYPE: local
       MENTOR_BLOBS_LOCAL_ROOT: /var/lib/mentor/objects
       MENTOR_BLOBS_SPOOL_ROOT: /var/lib/mentor/spool
+      # Multipart uploads (up to 20 MiB) are spooled on the writable volume, not in the 128 MB tmpfs /tmp.
+      MENTOR_MULTIPART_DIR: /var/lib/mentor/spool
       MENTOR_RUNNER_TOKEN_FILE: /run/mentor-worker/worker-credential
+      # The JVM sizes its heap from the cgroup limit above: 70 % of MENTOR_BACKEND_MEMORY, never of host RAM.
+      JAVA_TOOL_OPTIONS: ${MENTOR_BACKEND_JAVA_OPTIONS:--XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError}
+      # Structured console logs (Spring Boot: ecs | logstash | gelf). Unset = plain text. A null mapping
+      # passes the variable through only when compose.env defines it, so an empty value never reaches Spring.
+      LOGGING_STRUCTURED_FORMAT_CONSOLE:
       # Trust this edge only, not every address in a private network.
       SERVER_FORWARD_HEADERS_STRATEGY: native
       SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Mentor-Client-IP
@@ -56,6 +71,27 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    # server.shutdown=graceful gives in-flight requests up to 30 s; Docker must not SIGKILL before that.
+    stop_grace_period: 35s
+    # eclipse-temurin:21-jre-jammy ships neither curl nor wget; bash with /dev/tcp is part of the Ubuntu base,
+    # so the probe is one HTTP/1.0 request to Actuator readiness without a second JVM per check.
+    # Readiness must stay unauthenticated, outside the auth rate limit and independent of the Host header.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET ${MENTOR_BACKEND_HEALTH_PATH:-/actuator/health/readiness} HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Flyway migrations and JIT warm-up on a shared host: failures inside the start period do not count.
+      start_period: ${MENTOR_BACKEND_START_PERIOD:-120s}
+    deploy:
+      resources:
+        limits:
+          memory: ${MENTOR_BACKEND_MEMORY:-1536m}
+          cpus: "${MENTOR_BACKEND_CPUS:-2.0}"
     networks:
       database:
       web:
@@ -69,27 +105,45 @@ services:
       context: ..
       dockerfile: infra/frontend/Dockerfile
     restart: unless-stopped
-    depends_on: [backend]
+    depends_on:
+      backend: { condition: service_healthy }
     environment:
       MENTOR_SITE_ADDRESS: ${MENTOR_SITE_ADDRESS:-:80}
       MENTOR_BACKEND_UPSTREAM: backend:8081
+      # Strict-Transport-Security value; Caddy sends it on TLS responses only. Empty = Caddyfile default.
+      MENTOR_HSTS: ${MENTOR_HSTS:-}
     ports:
       - "${MENTOR_BIND_ADDRESS:-127.0.0.1}:${MENTOR_HTTP_PORT:-4174}:80"
       - "${MENTOR_BIND_ADDRESS:-127.0.0.1}:${MENTOR_HTTPS_PORT:-8443}:443"
     volumes:
       - web_data:/data
       - web_config:/config
+    # Internal readiness listener (Caddyfile): plain HTTP, never published, unaffected by the HTTPS redirect.
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, -T, "3", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${MENTOR_WEB_MEMORY:-256m}
+          cpus: "${MENTOR_WEB_CPUS:-0.5}"
     networks:
       web:
         ipv4_address: ${MENTOR_PROXY_IP:-172.28.80.2}
     logging: *bounded_logs
 
   # Enable on a private interface only; the public web service denies /internal.
+  # Docker does not publish ports of containers that sit only on an internal network, so the gateway joins
+  # two networks: `jobs` (internal, reaches backend) and `job_edge` (ordinary bridge, carries the published port).
   job-gateway:
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     profiles: [runner]
     restart: unless-stopped
-    depends_on: [backend]
+    depends_on:
+      backend: { condition: service_started }
     environment:
       MENTOR_JOB_ADDRESS: ${MENTOR_JOB_ADDRESS:-https://localhost:8443}
     ports:
@@ -97,7 +151,12 @@ services:
     volumes:
       - ./proxy/Jobs.Caddyfile:/etc/caddy/Caddyfile:ro
       - ${MENTOR_JOB_TLS_DIRECTORY:-../.runtime/platform/tls}:/run/mentor-tls:ro
-    networks: [jobs]
+    deploy:
+      resources:
+        limits:
+          memory: ${MENTOR_JOB_GATEWAY_MEMORY:-128m}
+          cpus: "${MENTOR_JOB_GATEWAY_CPUS:-0.5}"
+    networks: [jobs, job_edge]
     logging: *bounded_logs
 
 secrets:
@@ -112,6 +171,8 @@ volumes:
 networks:
   database: { internal: true }
   jobs: { internal: true }
+  # Non-internal network used only for the published gateway port; nothing else attaches to it.
+  job_edge:
   web:
     ipam:
       config:

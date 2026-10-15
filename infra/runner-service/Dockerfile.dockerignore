@@ -1,4 +1,17 @@
+# Build context is the repository root. Only the runner module, its contract and a prebuilt JAR are visible.
 **
+!pom.xml
+!contracts/
+contracts/**
+!contracts/runner.openapi.yaml
 !runner/
+runner/**
+!runner/pom.xml
+!runner/src/
+!runner/src/main/
+!runner/src/main/**
 !runner/target/
-!runner/target/runner-0.1.0-SNAPSHOT.jar
+!runner/target/runner-*.jar
+!backend/
+backend/**
+!backend/pom.xml

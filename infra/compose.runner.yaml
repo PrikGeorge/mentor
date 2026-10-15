@@ -19,6 +19,8 @@ services:
       - /run/mentor-config/environments.json
     environment:
       # Bind exactly the same absolute path on this host and in the container.
+      # The image sets -XX:MaxRAMPercentage=60, so the heap follows MENTOR_RUNNER_MEMORY below;
+      # sandboxes are separate containers with their own limits and do not count here.
       JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=${MENTOR_RUNNER_SCRATCH:-/var/lib/mentor-runner/jobs} -Djavax.net.ssl.trustStore=/run/mentor-config/truststore.p12
     group_add:
       - ${MENTOR_DOCKER_SOCKET_GID:?Set the GID of the dedicated host Docker socket}
@@ -32,6 +34,12 @@ services:
       - /tmp:size=16m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    # Compose v2 applies deploy.resources.limits on plain `docker compose up` (INF-07).
+    deploy:
+      resources:
+        limits:
+          memory: ${MENTOR_RUNNER_MEMORY:-768m}
+          cpus: "${MENTOR_RUNNER_CPUS:-1.0}"
     logging:
       driver: json-file
       options: { max-size: 10m, max-file: "3" }

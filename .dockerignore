@@ -1,0 +1,36 @@
+# Root fallback for any `docker build` whose context is the repository (INF-12 / INF-23). The per-Dockerfile
+# files infra/*/Dockerfile.dockerignore take precedence under BuildKit; this list keeps private data, local
+# state and huge trees out of a context even if a Dockerfile without its own ignore file is used.
+.git/
+.github/
+.runtime/
+private/
+data/
+content/
+promo/
+docs/
+dist/
+lib/
+test/
+scripts/
+**/node_modules/
+**/.angular/
+**/test-results/
+**/playwright-report/
+frontend/dist/**
+!frontend/dist/mentor/
+!frontend/dist/mentor/browser/
+!frontend/dist/mentor/browser/**
+!frontend/dist/mentor/3rdpartylicenses.txt
+backend/target/**
+!backend/target/backend-*.jar
+runner/target/**
+!runner/target/runner-*.jar
+*.tar
+*.tar.gz
+*.gpg
+*.log
+*.env
+**/secrets/
+**/worker-secrets/
+**/tls/

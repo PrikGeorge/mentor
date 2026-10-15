@@ -1,0 +1,177 @@
+# Continuous checks for the mentor platform (INF-13). Every job runs from a clean Linux or Windows runner, so the
+# FAT32/CRLF quirks of the development machine never reach the result. The runner module needs real Docker with
+# prepared sandbox images and is therefore a manual job (see runner/README.md).
+name: ci
+
+on:
+  push:
+    branches: ['**']
+    tags: ['release-*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      runner-module:
+        description: Also run ./mvnw -pl runner verify (needs prepared sandbox images on the runner host)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  backend:
+    name: Backend (Spring Boot, Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify backend
+        run: ./mvnw -B -ntp -pl backend verify
+      - name: Keep test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (Angular, Vitest, Playwright fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Schema matches the contract
+        run: npm run api:check
+      - name: Unit tests
+        run: npm test -- --watch=false
+      - name: Production build
+        run: npm run build
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: UI tests on HTTP fixtures
+        run: npm run test:ui -- --project=chromium
+      - name: Keep Playwright output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-output
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: ignore
+
+  infra:
+    name: Infrastructure scripts (PowerShell 7)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse every script
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Recurse -Filter *.ps1 -Path infra, start-local.ps1 | ForEach-Object {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $failed = $true; Write-Output "$($_.FullName):"; $errors | ForEach-Object { Write-Output "  $($_.Message)" } }
+          }
+          if ($failed) { exit 1 }
+      - name: Mock-based checks
+        shell: pwsh
+        run: |
+          $failed = @()
+          # Scripts that need a live Docker engine or WSL stay out of CI; the remaining checks run on doubles only.
+          $skip = @('cutover-integration.ps1')
+          Get-ChildItem infra/tests/*.ps1 | Where-Object { $skip -notcontains $_.Name } | ForEach-Object {
+            Write-Output "== $($_.Name)"
+            & $_.FullName
+            if ($LASTEXITCODE -ne 0) { $failed += $_.Name }
+          }
+          if ($failed) { Write-Output "Failed: $($failed -join ', ')"; exit 1 }
+
+  images:
+    name: Container images (multi-stage build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/release-')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Release tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/release-* ]]; then echo "release=${GITHUB_REF#refs/tags/release-}" >> "$GITHUB_OUTPUT"; else echo "release=ci-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"; fi
+      - name: Build backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/backend/Dockerfile
+          build-args: JAR_SOURCE=build
+          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
+          tags: ghcr.io/${{ github.repository }}/backend:${{ steps.tag.outputs.release }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/frontend/Dockerfile
+          build-args: DIST_SOURCE=build
+          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
+          tags: ghcr.io/${{ github.repository }}/web:${{ steps.tag.outputs.release }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build runner
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runner-service/Dockerfile
+          build-args: JAR_SOURCE=build
+          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
+          tags: ghcr.io/${{ github.repository }}/runner:${{ steps.tag.outputs.release }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  runner-module:
+    name: Runner module (manual, needs prepared sandbox images)
+    if: github.event_name == 'workflow_dispatch' && inputs.runner-module
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify runner
+        # Expects the sandbox environment images from `java -jar runner.jar --prepare` on this host; see runner/README.md.
+        run: ./mvnw -B -ntp -pl runner verify

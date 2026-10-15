@@ -2,7 +2,8 @@ import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { components } from '../src/app/api/schema';
-async function signOut(page: Page) { const menu = page.getByRole('button', { name: 'Меню', exact: true }); if (await menu.isVisible()) await menu.click(); else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); }
+// The student preview replaces the profile menu with a read-only badge, so leave it before signing out.
+async function signOut(page: Page) { if (new URL(page.url()).searchParams.get('preview')) { await page.goto('/'); await page.locator('button.menu-button:visible, button.profile-button:visible').first().waitFor(); } const menu = page.locator('button.menu-button'); if (await menu.isVisible()) { if (await menu.getAttribute('aria-expanded') !== 'true') await menu.click(); } else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); }
 test.describe.configure({ mode: 'serial' });
 type Session = components['schemas']['Session'];
 type Student = components['schemas']['TeacherStudentView'];
@@ -125,7 +126,9 @@ for (const width of [1280, 390]) {
         await logout(page);
 
         await login(page, learner);
-        await expect(page.getByRole('heading', { name: anna.name, exact: true })).toBeVisible();
+        // The learner's home leads with the nearest lesson; the name lives in the profile control.
+        if (width === 1280) await expect(page.locator('.profile-name')).toContainText(anna.name);
+        await expect(page.getByRole('heading', { name: 'Конкурирующее изменение', exact: true })).toBeVisible();
         await expect(page.locator('body')).not.toContainText(boris.name);
         await page.goto(`/learn/students/${anna.id}/lessons/${first.id}/student/tasks`);
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
@@ -138,7 +141,7 @@ for (const width of [1280, 390]) {
         await expect(page.locator('footer')).not.toContainText('Кабинет наставника');
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.screenshot({ path: path.join(runtime, `real-learner-${width}.png`), fullPage: true });
-        if (width === 390) await page.getByRole('button', { name: 'Закрыть меню', exact: true }).click();
+        // The open mobile menu already holds the sign-out control; the helper never toggles it twice.
         await logout(page);
 
         await login(page, emptyLearner);

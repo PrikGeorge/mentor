@@ -12,7 +12,7 @@ const requested = process.argv.slice(2);
 // and prevent one suite's identities, material seed or throttling state affecting another.
 if (!requested.some(argument => argument.includes('.spec.'))) {
     let failed = false;
-    for (const suite of ['task11.spec.ts', 'task12.spec.ts', 'task13.spec.ts', 'tenant-isolation.spec.ts']) {
+    for (const suite of ['task11.spec.ts', 'task12.spec.ts', 'task13.spec.ts', 'stage3-real.spec.ts', 'tenant-isolation.spec.ts']) {
         const laneProcess = spawn(process.execPath, [fileURLToPath(import.meta.url), suite, ...requested], {
             cwd: frontend, windowsHide: true, stdio: 'inherit', env: process.env,
         });

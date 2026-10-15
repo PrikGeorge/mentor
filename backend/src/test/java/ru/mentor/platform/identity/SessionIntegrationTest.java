@@ -236,7 +236,11 @@ class SessionIntegrationTest extends PostgresTest {
 
     @Test void normalizedLoginLimitReturns429AndExpiresAfterFifteenMinutes() throws Exception {
         HttpClient client = client(); String csrf = session(client).get("csrfToken").asText();
-        for(int i=0;i<10;i++) {
+        // A correct password after a few failures still signs in and clears the count; only repeated wrong passwords lock the login.
+        for(int i=0;i<5;i++) assertEquals(401,post(client,"/auth/login","{\"login\":\"admin\",\"password\":\"synthetic-wrong\"}",csrf,null).statusCode());
+        assertEquals(200,post(client,"/auth/login","{\"login\":\"admin\",\"password\":\"  Пароль😀8  \"}",csrf,null).statusCode());
+        csrf = session(client).get("csrfToken").asText();
+        for(int i=0;i<20;i++) {
             String login = i%2==0 ? "ＡＤＭＩＮ" : "admin";
             assertEquals(401,post(client,"/auth/login","{\"login\":\""+login+"\",\"password\":\"synthetic-wrong\"}",csrf,null).statusCode());
         }
@@ -248,16 +252,31 @@ class SessionIntegrationTest extends PostgresTest {
         assertEquals(200,post(client,"/auth/login","{\"login\":\"admin\",\"password\":\"  Пароль😀8  \"}",csrf,null).statusCode());
     }
 
-    @Test void authGlobalLimitDoesNotThrottleOtherApiPollingAndDoesNotTrustForwardedIp() throws Exception {
-        HttpClient client = client(); login(client);
-        // Two auth requests used by login; 118 further auth GETs reach the global boundary.
-        for(int i=0;i<118;i++) assertEquals(200,get(client,"/auth/session").statusCode());
-        var blocked = get(client,"/auth/session");
+    @Test void authGlobalLimitCountsWritesOnlyAndDoesNotThrottleSessionPolling() throws Exception {
+        HttpClient client = client(); String csrf = session(client).get("csrfToken").asText();
+        // Anonymous session polls never share a budget with other visitors: 300 reads stay within the per-address allowance.
+        for(int i=0;i<300;i++) assertEquals(200,get(client,"/auth/session").statusCode());
+        // Writes do share the global budget: 120 per minute (rejected bodies count too), then 429 with Retry-After until the window turns.
+        for(int i=0;i<100;i++) assertEquals(400,post(client,"/auth/login","{}",csrf,null).statusCode());
+        for(int i=0;i<20;i++) assertEquals(401,post(client,"/auth/change-password","{}",csrf,null).statusCode());
+        var blocked = post(client,"/auth/change-password","{}",csrf,null);
         assertEquals(429,blocked.statusCode(),blocked.body());
         assertEquals("60",blocked.headers().firstValue("retry-after").orElseThrow());
-        for(int i=0;i<125;i++) assertEquals(404,get(client,"/polling-not-yet-implemented").statusCode());
-        CLOCK.advance(Duration.ofMinutes(1));
         assertEquals(200,get(client,"/auth/session").statusCode());
+        // Other API traffic is never throttled by the auth budget: an anonymous caller keeps getting the plain 401.
+        for(int i=0;i<125;i++) assertEquals(401,get(client,"/polling-not-yet-implemented").statusCode());
+        CLOCK.advance(Duration.ofMinutes(1));
+        assertEquals(401,post(client,"/auth/change-password","{}",csrf,null).statusCode());
+    }
+
+    @Test void healthProbesAnswerWithoutSessionCsrfOrApiOrigin() throws Exception {
+        for(String probe : new String[]{"/actuator/health/liveness","/actuator/health/readiness","/actuator/health"}) {
+            var response = client().send(HttpRequest.newBuilder(URI.create(origin+probe)).GET().build(),HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,response.statusCode(),probe+" "+response.body());
+            assertEquals("UP",json.readTree(response.body()).get("status").asText());
+            assertFalse(response.body().contains("components"),"no details leak: "+response.body());
+        }
+        assertEquals(401,client().send(HttpRequest.newBuilder(URI.create(origin+"/actuator/env")).GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode());
     }
 
     @Test void rejectsCrossOriginInvalidFieldsAndCsrfTamperingWithoutLeakingInput() throws Exception {

@@ -12,7 +12,8 @@
     "test:ui": "node tools/playwright.mjs",
     "e2e": "node tools/browser-fixture.mjs",
     "e2e:practice": "node tools/playwright.mjs --config playwright.practice.config.ts",
-    "api:generate": "npm run generate --workspace @mentor/api-types"
+    "api:generate": "npm run generate --workspace @mentor/api-types",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/app/api/schema.d.ts"
   },
   "engines": {
     "node": ">=24.15.0 <25"

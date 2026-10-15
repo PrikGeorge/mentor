@@ -1,12 +1,15 @@
 server:
   port: 8081
   forward-headers-strategy: none
+  shutdown: graceful
 spring:
   servlet:
     multipart:
       max-file-size: 20971520B
       max-request-size: 22020096B
-      file-size-threshold: 0B
+      # Small fields stay in memory; file parts spill to the multipart directory (a writable volume in Compose, not tmpfs).
+      file-size-threshold: 256KB
+      location: ${MENTOR_MULTIPART_DIR:${java.io.tmpdir}}
   config:
     import: optional:configtree:${MENTOR_SECRETS_DIR:./.runtime/secrets/}
   datasource:
@@ -20,6 +23,19 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
 mentor:
   security:
     production: ${MENTOR_PRODUCTION:false}

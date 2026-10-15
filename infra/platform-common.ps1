@@ -185,3 +185,32 @@ function Remove-MentorExpiredBackups([string]$Directory) {
         Remove-MentorOwnedDirectory $candidate.FullName $Directory
     }
 }
+
+function ConvertFrom-MentorDockerPath([string]$Path) {
+    # Inverse of ConvertTo-MentorDockerPath for values read back from `docker compose config`.
+    if ($IsWindows -and $Path -match '^/mnt/([a-z])/(.*)$') { return $Matches[1].ToUpperInvariant() + ':\' + $Matches[2].Replace('/','\') }
+    return $Path
+}
+
+function Get-MentorContainerHealth([string]$Id) {
+    # State: created|running|restarting|exited|dead; Health: healthy|unhealthy|starting, or none without a healthcheck.
+    if ($Id -notmatch '^[a-f0-9]{64}$') { throw 'Invalid container identifier.' }
+    $raw = (Invoke-MentorDocker @('inspect','--format','{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}',$Id) | Out-String).Trim()
+    $parts = $raw.Split('|')
+    if ($parts.Count -ne 2 -or $parts[0] -notmatch '^[a-z]+$' -or $parts[1] -notmatch '^[a-z]+$') { throw 'Unexpected container state output.' }
+    return [pscustomobject]@{ State=$parts[0]; Health=$parts[1] }
+}
+
+function Wait-MentorServiceHealthy([string[]]$Context,[string]$Service,[int]$TimeoutSeconds = 180) {
+    # Readiness comes from the container healthcheck (Actuator readiness / Caddy loopback listener), never from
+    # the rate-limited /api/v1/auth/session. Returns the final health value; 'none' means no healthcheck is defined.
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $id = Get-MentorServiceId $Context $Service
+    while ($true) {
+        $probe = Get-MentorContainerHealth $id
+        if ($probe.State -in @('exited','dead')) { throw "The $Service container stopped (state $($probe.State)); inspect its logs." }
+        if ($probe.State -eq 'running' -and $probe.Health -in @('healthy','none')) { return $probe.Health }
+        if ([DateTime]::UtcNow -ge $deadline) { throw "The $Service container did not become healthy within $TimeoutSeconds s (state $($probe.State), health $($probe.Health))." }
+        Start-Sleep -Milliseconds 1000
+    }
+}

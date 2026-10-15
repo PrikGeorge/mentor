@@ -93,12 +93,14 @@ class WorkspaceIsolationTest extends IdentityHttpTest {
         assertEquals("ADMIN",session(admin).get("account").get("role").asText());
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM workspace_membership",Integer.class));
     }
-    @Test void accessAndTokenRoutesKeepLegacyGlobalRateLimitWithoutThrottlingProfileReads() throws Exception {
+    // Catches access reads sharing a budget with strangers, and access writes escaping the shared write budget.
+    @Test void accessWritesShareTheGlobalBudgetWhileAccessReadsStayFree() throws Exception {
         var t=teacher("teacher-limiter");var s=student(t,"Limit profile");String path=card(t,s.get("id").asText());
         CLOCK.advance(java.time.Duration.ofMinutes(1));
-        for(int i=0;i<120;i++)assertEquals(200,get(t.client(),path+"/access").statusCode());
-        var limited=get(t.client(),path+"/access");assertEquals(429,limited.statusCode(),limited.body());assertEquals("60",limited.headers().firstValue("Retry-After").orElseThrow());
-        for(int i=0;i<125;i++)assertEquals(200,get(t.client(),path).statusCode());
-        CLOCK.advance(java.time.Duration.ofMinutes(1));assertEquals(200,get(t.client(),path+"/access").statusCode());
+        for(int i=0;i<200;i++)assertEquals(200,get(t.client(),path+"/access").statusCode());
+        for(int i=0;i<120;i++)assertEquals(400,write(t.client(),"PATCH",path+"/access",Map.of()).statusCode());
+        var limited=write(t.client(),"PATCH",path+"/access",Map.of());assertEquals(429,limited.statusCode(),limited.body());assertEquals("60",limited.headers().firstValue("Retry-After").orElseThrow());
+        for(int i=0;i<125;i++)assertEquals(200,get(t.client(),path).statusCode());assertEquals(200,get(t.client(),path+"/access").statusCode());
+        CLOCK.advance(java.time.Duration.ofMinutes(1));assertEquals(400,write(t.client(),"PATCH",path+"/access",Map.of()).statusCode());
     }
 }

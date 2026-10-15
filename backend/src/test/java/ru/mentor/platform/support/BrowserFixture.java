@@ -55,6 +55,9 @@ public final class BrowserFixture {
                     Path request = runtime.resolve("material-seed-request.json");
                     if (Files.exists(request) && !Files.exists(runtime.resolve("material-seed-complete.json")))
                         BrowserMaterialFixture.seed(context, request, runtime.resolve("material-seed-complete.json"));
+                    Path practice = runtime.resolve("practice-seed-request.json");
+                    if (Files.exists(practice) && !Files.exists(runtime.resolve("practice-seed-complete.json")))
+                        BrowserPracticeFixture.seed(context, practice, runtime.resolve("practice-seed-complete.json"), runtime);
                     Thread.sleep(250);
                 }
             }

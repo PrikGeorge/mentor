@@ -26,6 +26,8 @@ final class IdentityRequestFilter extends OncePerRequestFilter {
     }
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain) throws IOException,ServletException {
         if(request.getAttribute("mentor.requestId") == null) request.setAttribute("mentor.requestId",UUID.randomUUID().toString());
+        // Health probes come from the container runtime with its own Host header and carry no session.
+        if(request.getRequestURI().startsWith("/actuator/health")) { chain.doFilter(request,response); return; }
         try {
             checkOrigin(request);
             String path = request.getRequestURI();
