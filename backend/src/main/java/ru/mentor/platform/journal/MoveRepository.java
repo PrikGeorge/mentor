@@ -1,8 +1,10 @@
 package ru.mentor.platform.journal;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+
 import java.sql.*;
 import java.time.Instant;
 import java.util.List;
@@ -11,10 +13,25 @@ import java.util.List;
 @Repository
 public class MoveRepository {
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Move(String kind,String side,Instant at,String lessonId,String lessonTitle,String refId,String subject,String detail,
-                       String status,String grade,Integer passed,Integer total,Integer ordinal) {}
-    // Every branch is scoped by workspace and student; submission ordinals count all works of their lesson.
-    private static final String MOVES="""
+    public record Move(
+            String kind,
+            String side,
+            Instant at,
+            String lessonId,
+            String lessonTitle,
+            String refId,
+            String subject,
+            String detail,
+            String status,
+            String grade,
+            Integer passed,
+            Integer total,
+            Integer ordinal) {}
+
+    // Every branch is scoped by workspace and student; submission ordinals count all works of their
+    // lesson.
+    private static final String MOVES =
+            """
         WITH sub AS (
           SELECT h.*,row_number() OVER (PARTITION BY h.lesson_id ORDER BY h.created_at,h.id) AS ordinal
           FROM homework_submission h WHERE h.workspace_id=? AND h.student_id=?
@@ -40,16 +57,60 @@ public class MoveRepository {
         ) moves WHERE (?::varchar IS NULL OR lesson_id=?)
         """;
     private final JdbcTemplate jdbc;
-    public MoveRepository(JdbcTemplate jdbc){this.jdbc=jdbc;}
-    public List<Move> moves(String workspace,String student,String lesson,int page,int size){
-        return jdbc.query(MOVES+" ORDER BY at DESC,kind,ref_id DESC LIMIT ? OFFSET ?",(r,n)->move(r),workspace,student,workspace,student,workspace,student,lesson,lesson,size,(long)page*size);
+
+    public MoveRepository(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
-    public long count(String workspace,String student,String lesson){
-        return jdbc.queryForObject("SELECT count(*) FROM ("+MOVES+") counted",Long.class,workspace,student,workspace,student,workspace,student,lesson,lesson);
+
+    public List<Move> moves(String workspace, String student, String lesson, int page, int size) {
+        return jdbc.query(
+                MOVES + " ORDER BY at DESC,kind,ref_id DESC LIMIT ? OFFSET ?",
+                (r, n) -> move(r),
+                workspace,
+                student,
+                workspace,
+                student,
+                workspace,
+                student,
+                lesson,
+                lesson,
+                size,
+                (long) page * size);
     }
-    private static Move move(ResultSet r)throws SQLException {
-        return new Move(r.getString("kind"),r.getString("side"),r.getTimestamp("at").toInstant(),r.getString("lesson_id"),r.getString("lesson_title"),r.getString("ref_id"),
-            r.getString("subject"),r.getString("detail"),r.getString("status"),r.getString("grade"),integer(r,"passed"),integer(r,"total"),integer(r,"ordinal"));
+
+    public long count(String workspace, String student, String lesson) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM (" + MOVES + ") counted",
+                Long.class,
+                workspace,
+                student,
+                workspace,
+                student,
+                workspace,
+                student,
+                lesson,
+                lesson);
     }
-    private static Integer integer(ResultSet r,String column)throws SQLException {int value=r.getInt(column);return r.wasNull()?null:value;}
+
+    private static Move move(ResultSet r) throws SQLException {
+        return new Move(
+                r.getString("kind"),
+                r.getString("side"),
+                r.getTimestamp("at").toInstant(),
+                r.getString("lesson_id"),
+                r.getString("lesson_title"),
+                r.getString("ref_id"),
+                r.getString("subject"),
+                r.getString("detail"),
+                r.getString("status"),
+                r.getString("grade"),
+                integer(r, "passed"),
+                integer(r, "total"),
+                integer(r, "ordinal"));
+    }
+
+    private static Integer integer(ResultSet r, String column) throws SQLException {
+        int value = r.getInt(column);
+        return r.wasNull() ? null : value;
+    }
 }
