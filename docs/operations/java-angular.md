@@ -186,6 +186,35 @@ Frontend и `/api/v1` обслуживаются с одного origin. Не в
 
 `restore-test.ps1 -Backup <absolute-backup-dir> -PassphraseFile <absolute-file> -BackendImage <release-image>` расшифровывает данные только в новом закрытом временном каталоге, создаёт отдельные БД и object volume, сверяет counts/checksums и доступ UID10001, затем удаляет временные ресурсы. Команда не заменяет рабочую БД. `restore-report.json: completed=true` означает техническую проверку восстановления; вход и скачивание через приложение проверяются дополнительно при переносе/восстановлении рабочего контура.
 
+### Проверка миграций на отдельном снимке (Q-18)
+
+`migration/SnapshotMigrationSmoke.java` — CLI из test-classpath, не входящий в production JAR. Он принимает доверенный PostgreSQL custom dump (`pg_dump --format=custom`) предыдущей схемы, ожидаемый SHA256 и новый путь отчёта. Для копий `backup.ps1` берите `databaseSha256` из расшифрованного `manifest.json` (поле `receipt.sha256` относится к зашифрованному архиву). Подготовка или расшифровка настоящего снимка выполняется оператором отдельно; инструмент не ищет копии, не читает `compose.env` и не подключается к существующей БД. Дамп и отчёт держите вне Git, в закрытом каталоге (NTFS ACL на Windows, 0700/0600 на Linux); не загружайте их в CI artifacts.
+
+Из NTFS checkout текущей версии с JDK 21 и доступным локальным Linux Docker:
+
+```powershell
+$smokeRoot = (Get-Location).Path
+New-Item -ItemType Directory -Force (Join-Path $smokeRoot '.runtime') | Out-Null
+$smokeClasspathFile = Join-Path $smokeRoot '.runtime/migration-smoke-classpath.txt'
+./mvnw.cmd -pl backend test-compile dependency:build-classpath "-Dmdep.outputFile=$smokeClasspathFile"
+if ($LASTEXITCODE -ne 0) { throw 'Cannot compile migration smoke' }
+$smokeClasspath = @(
+  (Join-Path $smokeRoot 'backend/target/test-classes'),
+  (Join-Path $smokeRoot 'backend/target/classes'),
+  (Get-Content -Raw $smokeClasspathFile).Trim()
+) -join [IO.Path]::PathSeparator
+& (Join-Path $env:JAVA_HOME 'bin/java') -cp $smokeClasspath ru.mentor.platform.migration.SnapshotMigrationSmoke `
+  C:/MentorPrivate/rehearsal/database.dump '<SHA256 database.dump: manifest.databaseSha256>' `
+  C:/MentorPrivate/rehearsal/migration-report-new.json
+if ($LASTEXITCODE -ne 0) { throw 'Migration smoke failed; inspect the private report phase' }
+```
+
+На Linux используйте `./mvnw` и абсолютные Linux-пути. Docker должен быть локальным: порт БД публикуется только на `127.0.0.1`. Каждый запуск создаёт собственные PostgreSQL и bridge-сеть, случайный пароль; подключения к сетям приложения и host bind mounts отсутствуют. Bridge-сеть нужна для JDBC из хоста, в том числе Docker Desktop; исходящий трафик она не блокирует, поэтому это не песочница для недоверенного SQL. Снимок копируется после проверки порта и сети, SHA256 повторно проверяется внутри контейнера. Ресурсы этого запуска удаляются при завершении, исходный дамп и отчёт остаются у оператора.
+
+Успех — код 0 и `completed: true` в новом JSON: версии до/после, число миграций, SHA256 и counts таблиц. Проверяются успешная Flyway history и checksums, наличие аккаунтов, применение хотя бы одной новой миграции, сохранение прежних строк history и counts существовавших таблиц, затем второй `migrate()` с нулём миграций и прежними counts/history/schema. Актуальная схема не засчитывается как проверка обновления. Миграция с намеренным изменением числа строк требует отдельной проверки преобразования, а не отключения защиты. Ошибка даёт код 1 и безопасный `phase`, без SQL, значений строк и текста исключения; существующий отчёт не перезаписывается.
+
+`SnapshotMigrationSmokeTest` проверяет заполненный синтетический V14→V15 dump: Unicode, приватные/публичные тексты, ревизии, архив и пять индексов V15. Синтетика не закрывает Q-18 на настоящих данных. CLI не запускает приложение, не проверяет файлы или вход пользователей и не перезапускает PostgreSQL: он дополняет `restore-test.ps1` и репетицию релиза ниже.
+
 ### Восстановление в рабочий контур
 
 `restore-platform.ps1` заменяет данные **работающего** контура содержимым копии `backup.ps1` (`snapshot.tar.gpg` + `receipt.json`). По умолчанию выполняется только dry-run: скрипт сверяет SHA256 шифртекста с `receipt.json`, расшифровывает архив в закрытый каталог внутри `-ReportDirectory`, проверяет состав архива, контрольные суммы дампа и объектов, читает текущие counts рабочей БД, печатает план и записывает `restore-receipt.json` (`mode: dry-run`). Ничего не останавливается и не меняется; dry-run одновременно доказывает, что пароль копий восстановим. Контейнеры проекта должны существовать (хотя бы один запуск `start-platform.ps1`).
