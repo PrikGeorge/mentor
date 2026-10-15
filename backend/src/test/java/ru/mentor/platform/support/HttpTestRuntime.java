@@ -17,7 +17,7 @@ import java.util.Comparator;
 
 /** One synthetic database/server per JUnit run; restart tests retain the database and replace the server. */
 public final class HttpTestRuntime implements AutoCloseable {
-    private final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17.6-alpine")
+    private final PostgreSQLContainer postgres = new PostgreSQLContainer(org.testcontainers.utility.DockerImageName.parse("postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24").asCompatibleSubstituteFor("postgres"))
         .withDatabaseName("mentor_http_test").withUsername("synthetic").withPassword("synthetic-only");
     final Path root;
     final String passwordHash;

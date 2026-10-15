@@ -29,7 +29,7 @@ public final class BrowserFixture {
         byte[] secret = new byte[24]; new SecureRandom().nextBytes(secret);
         String password = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
         ObjectMapper json = new ObjectMapper();
-        try (var postgres = new PostgreSQLContainer("postgres:17.6-alpine")
+        try (var postgres = new PostgreSQLContainer(org.testcontainers.utility.DockerImageName.parse("postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24").asCompatibleSubstituteFor("postgres"))
                 .withDatabaseName("mentor_browser_synthetic").withUsername("synthetic").withPassword(password)) {
             postgres.start();
             var settings = new HashMap<String,Object>(Map.<String,Object>of("server.port", "0", "server.address", "127.0.0.1", "spring.datasource.url", postgres.getJdbcUrl(),

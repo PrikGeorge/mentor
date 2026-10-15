@@ -22,7 +22,8 @@ $expected = [ordered]@{
         'frontend/package.json', 'frontend/package-lock.json', 'frontend/tools/api/package.json',
         'frontend/angular.json', 'frontend/tsconfig.json', 'frontend/src/main.ts',
         'frontend/public/favicon.ico', 'frontend/licenses/synthetic-license.txt',
-        'frontend/dist/mentor/browser/index.html', 'frontend/dist/mentor/3rdpartylicenses.txt', 'infra/proxy/Caddyfile'
+        'frontend/dist/mentor/browser/index.html', 'frontend/dist/mentor/3rdpartylicenses.txt', 'infra/proxy/Caddyfile',
+        'infra/caddy/go.mod', 'infra/caddy/go.sum', 'infra/caddy/main.go'
     )
     'runner-service' = @(
         'pom.xml', 'backend/pom.xml', 'runner/pom.xml', 'contracts/runner.openapi.yaml',
@@ -40,7 +41,8 @@ $canaries = @(
     'backend/target/classes/canary.txt', 'runner/target/classes/canary.txt',
     'backend/target/report.xml', 'runner/target/report.xml',
     'backend/src/test/ProbeTest.java', 'runner/src/test/ProbeTest.java',
-    'infra/proxy/unrelated.txt', 'infra/proxy/secrets/canary.txt'
+    'infra/proxy/unrelated.txt', 'infra/proxy/secrets/canary.txt',
+    'infra/caddy/compose.env', 'infra/caddy/unrelated.go', 'infra/caddy/secrets/canary.txt'
 )
 function Write-Fixture([string]$Relative, [string]$Content) {
     $path = Join-Path $fixture $Relative

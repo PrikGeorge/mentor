@@ -4,7 +4,7 @@ name: ${MENTOR_COMPOSE_PROJECT:-mentor-platform}
 # Defaults fit an 8-16 GB host; override MENTOR_*_MEMORY / MENTOR_*_CPUS in compose.env.
 services:
   postgres:
-    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: unless-stopped
     environment:
       POSTGRES_DB: mentor
@@ -139,7 +139,8 @@ services:
   # Docker does not publish ports of containers that sit only on an internal network, so the gateway joins
   # two networks: `jobs` (internal, reaches backend) and `job_edge` (ordinary bridge, carries the published port).
   job-gateway:
-    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    # Same scanned Caddy binary as web; Jobs.Caddyfile does not expose the bundled public assets.
+    image: mentor-platform-web:${MENTOR_RELEASE:-local}
     profiles: [runner]
     restart: unless-stopped
     depends_on:

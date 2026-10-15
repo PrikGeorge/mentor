@@ -19,7 +19,24 @@ COPY frontend/dist/mentor/ /out/mentor/
 
 FROM ${DIST_SOURCE} AS dist
 
-FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+# Rebuild the same standard Caddy release with the fixed Go/x/net versions (INF-19).
+# Dependency selection is committed; ordinary builds never run go get/tidy or fetch another toolchain.
+FROM golang:1.26.9-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS caddy_build
+WORKDIR /build
+ENV GOTOOLCHAIN=local CGO_ENABLED=0
+COPY infra/caddy/go.mod infra/caddy/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download && go mod verify
+COPY infra/caddy/main.go ./
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    go build -mod=readonly -trimpath -tags nobadger,nomysql,nopgx -ldflags="-s -w" -o /out/caddy . \
+    && go version -m /out/caddy \
+    && cp /go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.7/LICENSE /out/LICENSE.caddy
+
+FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+COPY --from=caddy_build /out/caddy /usr/bin/caddy
+# COPY replaces the inode on which the official image installed this capability.
+RUN setcap cap_net_bind_service=+ep /usr/bin/caddy
+COPY --from=caddy_build /out/LICENSE.caddy /opt/mentor/licenses/LICENSE.caddy
 COPY --from=dist /out/mentor/browser/ /srv/
 COPY --from=dist /out/mentor/3rdpartylicenses.txt /srv/3rdpartylicenses.txt
 COPY frontend/licenses/ /opt/mentor/licenses/

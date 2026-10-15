@@ -119,7 +119,7 @@ jobs:
           $failed = @()
           $testPowerShell = (Get-Process -Id $PID).Path
           # Scripts that need a live Docker engine or WSL stay out of CI; the remaining checks run on doubles only.
-          $skip = @('cutover-integration.ps1', 'backup-fence.ps1', 'docker-context.ps1')
+          $skip = @('cutover-integration.ps1', 'backup-fence.ps1', 'docker-context.ps1', 'caddy-runtime.ps1')
           Get-ChildItem infra/tests/*.ps1 | Where-Object { $skip -notcontains $_.Name } | ForEach-Object {
             Write-Output "== $($_.Name)"
             # Isolate mocks and expected failing native commands; use the script process exit code.
@@ -136,6 +136,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
       - name: Check build context boundaries on synthetic files
         shell: pwsh
         run: ./infra/tests/docker-context.ps1
@@ -180,6 +183,9 @@ jobs:
           tags: mentor-ci-runner:${{ github.sha }}
           cache-from: type=gha,scope=runner
           cache-to: type=gha,scope=runner,mode=max
+      - name: Check web and private gateway on the same image
+        shell: pwsh
+        run: ./infra/tests/caddy-runtime.ps1 -Image mentor-ci-web:${{ github.sha }}
       - name: Scan exact images and enforce policy
         shell: pwsh
         env:
@@ -188,7 +194,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $images = [ordered]@{}
           $failed = @()
-          $postgres = 'postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94'
+          $postgres = 'postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24'
           docker pull $postgres
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL image pull failed.' }
           foreach ($profile in @('backend', 'web', 'runner', 'postgres')) {

@@ -1,5 +1,5 @@
 # Build context is the repository root. The Angular sources, the lockfile and a prebuilt dist are visible;
-# node_modules, caches, test output and everything outside frontend/ stay out of the image build.
+# node_modules, caches and test output stay out; infra/ permits only the proxy config and Caddy build inputs.
 **
 !frontend/
 frontend/node_modules/
@@ -18,3 +18,8 @@ infra/**
 !infra/proxy/
 infra/proxy/**
 !infra/proxy/Caddyfile
+!infra/caddy/
+infra/caddy/**
+!infra/caddy/go.mod
+!infra/caddy/go.sum
+!infra/caddy/main.go

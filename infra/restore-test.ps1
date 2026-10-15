@@ -41,7 +41,7 @@ try {
     [IO.File]::WriteAllText($secret,[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)))
     Invoke-MentorDocker @('volume','create',($name + '-pg')) | Out-Null; $pgVolumeCreated=$true
     Invoke-MentorDocker @('volume','create',($name + '-objects')) | Out-Null; $objectVolumeCreated=$true
-    Invoke-MentorDocker @('run','--detach','--name',$name,'--network','none','--mount',("type=bind,src=$(ConvertTo-MentorDockerPath $secret),dst=/run/secrets/password,readonly"),'--volume',($name + '-pg:/var/lib/postgresql/data'),'--env','POSTGRES_DB=mentor','--env','POSTGRES_USER=mentor','--env','POSTGRES_PASSWORD_FILE=/run/secrets/password','postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94') | Out-Null
+    Invoke-MentorDocker @('run','--detach','--name',$name,'--network','none','--mount',("type=bind,src=$(ConvertTo-MentorDockerPath $secret),dst=/run/secrets/password,readonly"),'--volume',($name + '-pg:/var/lib/postgresql/data'),'--env','POSTGRES_DB=mentor','--env','POSTGRES_USER=mentor','--env','POSTGRES_PASSWORD_FILE=/run/secrets/password','postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24') | Out-Null
     $pgCreated=$true
     $ready=$false
     for ($attempt=0; $attempt -lt 60; $attempt++) {

@@ -112,7 +112,7 @@ public final class SnapshotMigrationSmoke {
     }
 
     static PostgreSQLContainer newDatabase() {
-        return new PostgreSQLContainer(DockerImageName.parse("postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94").asCompatibleSubstituteFor("postgres"))
+        return new PostgreSQLContainer(DockerImageName.parse("postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24").asCompatibleSubstituteFor("postgres"))
                 .withDatabaseName("mentor_migration_smoke").withUsername("synthetic").withPassword(UUID.randomUUID().toString())
                 .withReuse(false).withLabel("ru.mentor.migration-smoke", "true")
                 .withCreateContainerCmdModifier(command -> command.getHostConfig().withPortBindings(

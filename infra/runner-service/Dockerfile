@@ -20,8 +20,12 @@ COPY runner/target/runner-*.jar /out/runner.jar
 
 FROM ${JAR_SOURCE} AS jar
 
-FROM docker:28.5.2-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d AS docker_cli
+FROM docker:29.9.0-cli@sha256:1a4c7cb63513f349bdad01fcc6e0f3f2f67d37b9da86f14dc0d4a0942eecda00 AS docker_cli
 FROM eclipse-temurin:21-jre-jammy@sha256:f04fb34e053148344e83317976114ec3f37e4b830ec8bdab5a2fe3cecd7d010b
+# USN-8847-1; retain the JRE/OS baseline until its official image includes this fix.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libssl3=3.0.2-0ubuntu1.30 \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
 RUN groupadd --gid 10001 mentor && useradd --uid 10001 --gid mentor --no-create-home --shell /usr/sbin/nologin mentor
 WORKDIR /opt/mentor

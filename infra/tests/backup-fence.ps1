@@ -14,7 +14,7 @@ function RejectFence([string]$Expected) {
 try {
     $container=(Invoke-MentorDocker @('run','--detach','--name',$name,'--network','none','--tmpfs','/var/lib/postgresql/data:rw,size=256m',
         '-e','POSTGRES_DB=mentor','-e','POSTGRES_USER=mentor','-e','POSTGRES_HOST_AUTH_METHOD=trust',
-        'postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94') | Out-String).Trim()
+        'postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24') | Out-String).Trim()
     Require ($container -match '^[a-f0-9]{64}$') 'Unexpected test container identity.'
     $ready=$false
     for($attempt=0;$attempt -lt 60;$attempt++) {

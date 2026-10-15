@@ -27,6 +27,10 @@ COPY backend/target/backend-*.jar /out/app.jar
 FROM ${JAR_SOURCE} AS jar
 
 FROM eclipse-temurin:21-jre-jammy@sha256:f04fb34e053148344e83317976114ec3f37e4b830ec8bdab5a2fe3cecd7d010b
+# USN-8847-1; retain the JRE/OS baseline until its official image includes this fix.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libssl3=3.0.2-0ubuntu1.30 \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --gid 10001 mentor && useradd --uid 10001 --gid mentor --no-create-home --shell /usr/sbin/nologin mentor \
     && mkdir -p /var/lib/mentor/objects /var/lib/mentor/spool && chown -R mentor:mentor /var/lib/mentor
 WORKDIR /opt/mentor

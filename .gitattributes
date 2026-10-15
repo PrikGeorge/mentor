@@ -16,6 +16,7 @@ Caddyfile* text eol=lf
 *.policy text eol=lf
 runner/src/main/resources/harness/** text eol=lf
 infra/systemd/** text eol=lf
+infra/caddy/** text eol=lf
 
 # Windows-only launchers.
 *.cmd text eol=crlf
