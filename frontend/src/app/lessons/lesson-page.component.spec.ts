@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { MarkdownRenderer } from '../editor/markdown-renderer.service';
+import { LessonPageComponent } from './lesson-page.component';
 import { base, click, configure, lesson, open, publicLesson, publicStudent, renderResources, student } from '../students/domain-test-support';
 
 // Q-07: the lesson page itself — preparation steps, the teacher's actions and the read-only views.
@@ -154,6 +157,25 @@ describe('Lesson page', () => {
         }
     });
 
+    it('renders the Markdown once per text and shows a saved text at once', async () => {
+        const render = vi.spyOn(MarkdownRenderer.prototype, 'render');
+        const { fixture, http, element } = await teacherPage('/teacher/students/s1/lessons/l1/teacher/plan', { ...lesson, teacherNotes: 'Первый **план**' });
+        try {
+            fixture.detectChanges();
+            fixture.detectChanges();
+            expect(render.mock.calls.filter(([text]) => text === 'Первый **план**')).toHaveLength(1);
+            const page = fixture.debugElement.query(By.directive(LessonPageComponent)).componentInstance as LessonPageComponent;
+            page.savedText({ kind: 'teacherNotes', revision: 2, markdown: 'Новый *план*' });
+            fixture.detectChanges();
+            expect(element.querySelector('.lesson-source em')?.textContent).toBe('план');
+            expect(render.mock.calls.filter(([text]) => text === 'Новый *план*')).toHaveLength(1);
+            http.verify();
+        } finally {
+            render.mockRestore();
+            fixture.destroy();
+        }
+    });
+
     it('shows an empty private scenario with the way to add it', async () => {
         const { fixture, http, element } = await teacherPage('/teacher/students/s1/lessons/l1/teacher/plan', { ...lesson, teacherNotes: '' });
         try {
@@ -252,7 +274,7 @@ describe('Lesson page', () => {
             http.expectOne((request) => request.url === base).flush(student);
             http.expectOne((request) => request.url === base + '/lessons/l1').flush(
                 { status: 404, code: 'NOT_FOUND', message: 'Resource unavailable.', requestId: 'synthetic' },
-                { status: 404, statusText: 'Not Found' },
+                { status: 404, statusText: 'Not Found' }
             );
             await renderResources();
             fixture.detectChanges();
