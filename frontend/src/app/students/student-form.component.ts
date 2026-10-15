@@ -1,7 +1,7 @@
 import { SessionStore } from '../core/session.store';
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal } from '@angular/core';
+import { createBoundScope } from '../core/bound-scope';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { StudentsApi, StudentView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
@@ -25,8 +25,7 @@ export class StudentFormComponent {
     readonly cancel = output<void>();
     private readonly api = inject(StudentsApi);
     private readonly session = inject(SessionStore);
-    private readonly ownerGeneration = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.student()?.id ?? null, this.student()?.revision ?? null]);
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
     private readonly injector = inject(Injector);
     readonly busy = signal(false);
@@ -34,18 +33,18 @@ export class StudentFormComponent {
     // Field errors appear after the first submit attempt and stay until the field becomes valid.
     readonly submitted = signal(false);
     readonly form = new FormGroup({ name: new FormControl('', { nonNullable: true, validators: [Validators.required, notBlank, Validators.maxLength(120)] }), direction: new FormControl('Java Backend', { nonNullable: true, validators: Validators.maxLength(120) }), goal: new FormControl('', { nonNullable: true, validators: Validators.maxLength(1000) }), schedule: new FormControl('', { nonNullable: true, validators: Validators.maxLength(500) }), notes: new FormControl('', { nonNullable: true, validators: Validators.maxLength(5000) }), studentRoadmap: new FormControl('', { nonNullable: true, validators: Validators.maxLength(20000) }), studentReview: new FormControl('', { nonNullable: true, validators: Validators.maxLength(20000) }) });
-    constructor() { effect(() => { const s = this.student(); this.submitted.set(false); this.form.reset({ name: s?.name ?? '', direction: s?.direction ?? 'Java Backend', goal: s?.goal ?? '', schedule: s?.schedule ?? '', notes: s && 'notes' in s ? s.notes : '', studentRoadmap: s?.studentRoadmap ?? '', studentReview: s?.studentReview ?? '' }); }); }
+    constructor() { effect(() => { this.workspaceId(); const s = this.student(); this.scope.bind(); this.busy.set(false); this.error.set(''); this.submitted.set(false); this.form.reset({ name: s?.name ?? '', direction: s?.direction ?? 'Java Backend', goal: s?.goal ?? '', schedule: s?.schedule ?? '', notes: s && 'notes' in s ? s.notes : '', studentRoadmap: s?.studentRoadmap ?? '', studentReview: s?.studentReview ?? '' }); }); }
     fieldError(field: Field): string {
         if (!this.submitted()) return ''; const control = this.form.controls[field];
         if (control.hasError('required') || control.hasError('blank')) return 'Введите имя.';
         const long = control.getError('maxlength') as { requiredLength: number } | null;
         return long ? `Не больше ${long.requiredLength.toLocaleString('ru-RU')} символов.` : '';
     }
-    save(event: Event) { event.preventDefault(); if (this.ownerGeneration !== this.session.generation() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
+    save(event: Event) { event.preventDefault(); if (!this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
         return; this.error.set(''); this.submitted.set(true); if (this.form.invalid) {
-        this.form.markAllAsTouched(); afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
+        this.form.markAllAsTouched(); const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector });
         return;
-    } this.busy.set(true); const s = this.student(); this.api.save(this.workspaceId(), s?.id ?? null, this.form.getRawValue(), s?.revision).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить карточку. Поля сохранены в форме.'); } }); }
+    } this.busy.set(true); const s = this.student(); this.scope.track(this.api.save(this.workspaceId(), s?.id ?? null, this.form.getRawValue(), s?.revision)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить карточку. Поля сохранены в форме.'); } }); }
 }
 // A name of spaces only is no name.
 function notBlank(control: { value: unknown }) { return typeof control.value === 'string' && control.value.length > 0 && !control.value.trim() ? { blank: true } : null; }

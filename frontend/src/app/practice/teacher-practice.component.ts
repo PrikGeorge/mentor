@@ -1,9 +1,8 @@
-import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, takeUntil } from 'rxjs';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import type { components } from '../api/schema';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { PracticeApi, LessonPracticeView, PublicExercise } from './practice-api.service';
 import { IconComponent } from '../core/icon.component';
 export const lessonKey = (lesson: LessonRef) => JSON.stringify([lesson.workspaceId, lesson.studentId, lesson.id]);
@@ -19,26 +18,23 @@ export class TeacherPracticeComponent {
     readonly error = signal('');
     private readonly api = inject(PracticeApi);
     private readonly session = inject(SessionStore);
-    private readonly owner = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
-    private readonly cancel = new Subject<void>();
+    private readonly scope = createBoundScope(() => [lessonKey(this.lesson())]);
     private bound = '';
     private counter = 0;
     private selection: components['schemas']['AssignmentsPut']['assignments'] = [];
-    private alive = true;
-    constructor() { this.destroyRef.onDestroy(() => { this.alive = false; this.cancel.next(); }); effect(onCleanup => { const lesson = this.lesson(), view = this.view(), key = lessonKey(lesson), page = this.page(); this.session.generation(); if (key !== this.bound) {
-        this.cancel.next();
+    constructor() { effect(onCleanup => { const lesson = this.lesson(), view = this.view(), key = lessonKey(lesson), page = this.page(); this.session.generation(); if (key !== this.bound) {
+        this.scope.bind();
         this.selection = view.exercises.map(row => ({ exerciseId: row.exercise.id, placement: row.placement }));
         this.counter = view.revision;
         this.bound = key;
         this.error.set('');
         this.busy.set(false);
     } if (!this.active())
-        return; const sub = this.api.catalog(lesson.workspaceId, false, page).subscribe({ next: result => { if (this.active()) {
+        return; const sub = this.scope.track(this.api.catalog(lesson.workspaceId, false, page)).subscribe({ next: result => { if (this.active()) {
             this.catalog.set(result.items);
             this.total.set(result.total);
         } }, error: () => this.error.set('Не удалось загрузить каталог.') }); onCleanup(() => sub.unsubscribe()); }); }
-    private active() { return this.alive && this.owner === this.session.generation() && this.session.actor()?.role === 'TEACHER' && this.bound === lessonKey(this.lesson()); }
+    private active() { return this.scope.active() && this.session.actor()?.role === 'TEACHER'; }
     assigned(id: string) { return this.selection.some(row => row.exerciseId === id); }
     placement(id: string) { return this.selection.find(row => row.exerciseId === id)?.placement; }
     toggle(id: string, event: Event) { if (!this.active() || this.busy())
@@ -49,11 +45,11 @@ export class TeacherPracticeComponent {
         return; const placement = (event.target as HTMLSelectElement).value; if (placement === 'class' || placement === 'homework')
         this.selection = this.selection.map(row => row.exerciseId === id ? { ...row, placement } : row); }
     save() { if (!this.active() || this.busy())
-        return; const key = this.bound; this.busy.set(true); this.api.assignments(this.lesson(), { revision: this.counter, assignments: this.selection.map(row => ({ ...row })) }).pipe(takeUntil(this.cancel), takeUntilDestroyed(this.destroyRef)).subscribe({ next: view => { if (!this.active() || key !== this.bound)
+        return; const key = this.bound; this.busy.set(true); this.scope.track(this.api.assignments(this.lesson(), { revision: this.counter, assignments: this.selection.map(row => ({ ...row })) })).subscribe({ next: view => { if (!this.active() || key !== this.bound)
             return; this.counter = view.revision; this.busy.set(false); this.error.set(''); this.saved.emit(view); }, error: () => { if (!this.active() || key !== this.bound)
             return; this.busy.set(false); this.error.set('Назначения не сохранены. Ваш выбор остаётся на экране; проверьте новую ревизию перед повтором.'); } }); }
     refreshCounter() { if (!this.active() || this.busy())
-        return; const key = this.bound; this.api.practice(this.lesson()).pipe(takeUntil(this.cancel), takeUntilDestroyed(this.destroyRef)).subscribe({ next: view => { if (this.active() && key === this.bound) {
+        return; const key = this.bound; this.scope.track(this.api.practice(this.lesson())).subscribe({ next: view => { if (this.active() && key === this.bound) {
             this.counter = view.revision;
             this.error.set('Ревизия обновлена. Проверьте свой выбор и сохраните ещё раз.');
         } }, error: () => { if (this.active())

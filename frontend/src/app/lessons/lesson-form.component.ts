@@ -1,7 +1,7 @@
 import { SessionStore } from '../core/session.store';
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal } from '@angular/core';
+import { createBoundScope } from '../core/bound-scope';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LessonsApi, LessonView } from './lessons-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
@@ -28,8 +28,7 @@ export class LessonFormComponent {
     readonly cancel = output<void>();
     private readonly api = inject(LessonsApi);
     private readonly session = inject(SessionStore);
-    private readonly ownerGeneration = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.lesson()?.id ?? null, this.lesson()?.revision ?? null]);
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
     private readonly injector = inject(Injector);
     readonly busy = signal(false);
@@ -37,7 +36,7 @@ export class LessonFormComponent {
     // Field errors appear after the first submit attempt and stay until the field becomes valid.
     readonly submitted = signal(false);
     readonly form = new FormGroup({ title: new FormControl('', { nonNullable: true, validators: [Validators.required, notBlank, Validators.maxLength(200)] }), date: new FormControl(moscowDate(), { nonNullable: true, validators: [Validators.required, calendarDate] }), time: new FormControl('12:00', { nonNullable: true, validators: [Validators.required, Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)] }), duration: new FormControl(60, { nonNullable: true, validators: [Validators.required, integer, Validators.min(15), Validators.max(240)] }) });
-    constructor() { effect(() => { const l = this.lesson(); this.submitted.set(false); this.form.reset({ title: l?.title ?? '', date: l?.date ?? moscowDate(), time: l?.time ?? '12:00', duration: l?.duration ?? 60 }); }); }
+    constructor() { effect(() => { this.workspaceId(); this.studentId(); const l = this.lesson(); this.scope.bind(); this.busy.set(false); this.error.set(''); this.submitted.set(false); this.form.reset({ title: l?.title ?? '', date: l?.date ?? moscowDate(), time: l?.time ?? '12:00', duration: l?.duration ?? 60 }); }); }
     fieldError(field: Field): string {
         if (!this.submitted()) return ''; const control = this.form.controls[field]; if (control.valid) return '';
         switch (field) {
@@ -47,11 +46,11 @@ export class LessonFormComponent {
             default: return 'Целое число от 15 до 240.';
         }
     }
-    save(event: Event) { event.preventDefault(); if (this.ownerGeneration !== this.session.generation() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
+    save(event: Event) { event.preventDefault(); if (!this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
         return; this.error.set(''); this.submitted.set(true); if (this.form.invalid) {
-        this.form.markAllAsTouched(); afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
+        this.form.markAllAsTouched(); const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector });
         return;
-    } const values = this.form.getRawValue(); this.busy.set(true); const l = this.lesson(); const request = l ? this.api.save(this.workspaceId(), this.studentId(), l.id, { ...values, revision: l.revision }) : this.api.create(this.workspaceId(), this.studentId(), values); request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить занятие. Поля сохранены в форме.'); } }); }
+    } const values = this.form.getRawValue(); this.busy.set(true); const l = this.lesson(); const request = l ? this.api.save(this.workspaceId(), this.studentId(), l.id, { ...values, revision: l.revision }) : this.api.create(this.workspaceId(), this.studentId(), values); this.scope.track(request).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить занятие. Поля сохранены в форме.'); } }); }
 }
 // A title of spaces only is no title.
 function notBlank(control: AbstractControl): ValidationErrors | null { return typeof control.value === 'string' && control.value.length > 0 && !control.value.trim() ? { blank: true } : null; }

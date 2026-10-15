@@ -21,6 +21,15 @@ describe('Isolated one-text Markdown editor', () => {
         expect(textarea.value).toBe('до **текст** после'); component.undo(); fixture.detectChanges();
         expect(textarea.value).toBe('до текст после'); expect(textarea.selectionStart).toBe(3); expect(textarea.selectionEnd).toBe(8);
     });
+    it('renders unchanged source when its revision is rebound before the preview debounce', () => {
+        vi.useFakeTimers();
+        try {
+            const { fixture, component } = editor('**Тот же текст**');
+            expect(component.rendered()).toBe(''); vi.advanceTimersByTime(60);
+            fixture.componentRef.setInput('revision', 5); fixture.detectChanges(); vi.advanceTimersByTime(120);
+            expect(component.rendered()).toBe('<p><strong>Тот же текст</strong></p>\n'); fixture.destroy();
+        } finally { vi.useRealTimers(); }
+    });
     it('imports append/replace as undoable edits preserving exact source', async () => {
         const { fixture, component, textarea } = editor('до');
         await component.importFile(fileOf(new TextEncoder().encode('  новое  \n'))); component.applyImport('append'); fixture.detectChanges();

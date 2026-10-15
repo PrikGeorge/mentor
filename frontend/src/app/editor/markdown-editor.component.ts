@@ -1,6 +1,7 @@
 import { Component, computed, DestroyRef, effect, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { LessonTextApi, LessonRef, LessonText, TextKind } from './lesson-text-api.service';
 import { MarkdownImport } from './markdown-import.service';
 import { MarkdownRenderer } from './markdown-renderer.service';
@@ -29,19 +30,19 @@ export class MarkdownEditorComponent {
     readonly modes = [['source', 'Текст'], ['both', 'Рядом'], ['preview', 'Просмотр']] as const;
     readonly labels = { teacherNotes: 'Сценарий преподавателя', studentNotes: 'Задания ученика', reviewNotes: 'Ревью занятия' };
     readonly tools = [['bold','bold','Жирный текст'],['italic','italic','Курсив'],['heading','heading','Заголовок второго уровня'],['bullet','list','Маркированный список'],['numbered','list-ordered','Нумерованный список'],['quote','quote','Цитата'],['link','link','Ссылка'],['table','table','Таблица'],['code','code','Блок кода Java']];
-    private readonly session = inject(SessionStore); private readonly generation = this.session.generation();
+    private readonly session = inject(SessionStore);
     private readonly importer = inject(MarkdownImport); private readonly renderer = inject(MarkdownRenderer); private readonly api = inject(LessonTextApi);
     private readonly textarea = viewChild<ElementRef<HTMLTextAreaElement>>('textarea'); private readonly destroyRef = inject(DestroyRef);
     private readonly closed = signal(false);
-    private readonly bound = signal<{ workspace: string; student: string; lesson: string; kind: TextKind; revision: number; value: string } | null>(null);
-    readonly active = computed(() => { const bound = this.bound(), lesson = this.lesson(); return this.alive && !this.closed() && this.generation === this.session.generation() && this.session.actor()?.role === 'TEACHER' && this.session.actor()?.workspaceId === lesson.workspaceId && bound?.workspace === lesson.workspaceId && bound.student === lesson.studentId && bound.lesson === lesson.id && bound.kind === this.kind() && bound.revision === this.revision() && bound.value === this.value(); });
+    private readonly scope = createBoundScope(() => { const lesson = this.lesson(); return [lesson.workspaceId, lesson.studentId, lesson.id, this.kind(), this.revision(), this.value()]; });
+    readonly active = computed(() => this.scope.active() && !this.closed() && this.session.actor()?.role === 'TEACHER' && this.session.actor()?.workspaceId === this.lesson().workspaceId);
     readonly canUndo = signal(false); readonly canRedo = signal(false);
     readonly sourceId = `md-source-${++editorSequence}`;
-    private history: EditState[] = []; private position = 0; private request = 0; private alive = true; private saveRequest?: Subscription;
+    private history: EditState[] = []; private position = 0; private request = 0; private saveRequest?: Subscription;
     constructor() {
-        effect(() => { const value = this.value(), lesson = this.lesson(), kind = this.kind(), revision = this.revision(); this.session.generation(); this.bound.set({ workspace: lesson.workspaceId, student: lesson.studentId, lesson: lesson.id, kind, revision, value }); this.closed.set(false); this.conflict.set(false); this.request++; this.pending.set(null); this.reading.set(false); this.saveRequest?.unsubscribe(); this.busy.set(false); this.error.set(''); this.source.set(value); this.history = [{ value, start: value.length, end: value.length }]; this.position = 0; this.updateHistory(); });
-        effect(onCleanup => { const source = this.source(); const timer = setTimeout(() => { if (this.active()) this.rendered.set(this.renderer.render(source)); }, 120); onCleanup(() => clearTimeout(timer)); });
-        this.destroyRef.onDestroy(() => { this.alive = false; this.request++; this.pending.set(null); this.saveRequest?.unsubscribe(); });
+        effect(() => { const value = this.value(); this.session.generation(); this.scope.bind(); this.closed.set(false); this.conflict.set(false); this.request++; this.pending.set(null); this.reading.set(false); this.saveRequest?.unsubscribe(); this.busy.set(false); this.error.set(''); this.source.set(value); this.history = [{ value, start: value.length, end: value.length }]; this.position = 0; this.updateHistory(); });
+        effect(onCleanup => { const source = this.source(); if (!this.scope.active()) return; const current = this.scope.capture(); const timer = setTimeout(() => { if (current() && this.active()) this.rendered.set(this.renderer.render(source)); }, 120); onCleanup(() => clearTimeout(timer)); });
+        this.destroyRef.onDestroy(() => { this.request++; this.pending.set(null); this.saveRequest?.unsubscribe(); });
     }
     private current(): EditState { const element = this.textarea()?.nativeElement; return { value: this.source(), start: element?.selectionStart ?? this.source().length, end: element?.selectionEnd ?? this.source().length }; }
     private updateHistory() { this.canUndo.set(this.position > 0); this.canRedo.set(this.position < this.history.length - 1); }
@@ -58,10 +59,10 @@ export class MarkdownEditorComponent {
     shortcut(event: KeyboardEvent) { if (!(event.ctrlKey || event.metaKey) || event.altKey) return; const key = event.key.toLowerCase(); if (['b','i','z','y'].includes(key)) { event.preventDefault(); if (key === 'b' || key === 'i') this.format(key === 'b' ? 'bold' : 'italic'); else if (key === 'y' || event.shiftKey) this.redo(); else this.undo(); } }
     chooseFile(event: Event) { const element = event.target as HTMLInputElement, file = element.files?.[0]; element.value = ''; if (file) void this.importFile(file); }
     async importFile(file: File) {
-        if (!this.active() || this.busy()) return; const stamp = ++this.request; this.pending.set(null); this.error.set(''); this.reading.set(true);
-        try { const text = await this.importer.read(file); if (this.active() && stamp === this.request) { this.pending.set({ text, name: file.name, stamp }); if (!this.source()) this.applyImport('replace'); } }
-        catch (error) { if (this.active() && stamp === this.request) this.error.set(error instanceof Error ? error.message : 'Не удалось прочитать файл.'); }
-        finally { if (stamp === this.request || this.pending()?.stamp === stamp) this.reading.set(false); }
+        if (!this.active() || this.busy()) return; const stamp = ++this.request, current = this.scope.capture(); this.pending.set(null); this.error.set(''); this.reading.set(true);
+        try { const text = await this.importer.read(file); if (current() && this.active() && stamp === this.request) { this.pending.set({ text, name: file.name, stamp }); if (!this.source()) this.applyImport('replace'); } }
+        catch (error) { if (current() && this.active() && stamp === this.request) this.error.set(error instanceof Error ? error.message : 'Не удалось прочитать файл.'); }
+        finally { if (current() && (stamp === this.request || this.pending()?.stamp === stamp)) this.reading.set(false); }
     }
     applyImport(mode: 'replace' | 'append') {
         const pending = this.pending(); if (!this.active() || this.busy() || !pending || pending.stamp !== this.request) return;
@@ -80,7 +81,7 @@ export class MarkdownEditorComponent {
     save(event?: Event) {
         event?.preventDefault(); if (!this.active() || this.busy()) return; this.error.set(''); if (this.source().length > 200000) { this.error.set('В тексте может быть не больше 200 000 символов.'); return; }
         this.request++; this.pending.set(null); this.reading.set(false); this.busy.set(true); const lesson = this.lesson(), kind = this.kind(), revision = this.revision(), markdown = this.source();
-        this.saveRequest = this.api.save(lesson, kind, markdown, revision).subscribe({ next: saved => { if (this.active()) { this.busy.set(false); this.saved.emit(saved); } }, error: error => { if (this.active()) { this.busy.set(false); this.conflict.set(error.status === 409); this.error.set(error.error?.message ?? 'Не удалось сохранить текст. Введённый текст сохранён в редакторе.'); } } });
+        this.saveRequest = this.scope.track(this.api.save(lesson, kind, markdown, revision)).subscribe({ next: saved => { if (this.active()) { this.busy.set(false); this.saved.emit(saved); } }, error: error => { if (this.active()) { this.busy.set(false); this.conflict.set(error.status === 409); this.error.set(error.error?.message ?? 'Не удалось сохранить текст. Введённый текст сохранён в редакторе.'); } } });
     }
 }
 let editorSequence = 0;

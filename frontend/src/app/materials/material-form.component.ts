@@ -1,6 +1,7 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { MaterialsApi, MaterialSummary } from './materials-api.service';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 type Kind = 'doc' | 'download';
@@ -47,9 +48,11 @@ export class MaterialFormComponent {
     // Validation errors sit under their fields; the banner is for the server's answer only.
     readonly fieldErrors = signal<FieldErrors>({});
     readonly roles = computed(() => ROLES.filter(role => role.audience === this.audience() && role.lesson === !!this.lessonId()));
-    private readonly api = inject(MaterialsApi); private readonly session = inject(SessionStore); private readonly owner = this.session.generation();
+    private readonly api = inject(MaterialsApi); private readonly session = inject(SessionStore);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.lessonId()]);
     private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef); private readonly injector = inject(Injector);
+    constructor() { effect(() => { this.scope.bind(); this.kind.set('doc'); this.audience.set('student'); this.contentKey.set(''); this.title.set(''); this.markdown.set(''); this.file.set(null); this.busy.set(false); this.error.set(''); this.fieldErrors.set({}); }); }
     setKind(value: string) { if (value === 'doc' || value === 'download') { this.kind.set(value); this.error.set(''); this.fieldErrors.set({}); } }
     setAudience(value: string) { if (value === 'student' || value === 'teacher') { this.audience.set(value); if (!this.roles().some(role => role.key === this.contentKey())) this.contentKey.set(''); } }
     chooseFile(event: Event) { this.file.set((event.target as HTMLInputElement).files?.[0] ?? null); this.error.set(''); this.fieldErrors.set({}); }
@@ -61,15 +64,15 @@ export class MaterialFormComponent {
         return errors;
     }
     save(event?: Event) {
-        event?.preventDefault(); if (this.busy() || this.owner !== this.session.generation()) return; this.error.set('');
+        event?.preventDefault(); if (this.busy() || !this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; this.error.set('');
         const errors = this.validate(); this.fieldErrors.set(errors);
-        if (Object.keys(errors).length) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector }); return; }
+        if (Object.keys(errors).length) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector }); return; }
         const form = new FormData(); form.append('kind', this.kind()); form.append('audience', this.audience()); if (this.contentKey()) form.append('contentKey', this.contentKey()); if (this.title().trim()) form.append('title', this.title().trim());
         if (this.kind() === 'doc') form.append('markdown', this.markdown()); else form.append('file', this.file()!, this.file()!.name);
         this.busy.set(true);
-        this.api.create(this.workspaceId(), this.studentId(), this.lessonId(), form).subscribe({
-            next: created => { if (this.owner !== this.session.generation()) return; this.busy.set(false); this.title.set(''); this.markdown.set(''); this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.saved.emit(created); },
-            error: error => { if (this.owner !== this.session.generation()) return; this.busy.set(false); this.error.set(error.status === 409 ? 'Документ с этой ролью уже есть. Удалите его или выберите другую роль.' : error.status === 413 ? 'Файл больше 20 МиБ.' : error.error?.message ?? 'Не удалось сохранить материал.'); },
+        this.scope.track(this.api.create(this.workspaceId(), this.studentId(), this.lessonId(), form)).subscribe({
+            next: created => { this.busy.set(false); this.title.set(''); this.markdown.set(''); this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.saved.emit(created); },
+            error: error => { this.busy.set(false); this.error.set(error.status === 409 ? 'Документ с этой ролью уже есть. Удалите его или выберите другую роль.' : error.status === 413 ? 'Файл больше 20 МиБ.' : error.error?.message ?? 'Не удалось сохранить материал.'); },
         });
     }
 }

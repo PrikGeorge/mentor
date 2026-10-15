@@ -34,4 +34,22 @@ describe('Teacher material form', () => {
         const request = http.expectOne('/api/v1/workspaces/w1/students/s1/materials'); const body = request.request.body as FormData; expect(body.get('kind')).toBe('download'); expect((body.get('file') as File).name).toBe('kit.zip'); expect(body.has('markdown')).toBe(false);
         request.flush({ id: 'm2', workspaceId: 'w1', studentId: 's1', lessonId: null, bundleId: null, audience: 'teacher', kind: 'download', contentKey: null, filename: 'kit.zip', contentType: 'application/zip', title: 'kit.zip' }, { status: 201, statusText: 'Created' }); fixture.detectChanges(); expect(component.file()).toBeNull();
     });
+    it('keeps typing across renders but never posts the old draft to a new lesson before reset', () => {
+        const { fixture, http, component } = form();
+        component.markdown.set('Old lesson draft'); component.title.set('Draft title'); fixture.detectChanges();
+        expect(component.markdown()).toBe('Old lesson draft'); expect(component.title()).toBe('Draft title');
+        fixture.componentRef.setInput('lessonId', 'l2'); component.save();
+        http.expectNone(request => request.method === 'POST');
+        fixture.detectChanges(); expect(component.markdown()).toBe(''); expect(component.title()).toBe('');
+    });
+    it('ignores a previous lesson response before reset and cancels uploads when destroyed', () => {
+        const { fixture, http, component } = form(); const saved: unknown[] = []; component.saved.subscribe(value => saved.push(value));
+        component.markdown.set('First draft'); component.save();
+        const old = http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials');
+        fixture.componentRef.setInput('lessonId', 'l2');
+        old.flush({ id: 'old-material' }); expect(saved).toEqual([]);
+        fixture.detectChanges(); component.markdown.set('Second draft'); component.save();
+        const pending = http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l2/materials');
+        fixture.destroy(); expect(pending.cancelled).toBe(true); expect(saved).toEqual([]);
+    });
 });

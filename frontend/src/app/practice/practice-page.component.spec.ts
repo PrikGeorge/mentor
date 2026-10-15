@@ -6,12 +6,48 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { PracticeWorkbench } from './practice-page.component';
 import { DraftRecovery } from './draft-recovery.service';
 import { SessionStore } from '../core/session.store';
+import { PracticeExit } from '../core/practice-exit.service';
 import { sessionInterceptor } from '../core/session.interceptor';
 import { MonacoLoader } from './monaco-loader.service';
 import type { PublicExercise } from './practice-api.service';
 const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' }, exercise: PublicExercise = { id: 'e1', revision: 1, title: 'Synthetic exercise', statement: 'Public statement', environment: { id: 'java', title: 'Java21', javaVersion: 21, dependencies: [] }, starterFiles: { 'Task.java': 'template' } }, draft = { exerciseId: 'e1', exerciseRevision: 1, revision: 0, files: exercise.starterFiles, updatedAt: null };
 const root = '/api/v1/workspaces/w1/students/s1/lessons/l1/practice', attempt = { id: 'accepted-id', exerciseId: 'e1', exerciseRevision: 1, mode: 'run', environmentRevision: 'synthetic', jobState: 'queued', files: exercise.starterFiles, result: null, createdAt: '2030-01-01T00:00:00Z' };
 describe('Account/lesson-bound practice workbench', () => {
+    it('ignores an old exit confirmation after navigating A to B and back to A', async () => {
+        const { component, fixture, http } = page();
+        let allow!: (value: boolean) => void;
+        const ask = vi.spyOn(TestBed.inject(PracticeExit), 'ask').mockImplementation(() => new Promise(resolve => allow = resolve));
+        try {
+            const pendingChoice = component.choose('old-choice');
+            fixture.componentRef.setInput('lesson', { ...lesson, id: 'l2' });
+            fixture.detectChanges();
+            const other = http.match(request => request.url.includes('/lessons/l2/'));
+            fixture.componentRef.setInput('lesson', lesson);
+            fixture.detectChanges();
+            expect(other.length).toBeGreaterThan(0);
+            expect(other.every(request => request.cancelled)).toBe(true);
+            http.expectOne(root).flush({ revision: 0, exercises: [] });
+            http.expectOne(root + '/history?page=0&size=100').flush({ items: [], page: 0, size: 100, total: 0 });
+            for (const request of http.match(request => request.url.endsWith('/materials'))) request.flush({ items: [], page: 0, size: 25, total: 0 });
+            fixture.detectChanges();
+            expect(component.owned()).toBe(true);
+            allow(true);
+            await pendingChoice;
+            expect(component.selectedId()).toBe('');
+        } finally { ask.mockRestore(); fixture.destroy(); }
+    });
+    it('rejects source handlers immediately when preview changes before rendering', () => {
+        const { component, fixture, http } = page();
+        component.draft.edit('Task.java', 'retained source');
+        fixture.componentRef.setInput('preview', true);
+        component.run('submit');
+        component.revalidate();
+        expect(component.runnable()).toBe(false);
+        expect(component.sourceOwner()).toBe(false);
+        expect(unloadWarning()).toBe(false);
+        http.expectNone(request => request.method === 'POST' || request.method === 'PUT' || request.url.endsWith('/auth/session'));
+        fixture.destroy();
+    });
     it('warns before losing unsaved code while session revalidation is unavailable', () => {
         const {component, http, fixture} = page();
         const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });

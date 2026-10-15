@@ -3,6 +3,7 @@ import { HttpEventType, HttpResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { HomeworkApi, Submission, validateHomework } from './homework-api.service';
 import { LessonReviewComponent } from '../reviews/lesson-review.component';
 import { IconComponent } from '../core/icon.component';
@@ -50,20 +51,21 @@ export class HomeworkPageComponent {
     // One work's code is open at a time; its text is fetched on demand and never cached across lessons.
     readonly openCode = signal<string | null>(null); readonly code = signal<Record<string, string> | null>(null); readonly codeError = signal(''); private codeRequest?: Subscription;
     readonly labels = { submitted: 'Ожидает проверки', reviewed: 'Проверено', needs_revision: 'Нужна доработка' };
-    private readonly session = inject(SessionStore); private readonly api = inject(HomeworkApi); private readonly owner = this.session.generation();
+    private readonly session = inject(SessionStore); private readonly api = inject(HomeworkApi);
+    private readonly scope = createBoundScope(() => { const lesson = this.lesson(); return [lesson.workspaceId, lesson.studentId, lesson.id, this.preview(), this.mode()]; });
     private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
-    private readonly bound = signal<LessonRef|null>(null); private alive = true; private sequence = 0; private uploadRequest?: Subscription; private listRequest?: Subscription; private downloads: Subscription[] = []; private urls = new Set<string>();
-    readonly active = computed(() => { const b = this.bound(), l = this.lesson(); return this.alive && this.owner === this.session.generation() && this.session.actor()?.workspaceId === l.workspaceId && b?.workspaceId === l.workspaceId && b.studentId === l.studentId && b.id === l.id; });
+    private sequence = 0; private uploadRequest?: Subscription; private listRequest?: Subscription; private downloads: Subscription[] = []; private urls = new Set<string>();
+    readonly active = computed(() => this.scope.active() && this.session.actor()?.workspaceId === this.lesson().workspaceId);
     readonly canSubmit = computed(() => this.active() && this.session.actor()?.role === 'STUDENT' && !this.preview() && this.mode() === 'homework');
     readonly canReview = computed(() => this.active() && this.session.actor()?.role === 'TEACHER' && !this.preview());
     constructor() {
-        effect(() => { const lesson = this.lesson(); this.session.generation(); this.preview(); this.mode(); this.cancel(); this.bound.set({ ...lesson }); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); if (this.active()) this.load(0); });
-        inject(DestroyRef).onDestroy(() => { this.alive = false; this.cancel(); });
+        effect(() => { this.session.generation(); this.scope.bind(); this.cancel(); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); if (this.active()) this.load(0); });
+        inject(DestroyRef).onDestroy(() => this.cancel());
     }
     private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); this.listRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls.clear(); this.busy.set(false); this.loading.set(false); }
     private load(page: number) {
         if (!this.active()) return; this.listRequest?.unsubscribe(); this.loading.set(true); this.listError.set(''); const stamp = this.sequence;
-        this.listRequest = this.api.list(this.lesson(), page).subscribe({ next: result => { if (this.active() && stamp === this.sequence) { this.submissions.set(result.items); if (page === 0) this.latest.set(result.items[0] ?? null); this.total.set(result.total); this.loading.set(false); this.unknown.set(false); } }, error: error => { if (this.active() && stamp === this.sequence) { this.loading.set(false); this.listError.set(error.error?.message ?? 'Не удалось загрузить историю работ.'); } } });
+        this.listRequest = this.scope.track(this.api.list(this.lesson(), page)).subscribe({ next: result => { if (this.active() && stamp === this.sequence) { this.submissions.set(result.items); if (page === 0) this.latest.set(result.items[0] ?? null); this.total.set(result.total); this.loading.set(false); this.unknown.set(false); } }, error: error => { if (this.active() && stamp === this.sequence) { this.loading.set(false); this.listError.set(error.error?.message ?? 'Не удалось загрузить историю работ.'); } } });
     }
     refreshHistory() { if (!this.active() || this.busy()) return; this.page.set(0); this.load(0); }
     setPage(page: number) { if (!this.active() || this.busy() || this.loading()) return; this.page.set(page); this.load(page); }
@@ -82,7 +84,7 @@ export class HomeworkPageComponent {
         const file = this.file(), invalid = validateHomework(file, this.comment(), this.repositoryUrl()); if (invalid) { this.error.set(invalid); return; }
         const key = this.idempotencyKey ??= this.newKey();
         this.busy.set(true); this.progress.set(null); const stamp = this.sequence;
-        this.uploadRequest = this.api.upload(this.lesson(), file!, this.comment(), this.repositoryUrl(), () => this.canSubmit() && stamp === this.sequence, key).subscribe({ next: event => {
+        this.uploadRequest = this.scope.track(this.api.upload(this.lesson(), file!, this.comment(), this.repositoryUrl(), () => this.canSubmit() && stamp === this.sequence, key)).subscribe({ next: event => {
             if (!this.active() || stamp !== this.sequence) return;
             if (event.type === HttpEventType.UploadProgress) this.progress.set(event.total ? Math.min(100, Math.floor(event.loaded/event.total*100)) : null);
             if (event instanceof HttpResponse && event.status === 201 && event.body) { this.busy.set(false); this.clearForm(); this.succeeded.set(true); this.page.set(0); this.load(0); }
@@ -97,11 +99,11 @@ export class HomeworkPageComponent {
     }
     loadCode(submission: Submission) {
         this.codeRequest?.unsubscribe(); this.code.set(null); this.codeError.set(''); const stamp = this.sequence;
-        this.codeRequest = this.api.text(this.lesson(), submission.id).subscribe({ next: text => { if (this.active() && stamp === this.sequence) this.code.set({ [text.filename]: text.text }); }, error: error => { if (this.active() && stamp === this.sequence) this.codeError.set(error.status === 415 ? 'Этот файл нельзя показать как текст. Скачайте его.' : 'Не удалось загрузить код работы.'); } });
+        this.codeRequest = this.scope.track(this.api.text(this.lesson(), submission.id)).subscribe({ next: text => { if (this.active() && stamp === this.sequence) this.code.set({ [text.filename]: text.text }); }, error: error => { if (this.active() && stamp === this.sequence) this.codeError.set(error.status === 415 ? 'Этот файл нельзя показать как текст. Скачайте его.' : 'Не удалось загрузить код работы.'); } });
     }
     download(submission: Submission) {
         if (!this.active()) return; const stamp = this.sequence; this.downloadErrors.update(errors => Object.fromEntries(Object.entries(errors).filter(([id]) => id !== submission.id)));
-        const request = this.api.download(this.lesson(), submission.id).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: error.error?.message ?? 'Не удалось скачать работу.' })); } }); this.downloads.push(request);
+        const request = this.scope.track(this.api.download(this.lesson(), submission.id)).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: error.error?.message ?? 'Не удалось скачать работу.' })); } }); this.downloads.push(request);
     }
     date(value: string) { return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
     repositoryLink(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null; } catch { return null; } }

@@ -1,10 +1,10 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, switchMap } from 'rxjs';
+import { EMPTY, Observable, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { StudentsApi, StudentAccessView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
@@ -26,8 +26,7 @@ export class AccountAccessComponent {
     readonly studentId = input.required<string>();
     private readonly api = inject(StudentsApi);
     private readonly session = inject(SessionStore);
-    private readonly ownerGeneration = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId()]);
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
     private readonly injector = inject(Injector);
     private readonly refresh = signal(0);
@@ -41,34 +40,34 @@ export class AccountAccessComponent {
     readonly password = new FormControl('', { nonNullable: true, validators: Validators.required });
     // Wording bound by students/student-page.component.spec.ts; the administrator's page uses the short design words.
     readonly invitationLabels = { pending: 'Приглашение действует', used: 'Приглашение использовано', revoked: 'Приглашение отозвано', expired: 'Приглашение истекло' };
-    constructor() { effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(); this.refresh(); this.data.set(null); this.error.set(''); this.issued.set(null); this.cancelReset(); if (this.session.actor()?.role !== 'TEACHER')
-        return; const sub = this.api.access(w, s).subscribe({ next: v => this.data.set(v), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить доступ.') }); onCleanup(() => sub.unsubscribe()); }); }
+    constructor() { effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(); this.refresh(); this.scope.bind(); this.data.set(null); this.error.set(''); this.issued.set(null); this.busy.set(false); this.confirming.set(false); this.copied.set(false); this.cancelReset(); if (!this.scope.current() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== w)
+        return; const sub = this.scope.track(this.api.access(w, s)).subscribe({ next: v => this.data.set(v), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить доступ.') }); onCleanup(() => sub.unsubscribe()); }); }
     reload() { this.refresh.update(v => v + 1); }
     cancelReset() { this.resetOpen.set(false); this.password.reset(); this.passwordMissing.set(false); }
     // Opening and closing by hand move keyboard focus with the box: into the password field, back to the link button.
-    openReset() { this.resetOpen.set(true); this.focus('[name="currentPassword"]'); }
+    openReset() { if (!this.scope.active()) return; this.resetOpen.set(true); this.focus('[name="currentPassword"]'); }
     closeReset() { this.cancelReset(); this.focus('.reset-link'); }
-    private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
     select(event: Event) { (event.target as HTMLInputElement).select(); }
-    copy(link: string) { void navigator.clipboard?.writeText(link).then(() => this.copied.set(true), () => this.copied.set(false)); }
-    private run(action: Observable<unknown>, issue = false) { if (this.busy() || this.ownerGeneration !== this.session.generation() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId())
-        return; this.busy.set(true); this.error.set(''); this.issued.set(null); this.copied.set(false); action.pipe(switchMap(value => { if (issue) {
+    copy(link: string) { if (!this.scope.active()) return; const current = this.scope.capture(); void navigator.clipboard?.writeText(link).then(() => { if (current()) this.copied.set(true); }, () => { if (current()) this.copied.set(false); }); }
+    private run(action: Observable<unknown>, issue = false) { if (this.busy() || !this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId())
+        return; const current = this.scope.capture(), workspace = this.workspaceId(), student = this.studentId(); this.busy.set(true); this.error.set(''); this.issued.set(null); this.copied.set(false); this.scope.track(action.pipe(switchMap(value => { if (!current()) return EMPTY; if (issue) {
         const link = value as components['schemas']['PasswordResetIssue'];
         const url = new URL(link.link, location.origin);
         if (url.origin !== location.origin || !['/register', '/reset-password'].includes(url.pathname))
             throw new Error('Некорректная ссылка.');
         this.issued.set({ ...link, link: url.href });
-    } return this.api.access(this.workspaceId(), this.studentId()); }), takeUntilDestroyed(this.destroyRef)).subscribe({ next: view => { this.data.set(view); this.busy.set(false); }, error: error => { this.error.set(error.error?.message ?? 'Не удалось изменить доступ.'); this.busy.set(false); } }); }
+    } return this.api.access(workspace, student); }))).subscribe({ next: view => { this.data.set(view); this.busy.set(false); }, error: error => { this.error.set(error.error?.message ?? 'Не удалось изменить доступ.'); this.busy.set(false); } }); }
     invite() { if (this.data()?.account)
         return; this.run(this.api.invite(this.workspaceId(), this.studentId()), true); }
     revoke() { const invitation = this.data()?.invitation; if (invitation?.state !== 'pending')
         return; this.run(this.api.revoke(this.workspaceId(), this.studentId(), invitation.id)); }
     // Suspending access is a two-step action: the first click only opens the confirmation and focuses it.
     readonly confirming = signal(false);
-    confirm() { this.confirming.set(true); this.focus('.inline-confirm'); }
+    confirm() { if (!this.scope.active()) return; this.confirming.set(true); this.focus('.inline-confirm'); }
     cancelConfirm() { this.confirming.set(false); this.focus('.access-toggle'); }
     setDisabled(disabled: boolean) { if (!this.data()?.account)
         return; this.confirming.set(false); this.run(this.api.changeAccess(this.workspaceId(), this.studentId(), disabled)); }
-    reset(event: Event) { event.preventDefault(); if (this.busy()) return; if (this.password.invalid) { this.passwordMissing.set(true); this.focus('[name="currentPassword"]'); return; }
+    reset(event: Event) { event.preventDefault(); if (this.busy() || !this.scope.active()) return; if (this.password.invalid) { this.passwordMissing.set(true); this.focus('[name="currentPassword"]'); return; }
         const password = this.password.value; this.cancelReset(); this.run(this.api.reset(this.workspaceId(), this.studentId(), password), true); }
 }

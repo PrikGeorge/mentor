@@ -54,6 +54,27 @@ describe('Scoped material reading', () => {
     it('cancels pending material content when the account changes', () => {
         const { http, session } = view(); http.expectOne(request => request.url.endsWith('/lessons/l1/materials')).flush({ items: [metadata], page: 0, size: 25, total: 1 }); const request = http.expectOne('/api/v1/workspaces/w1/materials/doc1?audience=student'); session.invalidate(); expect(request.cancelled).toBe(true);
     });
+    it('drops the old lesson content error before the input reset effect runs', () => {
+        const { fixture, http } = view();
+        http.expectOne(request => request.url.endsWith('/lessons/l1/materials')).flush({ items: [metadata], page: 0, size: 25, total: 1 });
+        const old = http.expectOne('/api/v1/workspaces/w1/materials/doc1?audience=student');
+        fixture.componentRef.setInput('lessonId', 'l2');
+        old.flush({ message: 'Old lesson material error' }, { status: 404, statusText: 'Not Found' });
+        expect(fixture.componentInstance.error()).toBe('');
+        fixture.detectChanges();
+        http.expectOne(request => request.url.endsWith('/lessons/l2/materials')).flush({ items: [], page: 0, size: 25, total: 0 });
+        expect(fixture.componentInstance.selected()).toBeNull();
+    });
+    it('cancels material removal on lesson rebind without reporting a change in the next lesson', () => {
+        const { fixture, http } = view('materials', false); fixture.componentRef.setInput('editable', true); fixture.detectChanges();
+        http.expectOne(request => request.url.endsWith('/lessons/l1/materials')).flush({ items: [metadata], page: 0, size: 25, total: 1 });
+        const component = fixture.componentInstance; let changes = 0; component.changed.subscribe(() => changes++);
+        component.remove(metadata); const remove = http.expectOne('/api/v1/workspaces/w1/materials/doc1');
+        fixture.componentRef.setInput('lessonId', 'l2'); fixture.detectChanges();
+        expect(remove.cancelled).toBe(true); expect(changes).toBe(0); expect(component.removing()).toBe(false);
+        http.expectOne(request => request.url.endsWith('/lessons/l2/materials')).flush({ items: [], page: 0, size: 25, total: 0 });
+        component.remove(metadata); http.expectNone(request => request.method === 'DELETE');
+    });
     it('renders nested legacy source markers as read-only code and safe disclosures', () => {
         const { fixture, http, element } = view();
         http.expectOne(request=>request.url.endsWith('/lessons/l1/materials')).flush({ items: [metadata, { ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask' }], page: 0, size: 25, total: 2 });

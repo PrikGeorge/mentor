@@ -2,6 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, input, signal, untrack
 import { EMPTY, Subscription, expand, forkJoin, map, reduce } from 'rxjs';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { PracticeExit } from '../core/practice-exit.service';
 import { MarkdownRenderer } from '../editor/markdown-renderer.service';
 import { MaterialsApi, MaterialView } from '../materials/materials-api.service';
@@ -37,7 +38,7 @@ export class PracticeWorkbench {
     private readonly api = inject(PracticeApi);
     private readonly materials = inject(MaterialsApi);
     private readonly session = inject(SessionStore);
-    private readonly owner = this.session.generation();
+    private readonly scope = createBoundScope(() => { const lesson = this.lesson(); return [lesson.workspaceId, lesson.studentId, lesson.id, this.preview()]; });
     private readonly exit = inject(PracticeExit);
     private readonly destroyRef = inject(DestroyRef);
     // Session revalidation after the tab was hidden: source is frozen until the same account is confirmed.
@@ -65,16 +66,14 @@ export class PracticeWorkbench {
     readonly dark = signal(storedTheme());
     private bound = '';
     private selection = '';
-    private alive = true;
     constructor() {
         this.store.attach({ lesson: () => this.lesson(), preview: () => this.preview(), selectedId: () => this.selectedId(), key: () => this.bound, valid: (id, key) => this.validSelection(id, key) });
-        const unregister = this.exit.register({ valid: () => this.sourceOwner(), blocked: () => this.alive && this.owner === this.session.generation() && this.checking(), dirty: () => this.draft.dirty(), pause: value => this.draft.pause(value), save: () => this.draft.save(), export: () => this.exportFiles(), discard: () => this.draft.discard() });
+        const unregister = this.exit.register({ valid: () => this.sourceOwner(), blocked: () => this.scope.current() && this.checking(), dirty: () => this.draft.dirty(), pause: value => this.draft.pause(value), save: () => this.draft.save(), export: () => this.exportFiles(), discard: () => this.draft.discard() });
         const beforeUnload = (event: BeforeUnloadEvent) => { if (this.retainedDirtySource()) { event.preventDefault(); event.returnValue = ''; } };
         window.addEventListener('beforeunload', beforeUnload);
         const visibility = () => { if (document.visibilityState === 'hidden') this.suspend(); else this.revalidate(); };
         document.addEventListener('visibilitychange', visibility);
         this.destroyRef.onDestroy(() => {
-            this.alive = false;
             this.draft.stop();
             this.store.cancelLesson();
             this.store.cancelSelection();
@@ -91,6 +90,7 @@ export class PracticeWorkbench {
             const lesson = this.lesson(), preview = this.preview();
             this.loadTick();
             this.session.generation();
+            this.scope.bind();
             this.bound = lessonKey(lesson);
             this.selectedId.set('');
             this.view.set(null);
@@ -104,7 +104,7 @@ export class PracticeWorkbench {
             const history = this.api.history(lesson, preview).pipe(
                 expand(page => page.items.length && (page.page + 1) * page.size < page.total ? this.api.history(lesson, preview, page.page + 1) : EMPTY),
                 map(page => page.items), reduce((all, items) => [...all, ...items], [] as HistoryEntry[]));
-            const sub = forkJoin({ view: this.api.practice(lesson, preview), history }).subscribe({
+            const sub = this.scope.track(forkJoin({ view: this.api.practice(lesson, preview), history })).subscribe({
                 next: result => {
                     if (!this.owned()) return;
                     this.view.set(result.view);
@@ -130,7 +130,7 @@ export class PracticeWorkbench {
             if (!id || !this.owned()) return;
             const exercise = untracked(this.current), key = this.bound;
             const hasDraft = exercise || untracked(this.history).some(row => row.exerciseId === id && row.hasDraft);
-            const sub = hasDraft ? this.api.draft(lesson, id, preview).subscribe({
+            const sub = hasDraft ? this.scope.track(this.api.draft(lesson, id, preview)).subscribe({
                 next: result => {
                     if (!this.validSelection(id, key)) return;
                     if (!exercise) { this.store.historicalFiles.set({ ...result.files }); return; }
@@ -155,11 +155,11 @@ export class PracticeWorkbench {
         });
     }
     private loadReferences(lesson: LessonRef, preview: boolean): Subscription {
-        return this.materials.catalog(lesson.workspaceId, lesson.studentId, lesson.id, preview).subscribe({
+        return this.scope.track(this.materials.catalog(lesson.workspaceId, lesson.studentId, lesson.id, preview)).subscribe({
             next: rows => {
                 const publicCode = rows.filter(row => row.kind === 'code' && row.audience === 'student');
                 if (!publicCode.length) return;
-                forkJoin(publicCode.map(row => this.materials.load(lesson.workspaceId, row.id, preview))).pipe(this.store.untilLessonChange()).subscribe({
+                this.scope.track(forkJoin(publicCode.map(row => this.materials.load(lesson.workspaceId, row.id, preview))).pipe(this.store.untilLessonChange())).subscribe({
                     next: items => { if (this.owned()) this.references.set(items); },
                     error: () => { if (this.owned()) this.store.fail('Исходные материалы временно недоступны. Черновик остаётся в редакторе.', () => { this.loadReferences(lesson, preview); }); },
                 });
@@ -177,28 +177,27 @@ export class PracticeWorkbench {
         this.checking.set(true);
     }
     revalidate() {
-        if (!this.alive || this.owner !== this.session.generation() || this.bound !== lessonKey(this.lesson()) || this.checkRequest && !this.checkRequest.closed) return;
+        if (!this.scope.active() || this.checkRequest && !this.checkRequest.closed) return;
         this.suspend();
         this.checking.set(true);
         this.sessionError.set('');
         const key = this.bound;
-        this.checkRequest = this.session.load().pipe(this.store.untilLessonChange()).subscribe({
+        this.checkRequest = this.scope.track(this.session.load().pipe(this.store.untilLessonChange())).subscribe({
             next: () => {
-                if (!this.alive || this.owner !== this.session.generation() || key !== lessonKey(this.lesson())) return;
+                if (!this.scope.active() || key !== lessonKey(this.lesson())) return;
                 this.checking.set(false);
                 this.draft.pause(false);
                 if (!this.view()) this.reload();
                 else if (this.current() && !this.draft.exercise()) this.selectionTick.update(value => value + 1);
                 else { const id = this.store.attempt()?.id ?? this.draft.pending()?.attemptId; if (id) this.store.watch(id); }
             },
-            error: () => { if (this.alive && this.owner === this.session.generation() && key === lessonKey(this.lesson())) this.sessionError.set('Не удалось проверить сессию. Несохранённый код остаётся в этой вкладке.'); },
+            error: () => { if (this.scope.active() && key === lessonKey(this.lesson())) this.sessionError.set('Не удалось проверить сессию. Несохранённый код остаётся в этой вкладке.'); },
         });
     }
-    owned() { return this.alive && this.owner === this.session.generation() && this.bound === lessonKey(this.lesson()) && !untracked(this.checking); }
+    owned() { return this.scope.active() && !untracked(this.checking); }
     private validSelection(id = this.selection, key = this.bound) { return this.owned() && id === this.selectedId() && key === this.bound; }
     private retainedDirtySource() {
-        return this.alive && this.owner === this.session.generation()
-            && this.bound === lessonKey(this.lesson()) && this.selection === this.selectedId()
+        return this.scope.active() && this.selection === this.selectedId()
             && this.session.actor()?.role === 'STUDENT' && this.session.actor()?.workspaceId === this.lesson().workspaceId
             && !this.preview() && this.draft.exercise()?.id === this.selectedId() && this.draft.dirty();
     }
@@ -207,9 +206,9 @@ export class PracticeWorkbench {
     runnable() { return this.writable() && this.draft.editable() && this.draft.compatible() && !this.draft.conflict() && !this.draft.paused() && !this.store.resetting(); }
     editorReadonly() { return !this.writable() || this.draft.paused() || this.store.resetting(); }
     async choose(id: string) {
-        const key = this.bound;
+        const key = this.bound, accepted = this.scope.capture();
         if (id === this.selectedId() || !this.owned()) return;
-        if (!await this.exit.ask() || !this.owned() || key !== this.bound) return;
+        if (!await this.exit.ask() || !accepted() || !this.owned() || key !== this.bound) return;
         this.selectedId.set(id);
     }
     assignmentsSaved(view: LessonPracticeView) {
@@ -220,7 +219,7 @@ export class PracticeWorkbench {
     refreshCatalog() {
         if (!this.owned() || this.loading()) return;
         const key = this.bound;
-        this.api.practice(this.lesson(), this.preview()).pipe(this.store.untilLessonChange()).subscribe({
+        this.scope.track(this.api.practice(this.lesson(), this.preview()).pipe(this.store.untilLessonChange())).subscribe({
             next: view => {
                 if (!this.owned() || key !== this.bound) return;
                 this.view.set(view);
@@ -245,7 +244,7 @@ export class PracticeWorkbench {
         const id = this.selectedId(), key = this.bound;
         this.store.sending.set(true);
         this.store.clearFailure();
-        this.api.enqueue(this.lesson(), id, intent.request.files, intent.request.exerciseRevision, intent.request.mode, intent.key).pipe(this.store.untilSelectionChange()).subscribe({
+        this.scope.track(this.api.enqueue(this.lesson(), id, intent.request.files, intent.request.exerciseRevision, intent.request.mode, intent.key).pipe(this.store.untilSelectionChange())).subscribe({
             next: attempt => {
                 if (!this.validSelection(id, key)) return;
                 this.store.sending.set(false);
@@ -268,15 +267,15 @@ export class PracticeWorkbench {
     // Explicit move of the draft to the republished exercise revision; the server archives the previous saved draft.
     reset() {
         if (!this.writable() || !this.store.resetChoice() || this.store.resetting()) return;
-        const id = this.selectedId(), key = this.bound, template = this.store.resetChoice() === 'template';
+        const id = this.selectedId(), key = this.bound, template = this.store.resetChoice() === 'template', accepted = this.scope.capture();
         this.store.resetting.set(true);
         this.draft.pause(true);
-        this.api.draft(this.lesson(), id).pipe(this.store.untilSelectionChange()).subscribe({
+        this.scope.track(this.api.draft(this.lesson(), id).pipe(this.store.untilSelectionChange())).subscribe({
             next: async server => {
-                if (!this.validSelection(id, key)) return;
+                if (!accepted() || !this.validSelection(id, key)) return;
                 this.draft.refreshCounter(server);
                 const saved = await this.draft.reset(template);
-                if (!this.validSelection(id, key)) return;
+                if (!accepted() || !this.validSelection(id, key)) return;
                 this.store.resetting.set(false);
                 this.draft.pause(false);
                 if (saved) this.store.resetChoice.set(null);

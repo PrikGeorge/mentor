@@ -2,12 +2,13 @@ import { computed, DestroyRef, Directive, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { WorkspaceContext } from '../layout/workspace-context';
 // Shared route/identity context. Domain DTOs remain aliases of the generated schema.
 @Directive()
 export abstract class DomainPage {
     protected readonly session = inject(SessionStore);
-    protected readonly ownerGeneration = this.session.generation();
+    protected readonly scope = createBoundScope();
     protected readonly route = inject(ActivatedRoute);
     protected readonly destroyRef = inject(DestroyRef);
     protected readonly context = inject(WorkspaceContext);
@@ -20,7 +21,7 @@ export abstract class DomainPage {
     readonly section = computed(() => this.params().get('section') ?? this.data()['section'] ?? '');
     readonly preview = computed(() => this.session.actor()?.role === 'TEACHER' && (this.query().get('preview') === 'student' || this.params().get('audience') === 'student'));
     readonly learner = computed(() => this.session.actor()?.role === 'STUDENT' || this.preview());
-    readonly editable = computed(() => this.ownerGeneration === this.session.generation() && this.session.actor()?.role === 'TEACHER' && !this.preview());
+    readonly editable = computed(() => this.scope.current() && this.session.actor()?.role === 'TEACHER' && !this.preview());
     readonly base = computed(() => `${this.session.actor()?.role === 'STUDENT' ? '/learn/students' : '/teacher/students'}/${encodeURIComponent(this.studentId() ?? '')}`);
     readonly previewQuery = computed(() => this.preview() ? { preview: 'student' } : {});
     constructor() { this.destroyRef.onDestroy(() => this.context.clear(this)); }

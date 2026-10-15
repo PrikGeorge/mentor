@@ -1,8 +1,9 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EMPTY, forkJoin, map, of, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { MaterialsApi, MaterialView, MaterialSummary } from './materials-api.service';
 import { DocumentNavigationComponent } from './document-navigation.component';
 import { LegacyHtmlComponent } from './legacy-blocks.component';
@@ -65,8 +66,7 @@ export class MaterialViewComponent {
     readonly pendingRemoval = signal<string | null>(null); readonly removing = signal(false); readonly removeError = signal('');
     readonly api = inject(MaterialsApi);
     private readonly session = inject(SessionStore);
-    private readonly owner = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.lessonId(), this.section(), this.detail(), this.preview(), this.learner(), this.base()]);
     readonly items = signal<MaterialSummary[]>([]);
     readonly selected = signal<MaterialView | null>(null);
     readonly downloads = signal<MaterialSummary[]>([]);
@@ -77,12 +77,11 @@ export class MaterialViewComponent {
     readonly profileFacts = signal('');
     readonly code = signal<Record<string, components['schemas']['MaterialCode']>>({});
     private readonly studentIds = signal<Set<string>>(new Set());
-    private alive = true;
     constructor() {
-        this.destroyRef.onDestroy(() => this.alive = false);
         effect(onCleanup => {
-            const generation = this.session.generation(), workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId(), section = this.section(), detail = this.detail(), preview = this.preview();
+            this.session.generation(); const workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId(), section = this.section(), detail = this.detail(), preview = this.preview();
             this.refresh();
+            this.scope.bind(); const current = this.scope.capture();
             this.selected.set(null);
             this.items.set([]);
             this.downloads.set([]);
@@ -91,12 +90,14 @@ export class MaterialViewComponent {
             this.studentIds.set(new Set());
             this.error.set('');
             this.loading.set(false);
-            if (generation !== this.owner || this.session.actor()?.workspaceId !== workspace)
+            this.pendingRemoval.set(null); this.removing.set(false); this.removeError.set('');
+            if (!this.scope.current() || this.session.actor()?.workspaceId !== workspace)
                 return;
             this.loading.set(true);
             const listing = section === 'materials' && !detail;
-            const source = listing ? this.api.catalog(workspace, student, lesson, preview).pipe(switchMap(items => { this.items.set(items.filter(item => this.inScope(item))); return of(null); })) :this.api.catalog(workspace, student, lesson, preview).pipe(switchMap(items => {
-                if (!this.alive || generation !== this.session.generation())
+            const catalog = this.scope.track(this.api.catalog(workspace, student, lesson, preview));
+            const source = listing ? catalog.pipe(switchMap(items => { this.items.set(items.filter(item => this.inScope(item))); return of(null); })) :catalog.pipe(switchMap(items => {
+                if (!current())
                     return EMPTY;
                 const scoped = items.filter(item => this.inScope(item));
                 this.items.set(scoped);
@@ -111,8 +112,8 @@ export class MaterialViewComponent {
                 const views = field ? scoped.filter(item => item.kind === 'view' && (field === 'goalHtml' ? item.audience === 'student' : !this.publicView() && item.audience === 'teacher')) : [];
                 return views.length ? forkJoin(views.map(item => this.api.load(workspace, item.id, preview))).pipe(map(loaded => loaded.find(item => item.kind === 'view' && !!item.viewData[field as keyof components['schemas']['MaterialViewData']]) ?? null)) : of(null);
             }));
-            const sub = source.pipe(switchMap(material => {
-                if (!this.alive || generation !== this.session.generation())
+            const sub = this.scope.track(source.pipe(switchMap(material => {
+                if (!current())
                     return EMPTY;
                 this.selected.set(material && this.inScope(material) ? material : null);
                 this.loading.set(false);
@@ -129,8 +130,8 @@ export class MaterialViewComponent {
                 if (material.contentKey === 'profile' && !this.publicView())
                     requests.push(...this.items().filter(item => item.kind === 'view' && item.audience === 'teacher' && this.inScope(item)).map(item => this.api.load(workspace, item.id, preview)));
                 return requests.length ? forkJoin(requests) : of([] as MaterialView[]);
-            })).subscribe({ next: related => {
-                    if (!related || !this.alive || generation !== this.session.generation())
+            }))).subscribe({ next: related => {
+                    if (!related)
                         return;
                     const code: Record<string, components['schemas']['MaterialCode']> = {};
                     for (const item of related) {
@@ -143,10 +144,8 @@ export class MaterialViewComponent {
                     }
                     this.code.set(code);
                 }, error: error => {
-                    if (this.alive && generation === this.session.generation()) {
-                        this.loading.set(false);
-                        this.error.set(error.error?.message ?? 'Не удалось загрузить материалы.');
-                    }
+                    this.loading.set(false);
+                    this.error.set(error.error?.message ?? 'Не удалось загрузить материалы.');
                 } });
             onCleanup(() => sub.unsubscribe());
         });
@@ -186,12 +185,12 @@ export class MaterialViewComponent {
     // Removing is a two-step action; keyboard focus moves onto the confirmation and back to the trash button on cancel.
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
     private readonly injector = inject(Injector);
-    askRemoval(item: MaterialSummary) { this.pendingRemoval.set(item.id); this.focus('.material-confirm'); }
+    askRemoval(item: MaterialSummary) { if (!this.scope.active() || !this.inScope(item)) return; this.pendingRemoval.set(item.id); this.focus('.material-confirm'); }
     cancelRemoval(item: MaterialSummary) { this.pendingRemoval.set(null); this.focus(`[data-remove="${CSS.escape(item.id)}"]`); }
-    private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
     remove(item: MaterialSummary) {
-        if (!this.editable() || this.removing() || this.owner !== this.session.generation()) return; this.removing.set(true); this.removeError.set('');
-        this.api.remove(this.workspaceId(), item.id).subscribe({ next: () => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.changedMaterials(); }, error: error => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.removeError.set(error.error?.message ?? 'Не удалось удалить материал.'); } });
+        if (!this.editable() || this.publicView() || this.removing() || !this.scope.active() || !this.inScope(item) || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; this.removing.set(true); this.removeError.set('');
+        this.scope.track(this.api.remove(this.workspaceId(), item.id)).subscribe({ next: () => { this.removing.set(false); this.changedMaterials(); }, error: error => { this.removing.set(false); this.removeError.set(error.error?.message ?? 'Не удалось удалить материал.'); } });
     }
     kindLabel(item: MaterialSummary) { return item.kind === 'code' ? 'JAVA' : item.kind === 'view' ? 'СВОДКА' : 'MD'; }
     roleLabel(item: MaterialSummary) { return item.contentKey ? ROLES[item.contentKey] ?? '' : ''; }

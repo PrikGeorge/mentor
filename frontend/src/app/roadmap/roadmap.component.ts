@@ -1,6 +1,6 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { Roadmap, RoadmapApi, RoadmapStage, RoadmapStageInput, stageProgress } from './roadmap-api.service';
@@ -34,8 +34,7 @@ export class RoadmapComponent {
     readonly editable = input(false);
     private readonly api = inject(RoadmapApi);
     private readonly session = inject(SessionStore);
-    private readonly owner = this.session.generation();
-    private readonly destroyRef = inject(DestroyRef);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.preview(), this.editable()]);
     private readonly refresh = signal(0);
     private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
     private readonly injector = inject(Injector);
@@ -48,12 +47,13 @@ export class RoadmapComponent {
     readonly submitted = signal(false);
     missingTitle(row: RoadmapStageInput) { return this.submitted() && !row.title.trim(); }
     readonly progress = computed(() => stageProgress(this.view()?.stages ?? []));
-    readonly canEdit = computed(() => this.editable() && !this.preview() && this.owner === this.session.generation() && this.session.actor()?.role === 'TEACHER');
+    readonly canEdit = computed(() => this.editable() && !this.preview() && this.scope.active() && this.session.actor()?.role === 'TEACHER' && this.session.actor()?.workspaceId === this.workspaceId());
     constructor() {
         effect(onCleanup => {
             this.session.generation(); const w = this.workspaceId(), s = this.studentId(), preview = this.preview(); this.refresh();
-            this.view.set(null); this.draft.set(null); this.error.set(''); this.stale.set(false);
-            const sub = this.api.get(w, s, preview).subscribe({ next: view => this.view.set(view), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить маршрут.') });
+            this.scope.bind(); this.view.set(null); this.draft.set(null); this.error.set(''); this.stale.set(false); this.busy.set(false); this.submitted.set(false);
+            if (!this.scope.current() || this.session.actor()?.workspaceId !== w) return;
+            const sub = this.scope.track(this.api.get(w, s, preview)).subscribe({ next: view => this.view.set(view), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить маршрут.') });
             onCleanup(() => sub.unsubscribe());
         });
     }
@@ -62,7 +62,7 @@ export class RoadmapComponent {
     edit() { if (!this.canEdit()) return; this.submitted.set(false); this.draft.set((this.view()?.stages ?? []).map(stage => ({ ...stage }))); this.focus('.stage-editor input, .stage-editor button'); }
     cancel() { this.draft.set(null); this.submitted.set(false); this.error.set(''); this.focus('.edit-stages'); }
     // A closed form must not drop keyboard focus onto the page body.
-    private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
     add() { this.draft.update(rows => rows && rows.length < 30 ? [...rows, { title: '', note: '', state: 'ahead' }] : rows); }
     remove(index: number) { this.draft.update(rows => rows ? rows.filter((_, i) => i !== index) : rows); }
     move(index: number, step: number) { this.draft.update(rows => { if (!rows) return rows; const next = [...rows], target = index + step; if (target < 0 || target >= next.length) return rows; [next[index], next[target]] = [next[target], next[index]]; return next; }); }
@@ -77,7 +77,7 @@ export class RoadmapComponent {
         this.submitted.set(true);
         if (rows.some(row => !row.title.trim())) { this.focus('.stage-editor [aria-invalid="true"]'); return; }
         this.busy.set(true); this.error.set(''); this.stale.set(false);
-        this.api.replace(this.workspaceId(), this.studentId(), rows.map(row => ({ title: row.title.trim(), note: (row.note ?? '').trim(), state: row.state })), view.revision).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scope.track(this.api.replace(this.workspaceId(), this.studentId(), rows.map(row => ({ title: row.title.trim(), note: (row.note ?? '').trim(), state: row.state })), view.revision)).subscribe({
             next: saved => { this.busy.set(false); this.view.set(saved); this.draft.set(null); this.submitted.set(false); this.focus('.edit-stages'); },
             error: e => { this.busy.set(false); this.stale.set(e.status === 409); this.error.set(e.status === 409 ? 'Маршрут уже изменили в другой вкладке. Ваши правки остались в форме — загрузите актуальный маршрут и повторите.' : e.error?.message ?? 'Не удалось сохранить маршрут.'); },
         });
