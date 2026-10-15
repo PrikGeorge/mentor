@@ -2,13 +2,15 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>ru.mentor</groupId><artifactId>mentor-platform</artifactId><version>0.1.0-SNAPSHOT</version></parent>
   <artifactId>backend</artifactId>
+  <properties>
+    <!-- Surefire still starts when coverage is explicitly skipped. -->
+    <jacocoAgentArgLine></jacocoAgentArgLine>
+  </properties>
   <dependencyManagement><dependencies><dependency><groupId>software.amazon.awssdk</groupId><artifactId>bom</artifactId><version>2.55.7</version><type>pom</type><scope>import</scope></dependency></dependencies></dependencyManagement>
   <dependencies>
     <dependency><groupId>software.amazon.awssdk</groupId><artifactId>s3</artifactId></dependency>
     <dependency><groupId>software.amazon.awssdk</groupId><artifactId>url-connection-client</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
@@ -22,5 +24,50 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-postgresql</artifactId><scope>test</scope></dependency>
   </dependencies>
-  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><configuration><argLine>-Xmx768m</argLine></configuration></plugin></plugins></build>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Late evaluation preserves the agent added during initialize and the test heap budget. -->
+          <argLine>@{jacocoAgentArgLine} -Xmx768m</argLine>
+          <forkCount>1</forkCount>
+          <reuseForks>true</reuseForks>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.15</version>
+        <executions>
+          <execution>
+            <id>prepare-coverage</id>
+            <phase>initialize</phase>
+            <goals><goal>prepare-agent</goal></goals>
+            <configuration>
+              <propertyName>jacocoAgentArgLine</propertyName>
+              <!-- The single reused fork replaces stale data from an earlier invocation. -->
+              <append>false</append>
+              <!-- Measure application code without instrumenting Spring and the scrypt implementation. -->
+              <includes><include>ru.mentor.platform.*</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>coverage-report</id>
+            <phase>verify</phase>
+            <goals><goal>report</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+              <formats><format>HTML</format><format>XML</format></formats>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

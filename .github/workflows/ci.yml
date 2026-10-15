@@ -44,6 +44,14 @@ jobs:
           name: backend-surefire-reports
           path: backend/target/surefire-reports/
           if-no-files-found: ignore
+      - name: Keep backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/target/site/jacoco/
+          retention-days: 7
+          if-no-files-found: ignore
 
   frontend:
     name: Frontend (Angular, Vitest, Playwright fixtures)
@@ -64,7 +72,15 @@ jobs:
       - name: Schema matches the contract
         run: npm run api:check
       - name: Unit tests
-        run: npm test -- --watch=false
+        run: npm run test:coverage
+      - name: Keep frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Production build
         run: npm run build
       - name: Install Chromium for Playwright
