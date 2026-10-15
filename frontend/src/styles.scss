@@ -324,6 +324,7 @@ legend { padding: 0; margin: 0 0 4px; font: 700 20px/26px var(--font-serif); }
 .pagination { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin: 20px 0 0; font: 500 15px/22px var(--font-sans); }
 .pagination span { color: var(--muted); }
 .pagination .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
+.pagination .btn.icon-only { padding: 0; }
 
 /* Раскрывающийся блок в рамке: один вид для документов (.material-document details), ревью работы (.submission-review) и details.x. */
 details > summary { cursor: pointer; }

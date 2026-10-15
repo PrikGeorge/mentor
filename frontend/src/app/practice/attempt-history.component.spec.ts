@@ -84,7 +84,7 @@ describe('Attempt history', () => {
         const pagers = element.querySelectorAll('.pagination');
         expect(pagers).toHaveLength(1);
         expect(pagers[0].getAttribute('aria-label')).toBe('Страницы попыток');
-        expect(pagers[0].textContent).toContain('Страница 2');
+        expect(pagers[0].textContent).toContain('Страница 2 из 3');
         const pages: number[] = [];
         component.attemptPageChanged.subscribe((page) => pages.push(page));
         const [back, forward] = Array.from(pagers[0].querySelectorAll<HTMLButtonElement>('button'));
@@ -132,6 +132,7 @@ describe('Draft archive in the project tree', () => {
         const { element, component } = setup({ archiveTotal: 60, archivePage: 0 });
         const pager = element.querySelector('.pagination')!;
         expect(pager.getAttribute('aria-label')).toBe('Страницы архива');
+        expect(pager.querySelector('span')?.textContent).toBe('1 из 3');
         const pages: number[] = [];
         component.archivePageChanged.subscribe((page) => pages.push(page));
         const [back, forward] = Array.from(pager.querySelectorAll<HTMLButtonElement>('button'));

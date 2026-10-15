@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { IconComponent } from '../core/icon.component';
+import { PaginationComponent } from '../core/pagination.component';
 import { historyLabel, modeLabel, type AttemptSummary } from './attempt-labels';
 import { PAGE_SIZE } from './practice-session.store';
 // Paged attempt history of the open exercise (the «Попытки» tab); a row opens the attempt in the «Результат» tab.
 @Component({
     selector: 'mentor-attempt-history',
-    imports: [DatePipe, IconComponent],
+    imports: [DatePipe, PaginationComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     styles: [':host { display: contents; }'],
     template: `
@@ -20,17 +20,13 @@ import { PAGE_SIZE } from './practice-session.store';
             @if (!attempts().length) {
                 <p class="small-muted">Попыток пока нет.</p>
             }
-            @if (attemptTotal() > pageSize) {
-                <nav class="pagination" aria-label="Страницы попыток">
-                    <button class="btn" [disabled]="attemptPage() === 0" (click)="attemptPageChanged.emit(attemptPage() - 1)">
-                        <mentor-icon name="chevron-left" />Назад
-                    </button>
-                    <span>Страница {{ attemptPage() + 1 }}</span>
-                    <button class="btn" [disabled]="(attemptPage() + 1) * pageSize >= attemptTotal()" (click)="attemptPageChanged.emit(attemptPage() + 1)">
-                        Далее<mentor-icon name="chevron-right" />
-                    </button>
-                </nav>
-            }
+            <mentor-pagination
+                [page]="attemptPage()"
+                [total]="attemptTotal()"
+                [size]="pageSize"
+                label="Страницы попыток"
+                (pageChange)="attemptPageChanged.emit($event)"
+            />
         </section>
     `,
 })

@@ -19,6 +19,7 @@ import { MovesComponent } from '../journal/moves.component';
 import { lessonStatus } from '../lessons/lesson-status';
 import { dueShort, dueTag } from '../homework/homework-due';
 import { readResource } from '../core/read-resource';
+import { PaginationComponent } from '../core/pagination.component';
 @Component({
     selector: 'mentor-student-page',
     imports: [
@@ -34,6 +35,7 @@ import { readResource } from '../core/read-resource';
         TurnClockComponent,
         RoadmapComponent,
         MovesComponent,
+        PaginationComponent,
     ],
     template: ` @if (preview() && !section()) {
             <mentor-dashboard />
@@ -335,16 +337,13 @@ import { readResource } from '../core/read-resource';
                                 } @else {
                                     <p class="loading mt-20" role="status">Загружаем занятия…</p>
                                 }
-                                @if (total() > 25) {
-                                    <nav class="pagination" aria-label="Страницы занятий">
-                                        <button class="btn" (click)="changePage(page() - 1)" [disabled]="page() === 0 || loading()">
-                                            <mentor-icon name="chevron-left" />Назад</button
-                                        ><span>Страница {{ page() + 1 }} из {{ pages() }}</span
-                                        ><button class="btn" (click)="changePage(page() + 1)" [disabled]="(page() + 1) * 25 >= total() || loading()">
-                                            Далее<mentor-icon name="chevron-right" />
-                                        </button>
-                                    </nav>
-                                }
+                                <mentor-pagination
+                                    [page]="page()"
+                                    [total]="total()"
+                                    [disabled]="loading()"
+                                    label="Страницы занятий"
+                                    (pageChange)="changePage($event)"
+                                />
                             </section>
                             @if (section() === 'review' && s.studentReview) {
                                 <section class="section-block mt-40">
@@ -458,7 +457,6 @@ export class StudentPageComponent extends DomainPage {
     readonly lessons = signal<LessonSummary[]>([]);
     readonly total = signal(0);
     readonly page = signal(0);
-    readonly pages = computed(() => Math.max(1, Math.ceil(this.total() / 25)));
     readonly loading = computed(() => this.lessonsResource.state().status === 'loading');
     readonly error = signal('');
     readonly editStudent = signal(false);

@@ -23,4 +23,16 @@ describe('Teacher practice assignments', () => {
         pending.flush({ message: 'conflict' }, { status: 409, statusText: 'Conflict' }); component.save(); const retry = http.expectOne(root + '/assignments');
         expect(retry.request.body).toEqual({ revision: 1, assignments: [{ exerciseId: 'e1', placement: 'class' }, { exerciseId: 'e2', placement: 'class' }] }); retry.flush({ ...view, revision: 2 }); fixture.destroy();
     });
+    it('pages a long catalog with the shared pager and locks it while assignments are saved', async () => {
+        const { fixture, http, component } = await setup();
+        expect(fixture.nativeElement.querySelector('.pagination')).toBeNull();
+        component.page.set(1); fixture.detectChanges();
+        http.expectOne('/api/v1/workspaces/w1/exercises?page=1&size=100').flush({ items: [exercise], page: 1, size: 100, total: 200 }); await renderResources(); fixture.detectChanges();
+        const pager: HTMLElement = fixture.nativeElement.querySelector('.pagination');
+        expect(pager.getAttribute('aria-label')).toBe('Страницы каталога'); expect(pager.querySelector('span')?.textContent).toBe('Страница 2 из 2');
+        component.save(); fixture.detectChanges();
+        const [back] = Array.from(pager.querySelectorAll<HTMLButtonElement>('button')); expect(back.disabled).toBe(true);
+        http.expectOne(root + '/assignments').flush({ ...view, revision: 2 }); fixture.detectChanges(); expect(back.disabled).toBe(false);
+        fixture.destroy();
+    });
 });
