@@ -3109,6 +3109,25 @@ components:
           $ref: '#/components/schemas/LessonDuration'
         homeworkDue:
           $ref: '#/components/schemas/HomeworkDueInput'
+        source:
+          $ref: '#/components/schemas/LessonSource'
+    LessonSource:
+      type: object
+      additionalProperties: false
+      description: Create the lesson on the basis of another lesson of the same workspace (any card of the teacher,
+        404 otherwise). The new lesson takes over teacherNotes, studentNotes and the active published exercises with
+        their placement and order. reviewNotes, materials and the bundle, works, attempts, drafts, comments, the held
+        mark and the deadline stay with the source; the new lesson starts planned.
+      required:
+      - studentId
+      - lessonId
+      properties:
+        studentId:
+          type: string
+          minLength: 1
+        lessonId:
+          type: string
+          minLength: 1
     HomeworkDueInput:
       type: object
       additionalProperties: false

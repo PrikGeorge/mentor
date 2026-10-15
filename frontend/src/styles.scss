@@ -801,9 +801,17 @@ p.callout.reminder-line { display: flex; flex-direction: row; flex-wrap: wrap; a
 .tbl .when small.due { color: var(--ink); }
 .tbl td .tag.due-tag { margin: 4px 0 0 6px; }
 .sheet .overdue dd { color: var(--warning); }
-.due-fields .due-legend { font: 600 16px/22px var(--font-sans); }
+.due-fields .due-legend { float: left; width: 100%; margin: 0; font: 600 16px/22px var(--font-sans); }
+.due-fields .due-legend + * { clear: both; }
 .due-fields .due-actions { align-content: end; }
 .due-fields .due-hint { font: 400 13px/18px var(--font-sans); color: var(--muted); }
+/* T05: what a lesson created «на основе» takes over. */
+.copy-summary { display: grid; gap: 8px; padding: 12px 16px; background: var(--surface-tint); }
+.copy-summary h3 { margin: 0; font: 600 15px/22px var(--font-sans); }
+.copy-summary ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.copy-summary li { display: flex; align-items: center; gap: 6px; font: 400 15px/22px var(--font-sans); }
+.copy-summary li.none { color: var(--muted); }
+.copy-summary p { margin: 0; }
 @media (max-width: 640px) {
   .schedule-week-nav .count { order: -1; flex-basis: 100%; margin-left: 0; }
   .schedule-list > li { grid-template-columns: 44px minmax(0, 1fr); }

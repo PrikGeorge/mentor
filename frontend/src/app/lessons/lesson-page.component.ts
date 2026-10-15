@@ -1,5 +1,6 @@
 import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, merge, skip, takeUntil } from 'rxjs';
 import { DomainPage } from '../students/domain-page';
@@ -17,9 +18,11 @@ import { lessonEnded } from './lesson-status';
 @Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent, IconComponent, ErrorBannerComponent], template: `
   @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()"/>}
   @if(lesson();as l){
-    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button>@if(!l.conductedAt&&ended(l)){<span class="small-muted conducted-hint">Занятие прошло — отметьте, если оно состоялось.</span>}<a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>
+    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);copying.set(false);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" (click)="copying.set(true);editingMetadata.set(false);closeText()"><mentor-icon name="copy"/>Создать на основе</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button>@if(!l.conductedAt&&ended(l)){<span class="small-muted conducted-hint">Занятие прошло — отметьте, если оно состоялось.</span>}<a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>
       @if(deleting()){<span class="inline-confirm" role="group" aria-label="Подтверждение удаления занятия" tabindex="-1"><span class="small-muted">Удалить занятие «{{l.title}}»? Только без работ и материалов.</span><button class="btn sm danger" type="button" (click)="deleteLesson()" [disabled]="busy()">Удалить</button><button class="btn sm text" type="button" (click)="deleting.set(false);focus('.delete-lesson')" [disabled]="busy()">Отмена</button></span>}@else{<button class="btn sm text delete-lesson" type="button" (click)="deleting.set(true);focus('.inline-confirm')" [disabled]="busy()"><mentor-icon name="trash-2"/>Удалить занятие</button>}</div>}
+    @if(copiedFrom();as number){<p class="success-banner" role="status">Занятие создано на основе № {{number}}. Добавьте материалы, когда будут готовы.</p>}
     @if(editable()&&editingMetadata()){<div class="section-block"><mentor-lesson-form [workspaceId]="workspaceId()!" [studentId]="studentId()!" [lesson]="l" (saved)="savedMetadata($event)" (cancel)="editingMetadata.set(false)"/></div>}
+    @if(editable()&&copying()){<div class="section-block"><mentor-lesson-form [workspaceId]="workspaceId()!" [studentId]="studentId()!" [source]="l" (saved)="createdCopy($event, l.number)" (cancel)="copying.set(false)"/></div>}
     @if(editable()&&editingText();as text){<section class="section-block"><mentor-markdown-editor [lesson]="l" [kind]="text.kind" [revision]="text.revision" [value]="text.markdown" (saved)="savedText($event)" (cancelled)="closeText()"/></section>}
     @if(!section()){
       <section class="lesson-preparation section-block" aria-labelledby="prep-title"><div class="sh"><h2 id="prep-title">Подготовка занятия</h2><small>Добавляйте материалы по мере готовности. Дата и время уже сохранены.</small></div>
@@ -62,6 +65,9 @@ export class LessonPageComponent extends DomainPage {
     readonly textError = signal('');
     readonly busy = signal(false);
     readonly editingMetadata = signal(false);
+    readonly copying = signal(false);
+    readonly copiedFrom = signal<number | null>(null);
+    private readonly location = inject(Location);
     readonly editingText = signal<LessonText | null>(null);
     readonly textLabels = { teacherNotes: 'Сценарий занятия', studentNotes: 'Задания ученика', reviewNotes: 'Ревью занятия' };
     readonly sectionLabels: Record<string, string> = { practice: 'Тренажёр', homework: 'Домашняя работа', materials: 'Материалы', answers: 'Эталоны', code: 'Учебный код' };
@@ -83,12 +89,15 @@ export class LessonPageComponent extends DomainPage {
         super();
         effect(() => {
             this.scope.current(); this.pageParams();
-            untracked(() => { this.closeText(); this.editingMetadata.set(false); this.busy.set(false); });
+            untracked(() => { this.closeText(); this.editingMetadata.set(false); this.copying.set(false); this.busy.set(false); });
         });
         effect(() => {
             const state = this.pageResource.state();
             untracked(() => {
                 this.lesson.set(state.status === 'resolved' ? state.value.lesson : null);
+                // T05: the router keeps the copy notice in history state, bound to the new lesson so it never shows elsewhere.
+                const notice = this.location.getState() as { copiedFrom?: number; copiedLesson?: string } | null;
+                this.copiedFrom.set(state.status === 'resolved' && notice?.copiedLesson === state.value.lesson.id && typeof notice.copiedFrom === 'number' ? notice.copiedFrom : null);
                 this.student.set(state.status === 'resolved' ? state.value.student : null);
                 this.error.set(state.status === 'error' ? this.message(state.error) : '');
                 if (state.status === 'resolved') {
@@ -127,6 +136,8 @@ export class LessonPageComponent extends DomainPage {
     openText(kind: TextKind) { if (!this.editable() || this.busy())
         return; this.busy.set(true); this.textError.set(''); this.editingMetadata.set(false); this.api.text(this.workspaceId()!, this.studentId()!, this.lessonId()!, kind).pipe(takeUntil(this.routeChanges), takeUntilDestroyed(this.destroyRef)).subscribe({ next: text => { this.editingText.set(text); this.busy.set(false); }, error: e => { this.busy.set(false); this.textError.set(this.message(e)); } }); }
     savedText(saved: LessonText) { if (!this.editable()) return; this.lesson.update(lesson => lesson ? { ...lesson, [saved.kind]: saved.markdown } : null); this.closeText(); }
+    // The copy may belong to another card; its own page opens with a one-time notice.
+    createdCopy(lesson: LessonView, number: number) { if (!this.editable()) return; this.copying.set(false); void this.router.navigate(['/teacher/students', lesson.studentId, 'lessons', lesson.id], { state: { copiedFrom: number, copiedLesson: lesson.id } }); }
     savedMetadata(lesson: LessonView) { if (!this.editable())
         return; this.lesson.set(lesson); this.editingMetadata.set(false); this.context.set(this, { student: this.student()!, lesson, base: this.base(), preview: false, learner: false, page: this.section() }); }
 }

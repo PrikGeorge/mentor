@@ -1167,6 +1167,12 @@ export interface components {
             time: components["schemas"]["LessonTime"];
             duration: components["schemas"]["LessonDuration"];
             homeworkDue?: components["schemas"]["HomeworkDueInput"];
+            source?: components["schemas"]["LessonSource"];
+        };
+        /** @description Create the lesson on the basis of another lesson of the same workspace (any card of the teacher, 404 otherwise). The new lesson takes over teacherNotes, studentNotes and the active published exercises with their placement and order. reviewNotes, materials and the bundle, works, attempts, drafts, comments, the held mark and the deadline stay with the source; the new lesson starts planned. */
+        LessonSource: {
+            studentId: string;
+            lessonId: string;
         };
         /** @description Moscow wall-clock deadline for the lesson's homework; it may not precede the lesson start (400). Late work is still accepted. */
         HomeworkDueInput: {

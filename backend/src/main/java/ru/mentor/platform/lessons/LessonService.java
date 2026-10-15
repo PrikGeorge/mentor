@@ -14,7 +14,11 @@ import java.util.*;
 public class LessonService {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
     private static final Set<String> FIELDS = Set.of("title", "date", "time", "duration");
-    private static final Set<String> OPTIONAL = Set.of("homeworkDue");
+    private static final Set<String> OPTIONAL = Set.of("homeworkDue", "source");
+    // T05: the texts a lesson created from another one takes over. reviewNotes is the source
+    // lesson's own outcome and stays there, like materials, works, drafts, the mark and deadline.
+    private static final List<TextKind> COPIED =
+            List.of(TextKind.teacherNotes, TextKind.studentNotes);
     private final LessonRepository repository;
     private final StudentService students;
     private final Clock clock;
@@ -79,7 +83,10 @@ public class LessonService {
             throw new IllegalArgumentException("Short form required.");
         String date = date(input.get("date")), time = time(input.get("time"));
         Instant due = dueBeforeStartCheck(date, time, homeworkDue(input.get("homeworkDue")));
-        return view(
+        // The source is a lesson of this exact workspace, whose cards all belong to this teacher.
+        LessonRef source = source(w, input.get("source"));
+        if (source != null) metadata(source);
+        var created =
                 repository.create(
                         w,
                         student,
@@ -88,8 +95,16 @@ public class LessonService {
                         time,
                         duration(input.get("duration")),
                         due,
-                        clock.instant()),
-                false);
+                        clock.instant());
+        if (source == null) return view(created, false);
+        var texts = repository.texts(source);
+        for (TextKind kind : COPIED) {
+            var text = texts.get(kind);
+            if (text != null && !text.markdown().isBlank())
+                repository.save(created.ref(), kind, text.markdown(), 1);
+        }
+        repository.copyAssignments(source, created.ref());
+        return view(metadata(created.ref()), false);
     }
 
     @Transactional
@@ -322,6 +337,18 @@ public class LessonService {
         due.put("time", String.format("%02d:%02d", local.getHour(), local.getMinute()));
         due.put("state", dueState(m.homeworkDueAt(), m.firstWorkAt(), now));
         return due;
+    }
+
+    private static LessonRef source(String w, Object value) {
+        if (value == null) return null;
+        if (!(value instanceof Map<?, ?> source)
+                || !source.keySet().equals(Set.of("studentId", "lessonId"))
+                || !(source.get("studentId") instanceof String student)
+                || !(source.get("lessonId") instanceof String lesson)
+                || student.isEmpty()
+                || lesson.isEmpty())
+            throw new IllegalArgumentException("source must be {studentId, lessonId}.");
+        return new LessonRef(w, student, lesson);
     }
 
     // A deadline is a Moscow date and time, exactly {date, time}; null means none.

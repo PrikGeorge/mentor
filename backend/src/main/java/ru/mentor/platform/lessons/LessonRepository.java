@@ -283,6 +283,38 @@ public class LessonRepository {
                 == 1;
     }
 
+    // T05: the source lesson's active exercises, in their order, become the new lesson's
+    // assignments; an exercise no longer published in the workspace catalog is skipped. Drafts,
+    // attempts and comments stay with the source.
+    public int copyAssignments(LessonRef from, LessonRef to) {
+        var rows =
+                jdbc.query(
+                        "SELECT a.exercise_id,a.placement FROM practice_assignment a JOIN practice_exercise e ON e.workspace_id=a.workspace_id AND e.id=a.exercise_id"
+                                + " WHERE a.workspace_id=? AND a.student_id=? AND a.lesson_id=? AND a.active AND e.current_key IS NOT NULL ORDER BY a.position,a.id",
+                        (r, n) -> List.of(r.getString(1), r.getString(2)),
+                        from.workspaceId(),
+                        from.studentId(),
+                        from.id());
+        if (rows.isEmpty()) return 0;
+        jdbc.update(
+                "INSERT INTO practice_assignment_set(workspace_id,student_id,lesson_id,revision) VALUES (?,?,?,1)",
+                to.workspaceId(),
+                to.studentId(),
+                to.id());
+        int position = 0;
+        for (var row : rows)
+            jdbc.update(
+                    "INSERT INTO practice_assignment(workspace_id,student_id,lesson_id,id,exercise_id,placement,active,position) VALUES (?,?,?,?,?,?,true,?)",
+                    to.workspaceId(),
+                    to.studentId(),
+                    to.id(),
+                    UUID.randomUUID().toString(),
+                    row.get(0),
+                    row.get(1),
+                    position++);
+        return rows.size();
+    }
+
     public LessonText text(LessonRef ref, TextKind kind) {
         return jdbc
                 .query(

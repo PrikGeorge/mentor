@@ -321,3 +321,34 @@ test('real conducted reminder: neutral tag for the student, one-click mark for t
     await logout(page);
     expect(errors).toEqual([]);
 });
+// T05: «Создать на основе» takes the scenario and the exercises of the trainer lesson to another card; the student's screen of the copy never shows the scenario.
+test('real lesson copy: scenario and exercises go to another card, the student screen hides the scenario', async ({ page }) => {
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    const plan = await get<{ markdown: string; revision: number }>(teacher.client, lessonPath(practiceLesson) + '/texts/teacherNotes');
+    await write(teacher.client, 'PUT', lessonPath(practiceLesson) + '/texts/teacherNotes', { markdown: 'PRIVATE_STAGE3_COPY_PLAN', revision: plan.revision }, 200);
+    const second = await write<Student>(teacher.client, 'POST', `/workspaces/${teacher.actor.workspaceId}/students`, { name: 'Второй ученик копии', direction: 'Java', notes: '' }, 201);
+    const sourcePractice = await get<{ exercises: unknown[] }>(teacher.client, lessonPath(practiceLesson) + '/practice');
+    expect(sourcePractice.exercises.length).toBeGreaterThan(0);
+    await login(page, teacher);
+    await page.goto(teacherRoute(practiceLesson));
+    await page.getByRole('button', { name: 'Создать на основе', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /^Новое занятие на основе № \d+$/ })).toBeVisible();
+    await expect(page.locator('.copy-summary')).toContainText(`Упражнения тренажёра: ${sourcePractice.exercises.length}`);
+    await page.locator('select[name="targetStudent"]').selectOption(second.id);
+    const created = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`/students/${second.id}/lessons`));
+    await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
+    const response = await created; expect(response.status()).toBe(201);
+    const copy = await response.json() as Lesson;
+    expect(copy.teacherNotes).toBe('PRIVATE_STAGE3_COPY_PLAN'); expect(copy.status).toBe('planned'); expect(copy.reviewNotes).toBe('');
+    await expect(page).toHaveURL(`/teacher/students/${second.id}/lessons/${copy.id}`);
+    await expect(page.getByRole('status').filter({ hasText: 'Занятие создано на основе' })).toBeVisible();
+    const copyPath = `/workspaces/${teacher.actor.workspaceId}/students/${second.id}/lessons/${copy.id}`;
+    expect((await get<{ exercises: unknown[] }>(teacher.client, copyPath + '/practice')).exercises.length).toBe(sourcePractice.exercises.length);
+    expect(await get<Record<string, unknown>>(teacher.client, copyPath + '?audience=student')).not.toHaveProperty('teacherNotes');
+    await page.goto(`/teacher/students/${second.id}/lessons/${copy.id}/student/tasks?preview=student`);
+    await expect(page.locator('main')).toBeVisible();
+    await expect(page.getByText('PRIVATE_STAGE3_COPY_PLAN')).toHaveCount(0);
+    await page.goto('/teacher/students');
+    await logout(page);
+    expect(errors).toEqual([]);
+});
