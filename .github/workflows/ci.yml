@@ -72,10 +72,11 @@ jobs:
       - name: UI tests on HTTP fixtures
         run: npm run test:ui -- --project=chromium
       - name: Keep Playwright output
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-playwright-output
+          retention-days: 7
           path: |
             frontend/test-results/
             frontend/playwright-report/

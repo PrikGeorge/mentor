@@ -104,7 +104,7 @@ test('administrator page at 390px wraps long logins and issues manual links', as
     await page.goto('/admin/teachers');
     await expect(page.getByRole('button', { name: 'Блокировать аккаунт' })).toBeVisible();
     await page.getByRole('button', { name: 'Пригласить преподавателя' }).click();
-    await expect(page.getByRole('textbox', { name: 'Одноразовая ссылка' })).toHaveValue('http://127.0.0.1:4201/register?token=synthetic-only');
+    await expect(page.getByRole('textbox', { name: 'Одноразовая ссылка' })).toHaveValue(new URL('/register?token=synthetic-only', page.url()).href);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: test.info().outputPath('admin-390.png'), fullPage: true });
     await page.getByRole('textbox', { name: 'Одноразовая ссылка' }).focus();

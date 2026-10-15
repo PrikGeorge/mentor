@@ -11,11 +11,13 @@ export default defineConfig({
     workers: 1,
     fullyParallel: false,
     timeout: 60_000,
+    // These serial suites create fixed accounts in one database; replay requires a fresh browser-fixture run.
+    retries: 0,
     testMatch: ['task11.spec.ts', 'task12.spec.ts', 'task13.spec.ts', 'stage3-real.spec.ts', 'tenant-isolation.spec.ts'],
     projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
     outputDir: path.join(runtime, 'browser-results'),
-    reporter: 'list',
-    use: { baseURL: ready.browserOrigin, viewport: { width: 1280, height: 900 }, trace: 'off' },
+    reporter: [['list'], ['html', { outputFolder: path.join(runtime, 'playwright-report'), open: 'never' }]],
+    use: { baseURL: ready.browserOrigin, viewport: { width: 1280, height: 900 }, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
     webServer: {
         command: `"${process.execPath}" node_modules/@angular/cli/bin/ng.js serve --host 127.0.0.1 --port ${port} --proxy-config "${path.join(runtime, 'proxy.json')}"`,
         url: ready.browserOrigin,

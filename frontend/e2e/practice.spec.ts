@@ -282,7 +282,7 @@ test('offline validation with denied storage keeps the native unload warning wit
     expect(dialog.type()).toBe('beforeunload');
     await dialog.dismiss();
     await reload;
-    expect(page.url()).toBe('http://127.0.0.1:4201' + url);
+    await expect(page).toHaveURL(url);
     expect(
         await page.evaluate(() => ({
             source: (document.querySelector('.practice-editor textarea') as HTMLTextAreaElement).value,
