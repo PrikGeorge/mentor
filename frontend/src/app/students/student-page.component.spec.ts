@@ -5,13 +5,26 @@ describe('Student workspace', () => {
     afterEach(() => TestBed.resetTestingModule());
     it('does not submit an old pupil form under a newly loaded teacher before the view is destroyed', async () => {
         const { fixture, http, session, element } = await open('/teacher/students/s1');
-        http.expectOne(base).flush(student); http.expectOne(base + '/lessons?page=0&size=25').flush(page([])); fixture.detectChanges(); http.expectOne(base + '/access').flush({ account: null, invitation: null }); fixture.detectChanges();
-        click(element, 'Изменить карточку'); fixture.detectChanges(); fill(element, 'name', 'Старое значение');
+        http.expectOne(base).flush(student);
+        http.expectOne(base + '/lessons?page=0&size=25').flush(page([]));
+        fixture.detectChanges();
+        http.expectOne(base + '/access').flush({ account: null, invitation: null });
+        fixture.detectChanges();
+        click(element, 'Изменить карточку');
+        fixture.detectChanges();
+        fill(element, 'name', 'Старое значение');
         const oldForm = element.querySelector('form')!;
-        session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'another-teacher', workspaceId: 'w2', role: 'TEACHER', authVersion: 1 }, csrfToken: 'synthetic-new' });
+        session.load().subscribe();
+        http.expectOne('/api/v1/auth/session').flush({
+            account: { userId: 'another-teacher', workspaceId: 'w2', role: 'TEACHER', authVersion: 1 },
+            csrfToken: 'synthetic-new',
+        });
         oldForm.dispatchEvent(new Event('submit'));
-        http.expectNone(request => request.method === 'PATCH');
-        fixture.detectChanges(); http.match(request => request.method === 'GET').forEach(request => { if (!request.cancelled) request.flush({items:[],page:0,size:25,total:0}); });
+        http.expectNone((request) => request.method === 'PATCH');
+        fixture.detectChanges();
+        http.match((request) => request.method === 'GET').forEach((request) => {
+            if (!request.cancelled) request.flush({ items: [], page: 0, size: 25, total: 0 });
+        });
     });
     it('opens the selected pupil, separate account access, paged lessons and archive', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -27,19 +40,23 @@ describe('Student workspace', () => {
         click(element, 'Далее');
         fixture.detectChanges();
         http.expectOne(base + '/lessons?page=1&size=25').flush({ ...page([], 26), page: 1 });
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it("shows whose turn it is in the learner's list of lessons", async () => {
         const { fixture, http, element } = await open('/learn/students/s1/lessons', 'STUDENT');
         http.expectOne(base).flush(publicStudent);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([publicLesson]));
         fixture.detectChanges();
-        const turns = http.expectOne(request => request.url.endsWith('/homework/turns'));
-        turns.flush(page([{ lessonId: 'l1', submissionId: 'h1', kind: 'homework', filename: 'Main.java', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }]));
+        const turns = http.expectOne((request) => request.url.endsWith('/homework/turns'));
+        turns.flush(
+            page([{ lessonId: 'l1', submissionId: 'h1', kind: 'homework', filename: 'Main.java', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }])
+        );
         fixture.detectChanges();
-        expect(Array.from(element.querySelectorAll('th')).map(cell => cell.textContent?.trim())).toContain('Чей ход');
+        expect(Array.from(element.querySelectorAll('th')).map((cell) => cell.textContent?.trim())).toContain('Чей ход');
         expect(element.querySelector('.turn-cell')?.textContent).toContain('Ход у наставника');
-        flushJournal(http); http.verify();
+        flushJournal(http);
+        http.verify();
     });
     it('retains profile fields and expected revision on failed save', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -60,7 +77,8 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe('Новое имя');
         expect(element.querySelector('[role="alert"]')?.textContent).toContain('Конфликт');
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it('cancels pending private reads and clears the selected pupil after account generation changes', async () => {
         const { fixture, http, session, element } = await open('/teacher/students/s1');
@@ -71,7 +89,8 @@ describe('Student workspace', () => {
         expect(request.cancelled).toBe(true);
         expect(lessons.cancelled).toBe(true);
         expect(element.textContent).not.toContain('Тестовая Анна');
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it('refreshes access after a bodyless 204 and never stores a reset link', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -80,7 +99,9 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: { userId: 'p1', login: 'anna', disabled: false }, invitation: null });
         fixture.detectChanges();
-        click(element, 'Приостановить доступ'); fixture.detectChanges(); click(element, 'Да, приостановить');
+        click(element, 'Приостановить доступ');
+        fixture.detectChanges();
+        click(element, 'Да, приостановить');
         const change = http.expectOne(base + '/access');
         expect(change.request.method).toBe('PATCH');
         expect(change.request.body).toEqual({ disabled: true });
@@ -100,7 +121,8 @@ describe('Student workspace', () => {
         expect(element.querySelector<HTMLInputElement>('[name="accessLink"]')?.value).toContain('/reset-password?token=synthetic-only');
         expect(element.querySelector('[name="currentPassword"]')).toBeNull();
         expect(localStorage.length).toBe(0);
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it('revokes pending invitation with DELETE then hides its transient link', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
@@ -111,17 +133,24 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         click(element, 'Создать приглашение');
         http.expectOne(base + '/invitations').flush({ id: 'i1', link: '/register?token=synthetic-only', expiresAt: '2026-10-04T12:00:00Z' });
-        http.expectOne(base + '/access').flush({ account: null, invitation: { id: 'i1', state: 'pending', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' } });
+        http.expectOne(base + '/access').flush({
+            account: null,
+            invitation: { id: 'i1', state: 'pending', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' },
+        });
         fixture.detectChanges();
         expect(element.querySelector('[name="accessLink"]')).toBeTruthy();
         click(element, 'Отозвать');
         const revoke = http.expectOne(base + '/invitations/i1');
         expect(revoke.request.method).toBe('DELETE');
         revoke.flush(null, { status: 204, statusText: 'No Content' });
-        http.expectOne(base + '/access').flush({ account: null, invitation: { id: 'i1', state: 'revoked', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' } });
+        http.expectOne(base + '/access').flush({
+            account: null,
+            invitation: { id: 'i1', state: 'revoked', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' },
+        });
         fixture.detectChanges();
         expect(element.querySelector('[name="accessLink"]')).toBeNull();
         expect(element.textContent).toContain('Приглашение отозвано');
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
 });

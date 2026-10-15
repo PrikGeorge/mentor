@@ -19,9 +19,9 @@ describe('Learner dashboard and navigation', () => {
             expect(element.textContent).toContain(focus === null ? 'Занятий пока нет' : focus.upcoming ? 'Ближайшее занятие' : 'Последнее занятие');
             expect(element.textContent).not.toContain('Заметки наставника');
             expect(element.querySelector('a[href*="/learn/students/s1/goal"]')).toBeTruthy();
-            if (focus)
-                expect(element.querySelector('a[href*="/learn/students/s1/lessons/l1/student/tasks"]')).toBeTruthy();
-            flushTurns(http); http.verify();
+            if (focus) expect(element.querySelector('a[href*="/learn/students/s1/lessons/l1/student/tasks"]')).toBeTruthy();
+            flushTurns(http);
+            http.verify();
         });
     }
     it('shows lesson sections in the learner menu without a second lesson header', async () => {
@@ -32,7 +32,8 @@ describe('Learner dashboard and navigation', () => {
         expect(element.querySelectorAll('h1')).toHaveLength(1);
         expect(element.querySelector('nav[aria-label="Разделы занятия"]')?.textContent).toContain('Домашняя работа');
         expect(element.textContent).not.toContain('Заметки наставника');
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it('teacher home preview uses the public dashboard without account-access reads', async () => {
         const { fixture, http, element, session } = await open('/teacher/students/s1?preview=student');
@@ -45,7 +46,8 @@ describe('Learner dashboard and navigation', () => {
         expect(element.textContent).toContain('Ближайшее занятие');
         expect(element.textContent).not.toContain('Доступ к кабинету');
         expect(element.querySelector('a[href="/teacher/students/s1/lessons/l1/student/tasks?preview=student"]')).toBeTruthy();
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
     it('legacy learner list root resolves to its own dashboard instead of a missing page', async () => {
         const { fixture, http, router, element } = await open('/learn/students', 'STUDENT');
@@ -54,6 +56,7 @@ describe('Learner dashboard and navigation', () => {
         fixture.detectChanges();
         expect(router.url).toBe('/learn');
         expect(element.textContent).toContain('Тестовая Анна');
-        flushTurns(http); http.verify();
+        flushTurns(http);
+        http.verify();
     });
 });

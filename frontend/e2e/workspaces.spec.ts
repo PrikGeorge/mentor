@@ -2,20 +2,63 @@ import { expect, test, Page } from '@playwright/test';
 import type { components } from '../src/app/api/schema';
 type Student = components['schemas']['TeacherStudentView'];
 type Lesson = components['schemas']['TeacherLessonView'];
-const anna: Student = { id: 's1', workspaceId: 'w1', userId: 'u1', revision: 1, createdAt: '2026-10-01T10:00:00Z', name: 'Тестовая Анна', direction: 'Java Backend', goal: 'Первая работа', schedule: 'Четверг', notes: 'PRIVATE_ANNOTATION', studentRoadmap: 'Индивидуальный маршрут Анны', studentReview: 'Отзыв из отдельного архива' };
+const anna: Student = {
+    id: 's1',
+    workspaceId: 'w1',
+    userId: 'u1',
+    revision: 1,
+    createdAt: '2026-10-01T10:00:00Z',
+    name: 'Тестовая Анна',
+    direction: 'Java Backend',
+    goal: 'Первая работа',
+    schedule: 'Четверг',
+    notes: 'PRIVATE_ANNOTATION',
+    studentRoadmap: 'Индивидуальный маршрут Анны',
+    studentReview: 'Отзыв из отдельного архива',
+};
 const boris: Student = { ...anna, id: 's2', userId: 'u2', name: 'Тестовый Борис', goal: '', notes: 'PRIVATE_BORIS', studentRoadmap: '', studentReview: '' };
-const planned: Lesson = { id: 'l1', workspaceId: 'w1', studentId: 's1', title: 'Коллекции Анны', date: '2026-10-02', time: '12:00', timeZone: 'Europe/Moscow', duration: 60, status: 'planned', bundleId: null, revision: 1, createdAt: '2026-10-01T10:00:00Z', teacherNotes: 'PRIVATE_SCENARIO', studentNotes: 'Задания только Анны', reviewNotes: 'Отзыв по этому занятию' };
-function publicStudent(s: Student) { const { notes, ...view } = s; return view; }
-function publicLesson(l: Lesson) { const { teacherNotes, ...view } = l; return view; }
+const planned: Lesson = {
+    id: 'l1',
+    workspaceId: 'w1',
+    studentId: 's1',
+    title: 'Коллекции Анны',
+    date: '2026-10-02',
+    time: '12:00',
+    timeZone: 'Europe/Moscow',
+    duration: 60,
+    status: 'planned',
+    bundleId: null,
+    revision: 1,
+    createdAt: '2026-10-01T10:00:00Z',
+    teacherNotes: 'PRIVATE_SCENARIO',
+    studentNotes: 'Задания только Анны',
+    reviewNotes: 'Отзыв по этому занятию',
+};
+function publicStudent(s: Student) {
+    const { notes, ...view } = s;
+    return view;
+}
+function publicLesson(l: Lesson) {
+    const { teacherNotes, ...view } = l;
+    return view;
+}
 async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-teacher') {
     const errors: string[] = [];
-    page.on('pageerror', e => errors.push(e.message));
-    const actor: components['schemas']['Actor'] = { userId: kind, workspaceId: kind === 'new-teacher' ? 'w2' : 'w1', role: ['anna', 'boris'].includes(kind) ? 'STUDENT' : 'TEACHER', authVersion: 1 };
+    page.on('pageerror', (e) => errors.push(e.message));
+    const actor: components['schemas']['Actor'] = {
+        userId: kind,
+        workspaceId: kind === 'new-teacher' ? 'w2' : 'w1',
+        role: ['anna', 'boris'].includes(kind) ? 'STUDENT' : 'TEACHER',
+        authVersion: 1,
+    };
     const students = kind === 'new-teacher' ? [] : [{ ...anna }, { ...boris }];
     let lessons = [{ ...planned }];
     let textFailures = 0;
     await page.route('**/api/v1/**', async (route) => {
-        const request = route.request(), url = new URL(request.url()), method = request.method(), path = url.pathname;
+        const request = route.request(),
+            url = new URL(request.url()),
+            method = request.method(),
+            path = url.pathname;
         const publicView = actor.role === 'STUDENT' || url.searchParams.get('audience') === 'student';
         if (path === '/api/v1/auth/session') {
             await route.fulfill({ json: { account: actor, csrfToken: 'synthetic' } });
@@ -28,14 +71,21 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
         }
         const prefix = '/api/v1/workspaces/' + actor.workspaceId + '/students';
         if (path === prefix && method === 'GET') {
-            const items = actor.role === 'STUDENT' ? students.filter(s => s.id === (kind === 'anna' ? 's1' : 's2')) : students;
-            await route.fulfill({ json: { items: items.map(s => publicView ? publicStudent(s) : s), page: 0, size: 25, total: items.length } });
+            const items = actor.role === 'STUDENT' ? students.filter((s) => s.id === (kind === 'anna' ? 's1' : 's2')) : students;
+            await route.fulfill({ json: { items: items.map((s) => (publicView ? publicStudent(s) : s)), page: 0, size: 25, total: items.length } });
             return;
         }
         // The list screen's single request: cards with lesson counts and focus lessons.
         if (path === prefix + '/dashboards' && method === 'GET') {
-            const items = actor.role === 'STUDENT' ? students.filter(s => s.id === (kind === 'anna' ? 's1' : 's2')) : students;
-            const summary = (s: typeof anna) => { const own = lessons.filter(l => l.studentId === s.id); return { student: publicView ? publicStudent(s) : s, lessonCount: own.length, focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null }; };
+            const items = actor.role === 'STUDENT' ? students.filter((s) => s.id === (kind === 'anna' ? 's1' : 's2')) : students;
+            const summary = (s: typeof anna) => {
+                const own = lessons.filter((l) => l.studentId === s.id);
+                return {
+                    student: publicView ? publicStudent(s) : s,
+                    lessonCount: own.length,
+                    focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null,
+                };
+            };
             await route.fulfill({ json: { items: items.map(summary), page: 0, size: 25, total: items.length } });
             return;
         }
@@ -48,10 +98,13 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             return;
         }
         const match = path.slice(prefix.length).match(/^\/([^/]+)(.*)$/);
-        const s = students.find(s => s.id === match?.[1]);
+        const s = students.find((s) => s.id === match?.[1]);
         const suffix = match?.[2];
         if (!s) {
-            await route.fulfill({ status: 404, json: { status: 404, code: 'NOT_FOUND', message: 'Synthetic not found', fieldErrors: {}, requestId: 'synthetic' } });
+            await route.fulfill({
+                status: 404,
+                json: { status: 404, code: 'NOT_FOUND', message: 'Synthetic not found', fieldErrors: {}, requestId: 'synthetic' },
+            });
             return;
         }
         if (suffix === '' && method === 'GET') {
@@ -59,28 +112,49 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             return;
         }
         // The card's journal and roadmap panels: an empty exchange so far.
-        if (suffix === '/moves') { await route.fulfill({ json: { items: [], page: 0, size: 10, total: 0 } }); return; }
-        if (suffix === '/roadmap' && method === 'GET') { await route.fulfill({ json: { stages: [], revision: 0 } }); return; }
+        if (suffix === '/moves') {
+            await route.fulfill({ json: { items: [], page: 0, size: 10, total: 0 } });
+            return;
+        }
+        if (suffix === '/roadmap' && method === 'GET') {
+            await route.fulfill({ json: { stages: [], revision: 0 } });
+            return;
+        }
         if (suffix === '/access') {
             expect(actor.role).toBe('TEACHER');
             await route.fulfill({ json: { account: s.userId ? { userId: s.userId, login: s.id, disabled: false } : null, invitation: null } });
             return;
         }
         if (suffix === '/dashboard') {
-            const own = lessons.filter(l => l.studentId === s.id);
-            await route.fulfill({ json: { student: publicView ? publicStudent(s) : s, lessonCount: own.length, focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null } });
+            const own = lessons.filter((l) => l.studentId === s.id);
+            await route.fulfill({
+                json: {
+                    student: publicView ? publicStudent(s) : s,
+                    lessonCount: own.length,
+                    focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null,
+                },
+            });
             return;
         }
         if (suffix === '/lessons' && method === 'GET') {
-            const own = lessons.filter(l => l.studentId === s.id);
-            await route.fulfill({ json: { items: own.map(l => publicView ? publicLesson(l) : l), page: 0, size: 25, total: own.length } });
+            const own = lessons.filter((l) => l.studentId === s.id);
+            await route.fulfill({ json: { items: own.map((l) => (publicView ? publicLesson(l) : l)), page: 0, size: 25, total: own.length } });
             return;
         }
         if (suffix === '/lessons' && method === 'POST') {
             const input = request.postDataJSON();
             expect(Object.keys(input).sort()).toEqual(['date', 'duration', 'time', 'title']);
             if (input.title === 'Ошибка формы') {
-                await route.fulfill({ status: 400, json: { status: 400, code: 'INVALID_INPUT', message: 'Синтетическая ошибка сохранения', fieldErrors: { title: 'Ошибка' }, requestId: 'synthetic' } });
+                await route.fulfill({
+                    status: 400,
+                    json: {
+                        status: 400,
+                        code: 'INVALID_INPUT',
+                        message: 'Синтетическая ошибка сохранения',
+                        fieldErrors: { title: 'Ошибка' },
+                        requestId: 'synthetic',
+                    },
+                });
                 return;
             }
             const created = { ...planned, ...input, id: 'l-new', studentId: s.id, teacherNotes: '', studentNotes: '', reviewNotes: '' };
@@ -89,7 +163,7 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             return;
         }
         const lessonMatch = suffix?.match(/^\/lessons\/([^/]+)(.*)$/);
-        const l = lessons.find(l => l.id === lessonMatch?.[1] && l.studentId === s.id);
+        const l = lessons.find((l) => l.id === lessonMatch?.[1] && l.studentId === s.id);
         const tail = lessonMatch?.[2];
         if (l && tail === '' && method === 'GET') {
             await route.fulfill({ json: publicView ? publicLesson(l) : l });
@@ -103,7 +177,10 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             }
             expect(request.postDataJSON().revision).toBe(4);
             if (textFailures++ === 0) {
-                await route.fulfill({ status: 409, json: { status: 409, code: 'CONFLICT', message: 'Ревизия устарела', fieldErrors: {}, requestId: 'synthetic' } });
+                await route.fulfill({
+                    status: 409,
+                    json: { status: 409, code: 'CONFLICT', message: 'Ревизия устарела', fieldErrors: {}, requestId: 'synthetic' },
+                });
                 return;
             }
             l[textKind] = request.postDataJSON().markdown;
@@ -129,7 +206,10 @@ for (const width of [1280, 390]) {
         await page.goto('/teacher/students');
         await expect(page.getByRole('heading', { name: 'Тестовая Анна', exact: true })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Тестовый Борис', exact: true })).toBeVisible();
-        await page.getByRole('link').filter({ has: page.getByRole('heading', { name: 'Тестовая Анна', exact: true }) }).click();
+        await page
+            .getByRole('link')
+            .filter({ has: page.getByRole('heading', { name: 'Тестовая Анна', exact: true }) })
+            .click();
         await expect(page.getByRole('heading', { name: 'Доступ к кабинету' })).toBeVisible();
         await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(1);
@@ -157,8 +237,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText('только преподавателю');
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
-        if (width === 390)
-            await page.getByRole('button', { name: 'Меню', exact: true }).click();
+        if (width === 390) await page.getByRole('button', { name: 'Меню', exact: true }).click();
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
         await learnerIdentity(page);
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
@@ -176,8 +255,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);
-        if (width === 390)
-            await page.getByRole('button', { name: 'Меню', exact: true }).click();
+        if (width === 390) await page.getByRole('button', { name: 'Меню', exact: true }).click();
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
         await learnerIdentity(page);
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
