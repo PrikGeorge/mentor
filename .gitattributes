@@ -1,6 +1,9 @@
 # Normalize everything Git recognizes as text; Windows checkouts get CRLF unless a rule below pins LF.
 * text=auto
 
+# Spotless uses LF for the backend application sources on every platform.
+backend/src/main/java/**/*.java text eol=lf
+
 # Executed or hashed inside Linux containers and WSL: a CRLF here breaks the script or changes an image digest.
 *.sh text eol=lf
 mvnw text eol=lf
