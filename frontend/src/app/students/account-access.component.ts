@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, signal } from '@angular/core';
+import { Component, effect, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EMPTY, Observable, switchMap } from 'rxjs';
@@ -10,6 +10,7 @@ import { StudentsApi, StudentAccessView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 @Component({ selector: 'mentor-account-access', imports: [ReactiveFormsModule, DatePipe, IconComponent, ErrorBannerComponent], template: `
   <section class="side-section account-access" [class.compact]="compact()" aria-labelledby="access-title"><div class="sh"><h2 id="access-title">Доступ к кабинету</h2></div>
     @if(data();as access){@if(access.account;as account){<div class="account-identity"><span class="small-muted">Логин</span><code>{{account.login}}</code></div>
@@ -29,8 +30,7 @@ export class AccountAccessComponent {
     private readonly api = inject(StudentsApi);
     private readonly session = inject(SessionStore);
     private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId()]);
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     private readonly refresh = signal(0);
     readonly data = signal<StudentAccessView | null>(null);
     readonly error = signal('');
@@ -63,7 +63,7 @@ export class AccountAccessComponent {
     // Opening and closing by hand move keyboard focus with the box: into the password field, back to the link button.
     openReset() { if (!this.scope.active()) return; this.resetOpen.set(true); this.focus('[name="currentPassword"]'); }
     closeReset() { this.cancelReset(); this.focus('.reset-link'); }
-    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
+    private focus(selector: string) { this.focusLater(selector, this.scope.capture()); }
     select(event: Event) { (event.target as HTMLInputElement).select(); }
     copy(link: string) { if (!this.scope.active()) return; const current = this.scope.capture(); void navigator.clipboard?.writeText(link).then(() => { if (current()) this.copied.set(true); }, () => { if (current()) this.copied.set(false); }); }
     private run(action: Observable<unknown>, issue = false) { if (this.busy() || !this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId())

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -11,6 +11,7 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { NgTemplateOutlet } from '@angular/common';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 type Field = 'login' | 'password' | 'currentPassword' | 'confirmation';
 
 @Component({
@@ -57,8 +58,7 @@ export class AuthPageComponent {
   private readonly router = inject(Router);
   readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
+  private readonly focusLater = focusAfterRender();
   readonly mode = this.route.snapshot.data['mode'] as 'register' | 'reset' | 'password' | undefined ?? 'login';
   readonly heading = { login: 'Вход', register: 'Приглашение', reset: 'Восстановление пароля', password: 'Смена пароля' }[this.mode];
   readonly description = { login: 'Войдите, чтобы открыть свои занятия и материалы.', register: 'Создайте аккаунт по приглашению. Роль назначит пригласивший.', reset: 'Задайте новый пароль по одноразовой ссылке.', password: 'Подтвердите текущий пароль. Остальные сессии будут завершены.' }[this.mode];
@@ -90,7 +90,7 @@ export class AuthPageComponent {
     this.submitted.set(true);
     if (this.form.invalid || (this.mode !== 'login' && value.password !== value.confirmation)) {
       this.form.markAllAsTouched();
-      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
+      this.focusLater('[aria-invalid="true"]');
       return;
     }
     const token = this.route.snapshot.queryParamMap.get('token');

@@ -1,6 +1,6 @@
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { LessonCreateInput, LessonsApi, LessonView } from './lessons-api.service';
 import { StudentsApi } from '../students/students-api.service';
@@ -10,7 +10,8 @@ import { catchError, map, of } from 'rxjs';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
-const moscowDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+import { moscowDate } from '../core/format';
+import { focusAfterRender } from '../core/focus';
 // A real calendar day in ISO form: «2026-02-30» is rejected, not silently rolled over.
 function calendarDate(control: AbstractControl): ValidationErrors | null {
     const value = String(control.value ?? ''); if (!value) return null;
@@ -65,8 +66,7 @@ export class LessonFormComponent {
     });
     readonly exercises = computed(() => { const state = this.exercisesResource.state(); return state.status === 'resolved' ? state.value : null; });
     hasText(lesson: LessonView, kind: 'teacherNotes' | 'studentNotes') { const text = kind in lesson ? (lesson as Record<typeof kind, unknown>)[kind] : ''; return typeof text === 'string' && !!text.trim(); }
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     readonly busy = signal(false);
     readonly error = signal('');
     // Field errors appear after the first submit attempt and stay until the field becomes valid.
@@ -89,7 +89,7 @@ export class LessonFormComponent {
     }
     save(event: Event) { event.preventDefault(); if (!this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
         return; this.error.set(''); this.submitted.set(true); if (this.form.invalid) {
-        this.form.markAllAsTouched(); const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector });
+        this.form.markAllAsTouched(); this.focusLater('[aria-invalid="true"]', this.scope.capture());
         return;
     } const { dueDate, dueTime, ...values } = this.form.getRawValue(); const homeworkDue = dueDate ? { date: dueDate, time: dueTime } : null; this.busy.set(true); const l = this.lesson();
         // Creation sends a deadline only when there is one; an edit always states it, so clearing it removes it.

@@ -6,9 +6,6 @@ const months = ['января', 'февраля', 'марта', 'апреля', 
 const utc = (date: string) => Date.parse(date + 'T00:00:00Z');
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-export function moscowDate(now: number) {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
-}
 // A real calendar day in ISO form; «2026-02-30» is not one.
 export function isCalendarDate(value: string | null | undefined): value is string {
     return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(utc(value)) && iso(utc(value)) === value;

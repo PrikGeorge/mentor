@@ -1,10 +1,11 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { MaterialsApi, MaterialSummary } from './materials-api.service';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 type Kind = 'doc' | 'download';
 type FieldErrors = { title?: string; markdown?: string; file?: string };
 type Audience = 'student' | 'teacher';
@@ -52,7 +53,7 @@ export class MaterialFormComponent {
     private readonly api = inject(MaterialsApi); private readonly session = inject(SessionStore);
     private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.lessonId()]);
     private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef); private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     constructor() { effect(() => { this.scope.bind(); this.kind.set('doc'); this.audience.set('student'); this.contentKey.set(''); this.title.set(''); this.markdown.set(''); this.file.set(null); this.busy.set(false); this.error.set(''); this.fieldErrors.set({}); }); }
     setKind(value: string) { if (value === 'doc' || value === 'download') { this.kind.set(value); this.error.set(''); this.fieldErrors.set({}); } }
     setAudience(value: string) { if (value === 'student' || value === 'teacher') { this.audience.set(value); if (!this.roles().some(role => role.key === this.contentKey())) this.contentKey.set(''); } }
@@ -67,7 +68,7 @@ export class MaterialFormComponent {
     save(event?: Event) {
         event?.preventDefault(); if (this.busy() || !this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; this.error.set('');
         const errors = this.validate(); this.fieldErrors.set(errors);
-        if (Object.keys(errors).length) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector }); return; }
+        if (Object.keys(errors).length) { this.focusLater('[aria-invalid="true"]', this.scope.capture()); return; }
         const form = new FormData(); form.append('kind', this.kind()); form.append('audience', this.audience()); if (this.contentKey()) form.append('contentKey', this.contentKey()); if (this.title().trim()) form.append('title', this.title().trim());
         if (this.kind() === 'doc') form.append('markdown', this.markdown()); else form.append('file', this.file()!, this.file()!.name);
         this.busy.set(true);

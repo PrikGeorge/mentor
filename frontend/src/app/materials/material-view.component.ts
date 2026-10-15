@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { catchError, concat, forkJoin, map, Observable, of, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
@@ -13,6 +13,7 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { FileSizePipe } from '../core/file-size.pipe';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 @Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, MaterialFormComponent, IconComponent, ErrorBannerComponent, FileSizePipe], template: `
 @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="refresh.update(increment)"/>}
 @if(loading()){<p class="loading" role="status">Загружаем материалы…</p>}
@@ -170,11 +171,10 @@ export class MaterialViewComponent {
     });
     changedMaterials() { this.pendingRemoval.set(null); this.removeError.set(''); this.refresh.update(this.increment); this.changed.emit(); }
     // Removing is a two-step action; keyboard focus moves onto the confirmation and back to the trash button on cancel.
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
     askRemoval(item: MaterialSummary) { if (!this.scope.active() || !this.inScope(item)) return; this.pendingRemoval.set(item.id); this.focus('.material-confirm'); }
     cancelRemoval(item: MaterialSummary) { this.pendingRemoval.set(null); this.focus(`[data-remove="${CSS.escape(item.id)}"]`); }
-    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
+    private readonly focusLater = focusAfterRender();
+    private focus(selector: string) { this.focusLater(selector, this.scope.capture()); }
     remove(item: MaterialSummary) {
         if (!this.editable() || this.publicView() || this.removing() || !this.scope.active() || !this.inScope(item) || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; this.removing.set(true); this.removeError.set('');
         this.scope.track(this.api.remove(this.workspaceId(), item.id)).subscribe({ next: () => { this.removing.set(false); this.changedMaterials(); }, error: error => { this.removing.set(false); this.removeError.set(errorMessage(error, 'Не удалось удалить материал.')); } });

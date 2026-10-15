@@ -12,7 +12,7 @@ import { MovesComponent } from '../journal/moves.component';
 import { RoadmapApi, stageProgress } from '../roadmap/roadmap-api.service';
 import { readResource } from '../core/read-resource';
 import { dueLine, HomeworkDue } from '../homework/homework-due';
-const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+import { moscowDate } from '../core/format';
 @Component({
     selector: 'mentor-dashboard',
     imports: [RouterLink, DatePipe, NgTemplateOutlet, IconComponent, TurnClockComponent, MovesComponent],
@@ -284,7 +284,7 @@ export class DashboardComponent extends DomainPage {
             : this.lessonLink('review');
     }
     relative(lesson: LessonSummary) {
-        const days = Math.round((Date.parse(lesson.date + 'T00:00:00Z') - Date.parse(moscowToday() + 'T00:00:00Z')) / 86400000);
+        const days = Math.round((Date.parse(lesson.date + 'T00:00:00Z') - Date.parse(moscowDate() + 'T00:00:00Z')) / 86400000);
         if (!Number.isFinite(days)) return '';
         return days === 0 ? 'сегодня' : days === 1 ? 'завтра' : days === -1 ? 'вчера' : days > 1 && days < 7 ? 'через ' + days + ' дн.' : '';
     }

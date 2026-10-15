@@ -9,6 +9,7 @@ import { transform, EditState } from './markdown-editing';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
+import { saveBlob } from '../core/download';
 @Component({ selector: 'mentor-markdown-editor', imports: [IconComponent, ErrorBannerComponent], template: `
 <section class="lesson-md-editor" [hidden]="!active()" [attr.aria-busy]="busy()" aria-label="Редактор Markdown">
   <div class="md-editor-intro"><div><h2>{{labels[kind()]}}</h2><p class="small-muted">@if(kind()==='teacherNotes'){<span class="vis private"><mentor-icon name="eye-off"/>Только вам</span>}@else{<span class="vis public"><mentor-icon name="eye"/>Видно ученику</span>} {{kind()==='teacherNotes'?'Ученик этот текст не увидит.':'Текст появится у ученика в этом занятии.'}}</p></div></div>
@@ -74,9 +75,7 @@ export class MarkdownEditorComponent {
     }
     downloadSource() {
         if (!this.active() || this.busy() || !this.conflict()) return;
-        const url = URL.createObjectURL(new Blob([this.source()], { type: 'text/markdown;charset=utf-8' }));
-        const link = document.createElement('a'); link.href = url; link.download = this.kind() + '-local.md';
-        link.click(); setTimeout(() => URL.revokeObjectURL(url), 0);
+        saveBlob(new Blob([this.source()], { type: 'text/markdown;charset=utf-8' }), this.kind() + '-local.md');
     }
     cancel() { this.closed.set(true); this.request++; this.pending.set(null); this.reading.set(false); this.saveRequest?.unsubscribe(); this.cancelled.emit(); }
     save(event?: Event) {

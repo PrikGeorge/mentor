@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -15,6 +15,7 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { readResource } from '../core/read-resource';
 import { lessonEnded } from './lesson-status';
+import { focusAfterRender } from '../core/focus';
 @Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent, IconComponent, ErrorBannerComponent], template: `
   @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()"/>}
   @if(lesson();as l){
@@ -117,10 +118,9 @@ export class LessonPageComponent extends DomainPage {
     readonly visibility = computed<'private' | 'public' | null>(() => { const section = this.section(); return section === 'guide' || section === 'plan' || section === 'answers' ? 'private' : section === 'tasks' || section === 'review' ? 'public' : null; });
     readonly emptyText = computed(() => this.section() === 'review' ? 'Общее ревью пока не добавлено: здесь появятся итоги занятия и следующие шаги.' : this.learner() ? 'Задания и материалы этого занятия ещё не добавлены.' : 'Сценарий этого занятия ещё не добавлен. Опишите ход занятия, вопросы и подсказки — ученик этот текст не увидит.');
     closeText() { this.editingText.set(null); this.textError.set(''); }
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     // Keyboard focus follows the confirmation block: onto it when it opens, back to the trigger when it closes.
-    focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+    focus(selector: string) { this.focusLater(selector); }
     isPast(lesson: LessonView) { return Date.parse(`${lesson.date}T${lesson.time}:00+03:00`) < Date.now(); }
     // T16: after the lesson has ended without the mark, the teacher sees a gentle reminder next to the button.
     ended(lesson: LessonView) { return lessonEnded(lesson); }

@@ -12,8 +12,9 @@ import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-
 import { readResource } from '../core/read-resource';
 import { ScheduleApi } from '../schedule/schedule-api.service';
 import { reminderWindow, unmarkedLabel, unmarkedLessons } from '../schedule/reminder';
-import { moscowDate } from '../schedule/schedule-dates';
+import { moscowDate } from '../core/format';
 import { errorMessage } from '../core/api-error';
+import { initialOf } from '../core/format';
 @Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent, PaginationComponent], template: `
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
@@ -104,7 +105,7 @@ export class StudentsPageComponent {
         });
     }
     reload() { this.refresh.update(v => v + 1); }
-    initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }
+    readonly initial = initialOf;
     direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }
     readonly turnSection = turnSection;
     waitingLabel() { const n = this.waiting().length, last = n % 10, tens = n % 100; return n + (last === 1 && tens !== 11 ? ' работа ждёт' : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? ' работы ждут' : ' работ ждут') + ' ревью'; }

@@ -19,6 +19,7 @@ import { EditorPanelComponent } from './editor-panel.component';
 import { AttemptResultComponent } from './attempt-result.component';
 import { AttemptHistoryComponent } from './attempt-history.component';
 import { DraftArchiveComponent } from './draft-archive.component';
+import { saveBlob } from '../core/download';
 const THEME_KEY = 'mentor.trainer-theme';
 const storedTheme = () => { try { return localStorage.getItem(THEME_KEY) === 'dark'; } catch { return false; } };
 const TREE_KEY = 'mentor.trainer-tree';
@@ -330,11 +331,7 @@ export class PracticeWorkbench {
         if (!this.sourceOwner()) return false;
         try {
             const payload = JSON.stringify({ exerciseId: this.selectedId(), exerciseRevision: this.draft.sourceRevision(), files: this.draft.files() }, null, 2);
-            const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' })), link = document.createElement('a');
-            link.href = url;
-            link.download = 'practice-source.json';
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 0);
+            saveBlob(new Blob([payload], { type: 'application/json' }), 'practice-source.json');
             return true;
         } catch {
             this.store.fail('Экспорт недоступен. Скопируйте файлы перед выходом.');

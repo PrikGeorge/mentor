@@ -1,4 +1,5 @@
-import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mondayOf, moscowDate, weekDays, weekLabel } from './schedule-dates';
+import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mondayOf, weekDays, weekLabel } from './schedule-dates';
+import { moscowDate } from '../core/format';
 describe('Schedule calendar arithmetic', () => {
     it('takes «today» from Moscow, not from the browser clock zone', () => {
         expect(moscowDate(Date.parse('2026-10-15T20:59:00Z'))).toBe('2026-10-15');

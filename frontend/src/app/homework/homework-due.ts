@@ -1,5 +1,6 @@
 import type { components } from '../api/schema';
 import type { LessonTag } from '../lessons/lesson-status';
+import { moscowDate } from '../core/format';
 // T09: the homework deadline of a lesson. The server decides the state at read time; the interface only words it.
 // Late work is always accepted, and an archived card is never shown as overdue (it accepts no work at all).
 export type HomeworkDue = components['schemas']['HomeworkDue'];
@@ -13,9 +14,7 @@ export function dueShort(due: { date: string; time: string }) {
 }
 // Calendar days between Moscow dates: «сегодня», «завтра», «через 3 дн.».
 function moscowDay(ms: number) {
-    return Date.parse(
-        new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms)) + 'T00:00:00Z'
-    );
+    return Date.parse(moscowDate(ms) + 'T00:00:00Z');
 }
 function relative(due: HomeworkDue, now: number) {
     const days = Math.round((Date.parse(due.date + 'T00:00:00Z') - moscowDay(now)) / DAY);

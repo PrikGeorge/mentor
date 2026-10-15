@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -13,6 +13,7 @@ import { ErrorBannerComponent } from '../core/error-banner.component';
 import { createBoundScope } from '../core/bound-scope';
 import { readResource } from '../core/read-resource';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 type Teacher = components['schemas']['TeacherView'];
 type Invitation = components['schemas']['InvitationView'];
 type LinkIssue = components['schemas']['PasswordResetIssue'];
@@ -69,8 +70,6 @@ export class TeachersPageComponent {
   private readonly api = inject(PlatformApi);
   private readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
   private readonly refresh = signal(0);
   private readonly scope = createBoundScope();
   readonly teachers = signal<Teacher[]>([]);
@@ -140,7 +139,7 @@ export class TeachersPageComponent {
     this.passwordMissing.set(false);
     this.mutate(this.api.post('/admin/teachers/{id}/password-reset', { currentPassword: this.currentPassword.value }, { pathParams: { id: this.resetTeacher()!.userId } }), issue => { this.showIssue(issue); this.cancelReset(); }, false);
   }
-  private focus(selector: string): void { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+  private readonly focus = focusAfterRender();
   selectLink(event: Event): void { (event.target as HTMLInputElement).select(); }
   copy(link: string): void { void navigator.clipboard?.writeText(link).then(() => this.copied.set(true), () => this.copied.set(false)); }
   private showIssue(issue: LinkIssue): void {

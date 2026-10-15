@@ -1,11 +1,12 @@
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { StudentsApi, StudentView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 type Field = 'name' | 'direction' | 'goal' | 'schedule' | 'notes' | 'studentRoadmap' | 'studentReview';
 @Component({ selector: 'mentor-student-form', imports: [ReactiveFormsModule, IconComponent, ErrorBannerComponent], template: `
   <section class="editor box" aria-labelledby="student-form-title"><h2 id="student-form-title">{{student()?'Карточка ученика':'Новый ученик'}}</h2><p>У каждого ученика будут свои занятия и материалы.</p>
@@ -27,8 +28,7 @@ export class StudentFormComponent {
     private readonly api = inject(StudentsApi);
     private readonly session = inject(SessionStore);
     private readonly scope = createBoundScope(() => [this.workspaceId(), this.student()?.id ?? null, this.student()?.revision ?? null]);
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     readonly busy = signal(false);
     readonly error = signal('');
     // Field errors appear after the first submit attempt and stay until the field becomes valid.
@@ -43,7 +43,7 @@ export class StudentFormComponent {
     }
     save(event: Event) { event.preventDefault(); if (!this.scope.active() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; if (this.busy())
         return; this.error.set(''); this.submitted.set(true); if (this.form.invalid) {
-        this.form.markAllAsTouched(); const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector });
+        this.form.markAllAsTouched(); this.focusLater('[aria-invalid="true"]', this.scope.capture());
         return;
     } this.busy.set(true); const s = this.student(); this.scope.track(this.api.save(this.workspaceId(), s?.id ?? null, this.form.getRawValue(), s?.revision)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(errorMessage(error, 'Не удалось сохранить карточку. Поля сохранены в форме.', { 409: 'Карточку уже изменили. Поля сохранены в форме — обновите страницу.' })); } }); }
 }

@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
 import { readResource } from '../core/read-resource';
@@ -6,6 +6,7 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { Roadmap, RoadmapApi, RoadmapStage, RoadmapStageInput, stageProgress } from './roadmap-api.service';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 
 type State = RoadmapStage['state'];
 @Component({ selector: 'mentor-roadmap', imports: [IconComponent, ErrorBannerComponent], template: `
@@ -38,8 +39,7 @@ export class RoadmapComponent {
     private readonly session = inject(SessionStore);
     private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.preview(), this.editable()]);
     private readonly refresh = signal(0);
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     readonly view = signal<Roadmap | null>(null);
     readonly draft = signal<RoadmapStageInput[] | null>(null);
     readonly error = signal('');
@@ -74,7 +74,7 @@ export class RoadmapComponent {
     edit() { if (!this.canEdit()) return; this.submitted.set(false); this.draft.set((this.view()?.stages ?? []).map(stage => ({ ...stage }))); this.focus('.stage-editor input, .stage-editor button'); }
     cancel() { this.draft.set(null); this.submitted.set(false); this.error.set(''); this.focus('.edit-stages'); }
     // A closed form must not drop keyboard focus onto the page body.
-    private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
+    private focus(selector: string) { this.focusLater(selector, this.scope.capture()); }
     add() { this.draft.update(rows => rows && rows.length < 30 ? [...rows, { title: '', note: '', state: 'ahead' }] : rows); }
     remove(index: number) { this.draft.update(rows => rows ? rows.filter((_, i) => i !== index) : rows); }
     move(index: number, step: number) { this.draft.update(rows => { if (!rows) return rows; const next = [...rows], target = index + step; if (target < 0 || target >= next.length) return rows; [next[index], next[target]] = [next[target], next[index]]; return next; }); }

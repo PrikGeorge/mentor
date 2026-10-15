@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, Injectable, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, Injectable, computed, effect, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { components } from '../api/schema';
 import type { LessonRef } from '../editor/lesson-text-api.service';
@@ -9,6 +9,7 @@ import { IconComponent } from '../core/icon.component';
 import { GRADES, Grade, GradeComponent } from '../homework/grade.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { errorMessage } from '../core/api-error';
+import { focusAfterRender } from '../core/focus';
 
 export type CodeComment = components['schemas']['CodeComment'];
 export type CodeTarget = CodeComment['targetKind'];
@@ -73,8 +74,7 @@ export class CodeReviewComponent {
     private readonly api = inject(CodeCommentsApi);
     private readonly session = inject(SessionStore);
     private readonly destroyRef = inject(DestroyRef);
-    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-    private readonly injector = inject(Injector);
+    private readonly focusLater = focusAfterRender();
     readonly comments = signal<CodeComment[]>([]);
     readonly draft = signal<Draft | null>(null);
     readonly busy = signal(false);
@@ -106,7 +106,7 @@ export class CodeReviewComponent {
     open(file: string, line: number) { if (!this.editable()) return; if (this.isOpen(file, line)) { this.close(); return; } this.draft.set({ file, line, grade: null, body: '', variant: '' }); this.focus('.note-form textarea'); }
     close() { const d = this.draft(); this.draft.set(null); if (d) this.focus(`[data-line="${CSS.escape(d.file + ':' + d.line)}"]`); }
     // Keyboard focus follows the form: into it on open, back to the line's button or onto the new note on close.
-    private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
+    private focus(selector: string) { this.focusLater(selector); }
     patch(change: Partial<Draft>) { this.draft.update(d => d ? { ...d, ...change } : d); }
     save(event: Event) {
         event.preventDefault(); const d = this.draft();

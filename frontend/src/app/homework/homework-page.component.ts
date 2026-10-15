@@ -17,6 +17,7 @@ import { ErrorBannerComponent } from '../core/error-banner.component';
 import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, validateAnswer } from './text-answer';
 import { afterDeadline, dueLine, HomeworkDue } from './homework-due';
 import { errorMessage, apiProblem } from '../core/api-error';
+import { saveBlob } from '../core/download';
 @Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent, PaginationComponent, FileSizePipe, ErrorBannerComponent], template: `
 <section class="homework-page" [class.single]="!canSubmit()" [hidden]="!active()">
 @if(canSubmit()){
@@ -71,7 +72,7 @@ export class HomeworkPageComponent {
     private readonly session = inject(SessionStore); private readonly api = inject(HomeworkApi);
     private readonly scope = createBoundScope(() => { const lesson = this.lesson(); return [lesson.workspaceId, lesson.studentId, lesson.id, this.preview(), this.mode()]; });
     private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
-    private sequence = 0; private uploadRequest?: Subscription; private downloads: Subscription[] = []; private urls = new Set<string>();
+    private sequence = 0; private uploadRequest?: Subscription; private downloads: Subscription[] = [];
     readonly active = computed(() => this.scope.active() && this.session.actor()?.workspaceId === this.lesson().workspaceId);
     readonly canSubmit = computed(() => this.active() && this.session.actor()?.role === 'STUDENT' && !this.preview() && this.mode() === 'homework');
     readonly canReview = computed(() => this.active() && this.session.actor()?.role === 'TEACHER' && !this.preview());
@@ -93,7 +94,7 @@ export class HomeworkPageComponent {
         });
         inject(DestroyRef).onDestroy(() => this.cancel());
     }
-    private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls.clear(); this.busy.set(false); this.loading.set(false); }
+    private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; this.busy.set(false); this.loading.set(false); }
     private load(page: number) { if (this.active()) { this.page.set(page); this.historyRefresh.update(value => value + 1); } }
     refreshHistory() { if (!this.active() || this.busy()) return; this.page.set(0); this.load(0); }
     setPage(page: number) { if (!this.active() || this.busy() || this.loading()) return; this.page.set(page); this.load(page); }
@@ -137,7 +138,7 @@ export class HomeworkPageComponent {
     }
     download(submission: Submission) {
         if (!this.active()) return; const stamp = this.sequence; this.downloadErrors.update(errors => Object.fromEntries(Object.entries(errors).filter(([id]) => id !== submission.id)));
-        const request = this.scope.track(this.api.download(this.lesson(), submission.id)).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: errorMessage(error, 'Не удалось скачать работу.') })); } }); this.downloads.push(request);
+        const request = this.scope.track(this.api.download(this.lesson(), submission.id)).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; saveBlob(blob, submission.filename); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: errorMessage(error, 'Не удалось скачать работу.') })); } }); this.downloads.push(request);
     }
     date(value: string) { return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
     repositoryLink(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null; } catch { return null; } }

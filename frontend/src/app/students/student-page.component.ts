@@ -20,6 +20,7 @@ import { lessonStatus } from '../lessons/lesson-status';
 import { dueShort, dueTag } from '../homework/homework-due';
 import { readResource } from '../core/read-resource';
 import { PaginationComponent } from '../core/pagination.component';
+import { initialOf } from '../core/format';
 @Component({
     selector: 'mentor-student-page',
     imports: [
@@ -594,9 +595,7 @@ export class StudentPageComponent extends DomainPage {
             )[this.section()] ?? this.student()?.name
         );
     }
-    initial(name: string) {
-        return name.trim().slice(0, 1).toUpperCase() || '·';
-    }
+    readonly initial = initialOf;
     teacherNotes() {
         const s = this.student();
         return s && 'notes' in s ? s.notes : '';

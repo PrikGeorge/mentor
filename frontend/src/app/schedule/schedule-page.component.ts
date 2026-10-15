@@ -13,7 +13,8 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { lessonStatus } from '../lessons/lesson-status';
 import { Schedule, ScheduleApi, ScheduleItem } from './schedule-api.service';
-import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mondayOf, moscowDate, weekDays, weekLabel } from './schedule-dates';
+import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mondayOf, weekDays, weekLabel } from './schedule-dates';
+import { initialOf, moscowDate } from '../core/format';
 // T04: the teacher's lessons of all active cards for today or one week, by Moscow time.
 @Component({
     selector: 'mentor-schedule-page',
@@ -287,9 +288,7 @@ export class SchedulePageComponent {
     asItems(items: unknown) {
         return items as ScheduleItem[];
     }
-    initial(name: string) {
-        return name.trim().slice(0, 1).toUpperCase() || '·';
-    }
+    readonly initial = initialOf;
     countLabel(n: number) {
         const last = n % 10,
             tens = n % 100;
