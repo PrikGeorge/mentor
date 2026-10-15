@@ -34,32 +34,24 @@
       }
     }
     @if (selectedId()) {
-      <div class="trainer-grid">
-        <aside class="trainer-side" aria-label="Упражнения и условие">
-          <mentor-exercise-list [rows]="view()?.exercises ?? []" [removed]="removed()" [selectedId]="selectedId()" (chosen)="choose($event)"/>
-          @if (displayExercise(); as exercise) {
-            <mentor-exercise-statement [exercise]="exercise" [statementHtml]="statementHtml()" [notesHtml]="notesHtml()" [references]="references()"/>
+      <!-- An IDE-like layout: project tree, then the editor over its full remaining width with a tabbed panel below. -->
+      <div class="trainer-grid" [class.tree-collapsed]="treeCollapsed()">
+        <aside class="trainer-tree" aria-label="Упражнения и файлы">
+          @if (treeCollapsed()) {
+            <button class="tree-toggle" type="button" (click)="toggleTree()" [attr.aria-expanded]="false" aria-label="Показать упражнения и файлы"><mentor-icon name="list"/></button>
+          } @else {
+            <div class="tree-head">
+              <h3>Упражнения</h3>
+              <button class="tree-toggle" type="button" (click)="toggleTree()" [attr.aria-expanded]="true" aria-label="Скрыть упражнения и файлы"><mentor-icon name="chevron-left"/></button>
+            </div>
+            <mentor-exercise-list [rows]="view()?.exercises ?? []" [removed]="removed()" [selectedId]="selectedId()"
+              [files]="displayExercise() ? fileNames() : []" [file]="file()" [dirty]="draft.dirty()"
+              (chosen)="choose($event)" (fileChosen)="file.set($event)"/>
+            <mentor-draft-archive [archives]="store.archives()" [archivePage]="store.archivePage()" [archiveTotal]="store.archiveTotal()" [opened]="store.archive()"
+              (archiveChosen)="showArchive($event)" (archivePageChanged)="store.archivePage.set($event)"/>
           }
         </aside>
-        @if (displayExercise()) {
-          <mentor-editor-panel
-            [files]="draft.files()" [file]="file()" [editorContext]="editorContext()"
-            [writable]="writable()" [exportable]="sourceOwner()" [readonly]="editorReadonly()" [dark]="dark()"
-            [busy]="draft.busy()" [dirty]="draft.dirty()" [compatible]="draft.compatible()" [conflict]="draft.conflict()" [draftError]="draft.error()"
-            [sending]="store.sending()" [runnable]="runnable()"
-            (fileChosen)="file.set($event)" (edited)="draft.edit($event.name, $event.text)" (saveRequested)="draft.save()"
-            (exportRequested)="exportFiles()" (runRequested)="run($event)" (resetChosen)="chooseReset($event)"/>
-        } @else {
-          <section class="practice-editor history-only">
-            <h3>История упражнения {{ selectedId() }}</h3>
-            <p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>
-            @for (name of historicalNames(); track name) {
-              <h4>{{ name }}</h4>
-              <pre class="code-view"><code>{{ store.historicalFiles()[name] }}</code></pre>
-            }
-          </section>
-        }
-        <section class="trainer-result" aria-label="Результат проверки">
+        <div class="trainer-main">
           @if (sourceOwner() && draft.pending() && !store.attempt()) {
             <button class="btn" (click)="recoverAttempt()" [disabled]="store.sending()"><mentor-icon name="history"/>Восстановить отправленную попытку</button>
           }
@@ -74,15 +66,65 @@
               </div>
             </section>
           }
-          @if (store.attempt(); as result) {
-            <mentor-attempt-result [attempt]="result" [lesson]="lesson()" [worker]="store.worker()" [teacher]="teacher()" [preview]="preview()" [noted]="store.noted()" (notedChanged)="store.noted.set($event)"/>
+          @if (displayExercise()) {
+            <mentor-editor-panel
+              [files]="draft.files()" [file]="file()" [tabs]="treeCollapsed()" [editorContext]="editorContext()"
+              [writable]="writable()" [exportable]="sourceOwner()" [readonly]="editorReadonly()" [dark]="dark()"
+              [busy]="draft.busy()" [dirty]="draft.dirty()" [compatible]="draft.compatible()" [conflict]="draft.conflict()" [draftError]="draft.error()"
+              [sending]="store.sending()" [runnable]="runnable()"
+              (fileChosen)="file.set($event)" (edited)="draft.edit($event.name, $event.text)" (saveRequested)="draft.save()"
+              (exportRequested)="exportFiles()" (runRequested)="run($event)" (resetChosen)="chooseReset($event)"/>
+          } @else {
+            <section class="practice-editor history-only">
+              <h3>История упражнения {{ selectedId() }}</h3>
+              <p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>
+              @for (name of historicalNames(); track name) {
+                <h4>{{ name }}</h4>
+                <pre class="code-view"><code>{{ store.historicalFiles()[name] }}</code></pre>
+              }
+            </section>
           }
-          <mentor-attempt-history
-            [attempts]="store.attempts()" [attemptPage]="store.attemptPage()" [attemptTotal]="store.attemptTotal()"
-            [archives]="store.archives()" [archivePage]="store.archivePage()" [archiveTotal]="store.archiveTotal()" [archive]="store.archive()"
-            (attemptChosen)="showAttempt($event)" (archiveChosen)="showArchive($event)"
-            (attemptPageChanged)="store.attemptPage.set($event)" (archivePageChanged)="store.archivePage.set($event)"/>
-        </section>
+          <section class="trainer-panel" aria-label="Условие и результаты">
+            <div class="panel-tabs" role="tablist" aria-label="Панель упражнения">
+              @for (tab of tabs(); track tab.id) {
+                <button type="button" role="tab" [id]="'trainer-tab-' + tab.id" [attr.aria-selected]="panel() === tab.id" [attr.aria-controls]="'trainer-panel-' + tab.id" [attr.tabindex]="panel() === tab.id ? 0 : -1" (click)="chooseTab(tab.id)" (keydown)="moveTab($event)">{{ tab.label }}</button>
+              }
+            </div>
+            <div class="panel-body" role="tabpanel" [id]="'trainer-panel-' + panel()" [attr.aria-labelledby]="'trainer-tab-' + panel()">
+              @switch (panel()) {
+                @case ('statement') {
+                  @if (displayExercise(); as exercise) {
+                    <mentor-exercise-statement [exercise]="exercise" [statementHtml]="statementHtml()" [notesHtml]="notesHtml()" [references]="references()"/>
+                  } @else {
+                    <p class="small-muted">Условие снятого упражнения недоступно; сохранённый код и попытки остаются для чтения.</p>
+                  }
+                }
+                @case ('result') {
+                  @if (store.attempt(); as result) {
+                    <mentor-attempt-result [attempt]="result" [lesson]="lesson()" [worker]="store.worker()" [teacher]="teacher()" [preview]="preview()" [noted]="store.noted()" (notedChanged)="store.noted.set($event)"/>
+                  } @else {
+                    <p class="small-muted">{{ teacher() || preview() ? 'Выберите попытку во вкладке «Попытки».' : 'Запусти примеры, чтобы увидеть результат.' }}</p>
+                  }
+                }
+                @case ('attempts') {
+                  <mentor-attempt-history [attempts]="store.attempts()" [attemptPage]="store.attemptPage()" [attemptTotal]="store.attemptTotal()"
+                    (attemptChosen)="showAttempt($event)" (attemptPageChanged)="store.attemptPage.set($event)"/>
+                }
+                @case ('archive') {
+                  @if (store.archive(); as item) {
+                    <section class="archive-view" aria-label="Архивный черновик">
+                      <p class="small-muted">Архивный черновик · ревизия {{ item.exerciseRevision }} · только чтение</p>
+                      @for (name of archiveNames(); track name) {
+                        <h4>{{ name }}</h4>
+                        <pre class="code-view"><code>{{ item.files[name] }}</code></pre>
+                      }
+                    </section>
+                  }
+                }
+              }
+            </div>
+          </section>
+        </div>
       </div>
     }
   </section>

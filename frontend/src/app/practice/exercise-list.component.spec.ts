@@ -32,4 +32,25 @@ describe('Exercise list', () => {
         fixture.detectChanges();
         expect(buttons[0].getAttribute('aria-current')).toBe('page');
     });
+    it('nests the files of the open exercise under it, marks the current file and its unsaved state, and reports file choices', () => {
+        const { fixture } = setup('e1');
+        fixture.componentRef.setInput('files', ['Task.java', 'Util.java']);
+        fixture.componentRef.setInput('file', 'Util.java');
+        fixture.componentRef.setInput('dirty', true);
+        fixture.detectChanges();
+        const element = fixture.nativeElement as HTMLElement;
+        const files = Array.from(element.querySelectorAll<HTMLButtonElement>('.tree-files button'));
+        expect(files.map(button => button.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Task.java', 'Util.java не сохранён']);
+        expect(files.map(button => !!button.querySelector('.tree-dirty'))).toEqual([false, true]);
+        expect(files.map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'true']);
+        expect(element.querySelector('.tree-exercise[aria-current=page]')?.getAttribute('aria-expanded')).toBe('true');
+        const chosen: string[] = [];
+        fixture.componentInstance.fileChosen.subscribe(name => chosen.push(name));
+        files[0].click();
+        expect(chosen).toEqual(['Task.java']);
+        fixture.componentRef.setInput('selectedId', 'e2');
+        fixture.detectChanges();
+        expect(element.querySelectorAll('.tree-files')).toHaveLength(1);
+        expect(element.querySelector('.tree-files')?.previousElementSibling?.textContent).toContain('Потоки');
+    });
 });

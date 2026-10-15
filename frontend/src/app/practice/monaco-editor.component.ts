@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ElementRef, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { createBoundScope } from '../core/bound-scope';
 import { MonacoLoader, CodeEditor, MonacoApi, defineEditorThemes } from './monaco-loader.service';
-@Component({ selector: 'mentor-monaco-editor', template: `<div #host class="monaco-host" [hidden]="!ready()"></div><textarea [hidden]="ready()" [attr.aria-label]="'Код '+file()" [value]="value()" [readOnly]="readonly()" spellcheck="false" (input)="change($event)"></textarea>@if(failed()){<p class="small-muted" role="status">Доступен обычный редактор: Monaco не загрузился.</p>}<button type="button" class="text-link editor-fallback" (click)="fallback()" [hidden]="!ready()">Обычный редактор</button>` })
+@Component({ selector: 'mentor-monaco-editor', template: `<div #host class="monaco-host" [hidden]="!ready()"></div><textarea wrap="off" [hidden]="ready()" [attr.aria-label]="'Код '+file()" [value]="value()" [readOnly]="readonly()" spellcheck="false" (input)="change($event)"></textarea>@if(failed()){<p class="small-muted" role="status">Доступен обычный редактор: Monaco не загрузился.</p>}<button type="button" class="text-link editor-fallback" (click)="fallback()" [hidden]="!ready()">Обычный редактор</button>` })
 export class MonacoEditorComponent {
     readonly value = input.required<string>();
     readonly file = input.required<string>();
@@ -31,7 +31,7 @@ export class MonacoEditorComponent {
                 return;
             let cancelled = false; const current = this.scope.capture();
             this.loader.load().then(api => { if (cancelled || !current() || this.preferFallback)
-                return; this.api = api; defineEditorThemes(api); const editor = api.editor.create(host.nativeElement, { value: this.value(), language: 'java', readOnly: this.readonly(), automaticLayout: true, minimap: { enabled: false }, fontSize: 14, lineHeight: 24, fontFamily: "'PT Mono', ui-monospace, Consolas, monospace", theme: this.dark() ? 'mentor-dark' : 'mentor-light', renderLineHighlight: 'line', scrollBeyondLastLine: false, wordWrap: 'on', padding: { top: 12, bottom: 12 }, ariaLabel: 'Код ' + file }); this.editor = editor; editor.onDidChangeModelContent(() => { if (!this.editing && current() && !this.readonly())
+                return; this.api = api; defineEditorThemes(api); const editor = api.editor.create(host.nativeElement, { value: this.value(), language: 'java', readOnly: this.readonly(), automaticLayout: true, minimap: { enabled: false }, fontSize: 14, lineHeight: 24, fontFamily: "'PT Mono', ui-monospace, Consolas, monospace", theme: this.dark() ? 'mentor-dark' : 'mentor-light', renderLineHighlight: 'line', scrollBeyondLastLine: false, wordWrap: 'off', padding: { top: 12, bottom: 12 }, ariaLabel: 'Код ' + file }); this.editor = editor; editor.onDidChangeModelContent(() => { if (!this.editing && current() && !this.readonly())
                 this.changed.emit(editor.getValue()); }); this.ready.set(true); }).catch(() => { if (!cancelled && current())
                 this.failed.set(true); });
             onCleanup(() => { cancelled = true; });

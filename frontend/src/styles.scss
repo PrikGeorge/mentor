@@ -137,6 +137,8 @@ mentor-icon.icon svg { width: 100%; height: 100%; fill: none; stroke: currentCol
 .mobile-menu { display: none; }
 .workspace { min-height: 100vh; display: flex; flex-direction: column; }
 main { flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; padding: 32px var(--gutter) 64px; }
+/* The trainer uses the whole window width: code needs it more than the reading measure of other pages. */
+main:has(.trainer) { max-width: none; }
 main:focus { outline: none; }
 .site-footer { border-top: 1px solid var(--rule); }
 .site-footer > div { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; max-width: 1440px; margin: 0 auto; padding: 18px var(--gutter); font: 400 13px/18px var(--font-sans); color: var(--muted); }
@@ -643,14 +645,30 @@ mentor-document-navigation { display: block; min-width: 0; }
 .practice-heading h2 { margin: 0; }
 .practice-heading .subtitle { margin-top: 4px; }
 .practice-heading .actions { margin: 0; }
-.trainer-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr) 380px; border: 2px solid var(--ink); background: var(--surface); }
+.trainer-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); border: 2px solid var(--ink); background: var(--surface); }
+.trainer-grid.tree-collapsed { grid-template-columns: 44px minmax(0, 1fr); }
 .trainer-grid > * { min-width: 0; }
-.trainer-side { padding: 18px 12px; border-right: 1px solid var(--rule); display: grid; gap: 16px; align-content: start; }
-.trainer-side h3 { margin: 0 12px; font-size: 20px; line-height: 26px; }
+/* The project tree: exercises with the files of the open one nested under it, then the draft archive. */
+.trainer-tree { padding: 12px 8px; border-right: 1px solid var(--rule); display: grid; gap: 10px; align-content: start; }
+.tree-collapsed .trainer-tree { padding: 8px 4px; justify-items: center; }
+.tree-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 0 8px; }
+.tree-head h3 { margin: 0; font-size: 18px; line-height: 24px; }
+.tree-toggle { display: grid; place-items: center; width: 32px; height: 32px; color: var(--muted); }
+.tree-toggle:hover { color: var(--ink); background: var(--surface-tint); }
+.tree-files { list-style: none; margin: 0 0 6px; padding: 0 0 0 12px; display: grid; gap: 1px; border-left: 2px solid var(--accent); margin-left: 12px; }
+.tree-files button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 8px; text-align: left; font: 400 13px/18px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.tree-files button:hover { color: var(--ink); background: var(--surface-tint); }
+.tree-files button[aria-pressed=true] { color: var(--ink); background: var(--surface-tint); box-shadow: inset 3px 0 0 var(--ink); }
+.tree-dirty { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--warning); }
+.tree-archive { border-top: 1px solid var(--rule); padding-top: 8px; font-size: 14px; }
+.tree-archive summary { display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-weight: 600; cursor: pointer; }
+.tree-archive .history-row { padding: 8px; font-size: 13px; }
+.tree-archive .history-row[aria-pressed=true] { background: var(--surface-tint); }
+.tree-archive .pagination { justify-content: space-between; padding: 6px 0 0; }
 .practice-exercises { display: grid; gap: 2px; }
-.practice-exercises button { display: grid; gap: 2px; width: 100%; padding: 10px 12px; text-align: left; color: var(--ink); font: 600 15px/20px var(--font-sans); overflow-wrap: anywhere; }
-.practice-exercises button:hover { background: var(--surface-tint); }
-.practice-exercises button small { font: 400 13px/18px var(--font-sans); color: var(--muted); }
+.practice-exercises button.tree-exercise { display: grid; gap: 2px; width: 100%; padding: 8px 10px; text-align: left; color: var(--ink); font: 600 14px/20px var(--font-sans); overflow-wrap: anywhere; }
+.practice-exercises button.tree-exercise:hover { background: var(--surface-tint); }
+.practice-exercises button.tree-exercise small { font: 400 12px/16px var(--font-sans); color: var(--muted); }
 .practice-exercises button[aria-current=page] { background: var(--accent); color: var(--on-accent); }
 .practice-exercises button[aria-current=page] small { color: var(--on-accent-muted); }
 .practice-reading { padding: 14px 16px; background: var(--surface-tint); font-size: 14px; line-height: 21px; }
@@ -664,7 +682,7 @@ mentor-document-navigation { display: block; min-width: 0; }
 .practice-reading summary { font-weight: 600; }
 .practice-reference pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/20px var(--font-mono); max-height: 360px; overflow: auto; background: var(--surface); padding: 10px 12px; margin: 8px 0; }
 .practice-reference h4 { margin: 8px 0 4px; font: 500 13px/18px var(--font-mono); }
-.practice-editor { display: flex; flex-direction: column; border-right: 1px solid var(--rule); min-width: 0; }
+.practice-editor { display: flex; flex-direction: column; min-width: 0; }
 .practice-editor header { display: flex; align-items: stretch; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--rule); }
 .practice-files { display: flex; flex-wrap: wrap; }
 .practice-files button { padding: 12px 18px; border-right: 1px solid var(--rule); font: 400 14px/20px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -674,18 +692,32 @@ mentor-document-navigation { display: block; min-width: 0; }
 .file-actions { display: flex; align-items: center; gap: 4px; padding: 0 6px; }
 .file-actions .btn.text { text-decoration: none; gap: 6px; font-size: 14px; }
 .file-actions .btn.text:hover { text-decoration: underline; }
-.draft-state { display: block; padding: 6px 16px; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--muted); }
+.draft-state { display: flex; align-items: center; flex: 1 1 auto; padding: 6px 8px; font-size: 13px; color: var(--muted); }
 .practice-editor > .callout, .practice-editor > .auth-error, .practice-editor > .warning-banner { margin: 12px 16px; }
 mentor-monaco-editor { display: block; min-width: 0; }
-mentor-monaco-editor textarea { display: block; width: 100%; min-height: 440px; border: 0 !important; padding: 16px 18px; font: 400 14px/24px var(--font-mono) !important; tab-size: 4; background: var(--surface); color: var(--ink); box-shadow: none !important; resize: vertical; }
+mentor-monaco-editor textarea { display: block; width: 100%; min-height: max(520px, calc(100vh - 300px)); white-space: pre; overflow-x: auto; border: 0 !important; padding: 16px 18px; font: 400 14px/24px var(--font-mono) !important; tab-size: 4; background: var(--surface); color: var(--ink); box-shadow: none !important; resize: vertical; }
 mentor-monaco-editor textarea:focus-visible { outline-offset: -3px; }
-.monaco-host { height: 440px; }
+/* Code gets the window's height and long lines scroll instead of wrapping. */
+.monaco-host { height: max(520px, calc(100vh - 300px)); }
 .editor-fallback { margin: 8px 16px; font-size: 13px; }
 mentor-monaco-editor .small-muted { margin: 8px 16px; }
 .practice-controls { display: flex; gap: 10px; flex-wrap: wrap; padding: 14px 16px; border-top: 2px solid var(--ink); }
 .practice-controls .spacer { flex: 1; }
 .reset-choice { display: flex; flex-wrap: wrap; gap: 10px; }
-.trainer-result { padding: 18px 20px; display: grid; gap: 18px; align-content: start; }
+/* The editor takes all the width after the tree; the statement and results sit in a tabbed panel below it. */
+.trainer-main { display: grid; align-content: start; min-width: 0; }
+.trainer-main > .btn, .trainer-main > .reset-confirm { margin: 12px 16px 0; }
+.practice-file-name { display: flex; align-items: center; margin: 0; padding: 10px 16px; font: 500 14px/20px var(--font-mono); overflow-wrap: anywhere; }
+.trainer-panel { border-top: 2px solid var(--ink); min-width: 0; }
+.panel-tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--rule); scrollbar-width: thin; }
+.panel-tabs button { padding: 10px 16px; font: 500 14px/20px var(--font-sans); color: var(--muted); white-space: nowrap; }
+.panel-tabs button:hover { color: var(--ink); background: var(--surface-tint); }
+.panel-tabs button[aria-selected=true] { color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); }
+.panel-tabs button:focus-visible { outline-offset: -3px; }
+.panel-body { padding: 16px; min-width: 0; }
+.panel-body > .small-muted { margin: 0; }
+.panel-body .practice-reading { background: transparent; padding: 0; max-width: 960px; }
+.archive-view h4 { margin: 12px 0 4px; font: 500 13px/18px var(--font-mono); }
 .attempt-result { min-width: 0; display: grid; gap: 10px; }
 .attempt-result > h3 { margin: 0; font-size: 28px; line-height: 34px; }
 .attempt-result .small-muted { margin: 0; }
@@ -899,8 +931,6 @@ mentor-error-banner { display: grid; }
 /* ===== Адаптив ===== */
 @media (max-width: 1280px) {
   .home { grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; }
-  .trainer-grid { grid-template-columns: 240px minmax(0, 1fr); }
-  .trainer-result { grid-column: 1 / -1; border-top: 2px solid var(--ink); }
   .queue > li { grid-template-columns: 56px minmax(0, 1fr) minmax(220px, 280px); }
   .queue .work { grid-column: 2 / -1; grid-row: 2; }
   .queue > li > .btn { grid-column: 2 / -1; justify-self: start; }
@@ -941,8 +971,6 @@ mentor-error-banner { display: grid; }
   .context-title { flex-direction: column; gap: 12px; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .trainer-grid { grid-template-columns: minmax(0, 1fr); }
-  .trainer-side { border-right: 0; border-bottom: 2px solid var(--ink); }
   .auth-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .auth-side { padding: 20px; border-right: 0; border-bottom: 2px solid var(--ink); }
   .auth-side .motto, .auth-side p, .auth-art { display: none; }
@@ -979,6 +1007,11 @@ mentor-error-banner { display: grid; }
   .page-head .actions .btn { flex: 1 1 200px; }
   .material-document > h2 { font-size: 30px; line-height: 36px; }
   .trainer.theme-dark { margin: -24px calc(-1 * var(--gutter)) -48px; padding: 24px var(--gutter) 48px; }
+}
+@media (max-width: 699px) {
+  .trainer-grid, .trainer-grid.tree-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .trainer-tree { border-right: 0; border-bottom: 2px solid var(--ink); }
+  .tree-collapsed .trainer-tree { justify-items: start; }
   .monaco-host { height: 360px; }
   mentor-monaco-editor textarea { min-height: 360px; }
 }

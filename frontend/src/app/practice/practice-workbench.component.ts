@@ -18,13 +18,21 @@ import { ExerciseStatementComponent } from './exercise-statement.component';
 import { EditorPanelComponent } from './editor-panel.component';
 import { AttemptResultComponent } from './attempt-result.component';
 import { AttemptHistoryComponent } from './attempt-history.component';
+import { DraftArchiveComponent } from './draft-archive.component';
 const THEME_KEY = 'mentor.trainer-theme';
 const storedTheme = () => { try { return localStorage.getItem(THEME_KEY) === 'dark'; } catch { return false; } };
+const TREE_KEY = 'mentor.trainer-tree';
+// A display preference like the theme: without a stored choice the tree starts folded on medium screens to give code room.
+const storedTree = () => {
+    try { const value = localStorage.getItem(TREE_KEY); if (value) return value === 'collapsed'; } catch { /* fall back to the screen width */ }
+    return typeof matchMedia === 'function' && matchMedia('(min-width: 700px) and (max-width: 1099px)').matches;
+};
+export type PanelTab = 'statement' | 'result' | 'attempts' | 'archive';
 // The trainer of one lesson. Owns the session guards (account generation, lesson key, chosen exercise), the draft and the
 // loading of catalog, history and materials; the result state lives in PracticeSessionStore and the children only render.
 @Component({
     selector: 'mentor-practice-workbench',
-    imports: [TeacherPracticeComponent, IconComponent, PracticeErrorComponent, ExerciseListComponent, ExerciseStatementComponent, EditorPanelComponent, AttemptResultComponent, AttemptHistoryComponent],
+    imports: [TeacherPracticeComponent, IconComponent, PracticeErrorComponent, ExerciseListComponent, ExerciseStatementComponent, EditorPanelComponent, AttemptResultComponent, AttemptHistoryComponent, DraftArchiveComponent],
     providers: [PracticeDraft, PracticeSessionStore],
     templateUrl: './practice-workbench.component.html',
 })
@@ -65,6 +73,19 @@ export class PracticeWorkbench {
     readonly notesHtml = computed(() => this.notes() ? this.renderer.render(this.notes()) : '');
     // Display preference only: no lesson data is kept in browser storage.
     readonly dark = signal(storedTheme());
+    readonly treeCollapsed = signal(storedTree());
+    // The bottom panel under the editor: the statement, the open attempt, the attempt list and an opened archived draft.
+    readonly panel = signal<PanelTab>('statement');
+    private panelChosen = false;
+    readonly tabs = computed(() => {
+        const total = this.store.attemptTotal(), tabs: { id: PanelTab; label: string }[] = [
+            { id: 'statement', label: 'Условие' }, { id: 'result', label: 'Результат' }, { id: 'attempts', label: total ? 'Попытки · ' + total : 'Попытки' }];
+        return this.store.archive() ? [...tabs, { id: 'archive' as const, label: 'Архивный черновик' }] : tabs;
+    });
+    readonly fileNames = computed(() => Object.keys(this.draft.files()));
+    private readonly attemptId = computed(() => this.store.attempt()?.id ?? null);
+    private readonly archiveId = computed(() => this.store.archive()?.id ?? null);
+    readonly archiveNames = computed(() => Object.keys(this.store.archive()?.files ?? {}));
     private bound = '';
     private selection = '';
     private readonly lessonReading = readResource({
@@ -164,6 +185,14 @@ export class PracticeWorkbench {
             if (pending?.attemptId) untracked(() => this.store.watch(pending.attemptId!));
             });
         });
+        // Each exercise opens on its statement; the teacher, who comes to review, opens on the attempt list.
+        effect(() => { this.selectedId(); this.session.generation(); untracked(() => { this.panelChosen = false; this.panel.set('statement'); }); });
+        // The teacher comes to review: once the exercise turns out to have attempts, the list opens unless a tab was already chosen.
+        effect(() => { if (this.store.attemptTotal() > 0) untracked(() => { if ((this.teacher() || this.preview()) && !this.panelChosen && this.panel() === 'statement') this.panel.set('attempts'); }); });
+        // A new or reopened attempt is shown at once, like a run window in an IDE; so is an opened archived draft.
+        // Keyed by id: polling replaces the attempt object every few seconds and must not pull the student out of another tab.
+        effect(() => { if (this.attemptId()) untracked(() => this.panel.set('result')); });
+        effect(() => { if (this.archiveId()) untracked(() => this.panel.set('archive')); else untracked(() => { if (this.panel() === 'archive') this.panel.set('statement'); }); });
         // A republished catalog updates the exercise shown next to the retained draft.
         effect(() => { const exercise = this.current(); if (exercise) this.draft.updateExercise(exercise); });
         effect(() => {
@@ -269,8 +298,9 @@ export class PracticeWorkbench {
             },
         });
     }
-    showAttempt(id: string) { if (this.validSelection()) this.store.watch(id); }
-    showArchive(id: string) { if (this.validSelection()) this.store.showArchive(id); }
+    // Reopening the attempt or archive already loaded only brings its tab back.
+    showAttempt(id: string) { if (!this.validSelection()) return; if (this.attemptId() === id) this.panel.set('result'); this.store.watch(id); }
+    showArchive(id: string) { if (!this.validSelection()) return; if (this.archiveId() === id) this.panel.set('archive'); else this.store.showArchive(id); }
     chooseReset(choice: ResetChoice) { this.store.resetChoice.set(choice); }
     // Explicit move of the draft to the republished exercise revision; the server archives the previous saved draft.
     reset() {
@@ -310,6 +340,21 @@ export class PracticeWorkbench {
             this.store.fail('Экспорт недоступен. Скопируйте файлы перед выходом.');
             return false;
         }
+    }
+    toggleTree() {
+        const collapsed = !this.treeCollapsed();
+        this.treeCollapsed.set(collapsed);
+        try { localStorage.setItem(TREE_KEY, collapsed ? 'collapsed' : 'open'); } catch { /* the toggle still works for this page */ }
+    }
+    chooseTab(tab: PanelTab) { this.panelChosen = true; this.panel.set(tab); }
+    // Arrow keys move between the panel tabs (WAI-ARIA tabs pattern).
+    moveTab(event: KeyboardEvent) {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+        const tabs = this.tabs(), index = tabs.findIndex(tab => tab.id === this.panel());
+        const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        this.chooseTab(next.id);
+        (event.currentTarget as HTMLElement).parentElement?.querySelector<HTMLElement>('#trainer-tab-' + next.id)?.focus();
+        event.preventDefault();
     }
     toggleTheme() {
         const dark = !this.dark();

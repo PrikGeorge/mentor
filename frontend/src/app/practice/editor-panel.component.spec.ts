@@ -77,4 +77,11 @@ describe('Editor panel', () => {
         expect(button(element, 'Экспортировать код')).toBeDefined();
         fixture.destroy();
     });
+    it('names the open file instead of tabs when the trainer tree lists the files', async () => {
+        const { fixture, element } = await setup({ tabs: false });
+        expect(element.querySelector('.practice-files')).toBeNull();
+        expect(element.querySelector('.practice-file-name')?.textContent).toBe('Task.java');
+        expect(element.querySelector('textarea')?.getAttribute('wrap')).toBe('off');
+        fixture.destroy();
+    });
 });

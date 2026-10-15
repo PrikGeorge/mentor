@@ -13,11 +13,16 @@ export type ResetKind = 'keep' | 'template';
     template: `
         <section class="practice-editor" aria-label="Твои файлы">
           <header>
-            <nav class="practice-files" aria-label="Файлы решения">
-              @for (name of fileNames(); track name) {
-                <button type="button" [attr.aria-pressed]="file() === name" (click)="fileChosen.emit(name)">{{ name }}</button>
-              }
-            </nav>
+            @if (tabs()) {
+              <nav class="practice-files" aria-label="Файлы решения">
+                @for (name of fileNames(); track name) {
+                  <button type="button" [attr.aria-pressed]="file() === name" (click)="fileChosen.emit(name)">{{ name }}</button>
+                }
+              </nav>
+            } @else {
+              <h3 class="practice-file-name">{{ file() }}</h3>
+            }
+            <span class="draft-state" role="status">{{ draftState() }}</span>
             <div class="file-actions">
               @if (writable()) {
                 <button class="btn text sm" (click)="saveRequested.emit()" [disabled]="busy() || !compatible()"><mentor-icon name="save"/>Сохранить код</button>
@@ -27,7 +32,6 @@ export type ResetKind = 'keep' | 'template';
               }
             </div>
           </header>
-          <span class="draft-state" role="status">{{ draftState() }}</span>
           @if (!compatible()) {
             <p class="warning-banner">Упражнение обновилось. Твой код остался на прежней ревизии. Экспортируй его перед переходом.</p>
           }
@@ -61,6 +65,8 @@ export type ResetKind = 'keep' | 'template';
 })
 export class EditorPanelComponent {
     readonly files = input.required<SourceFiles>();
+    // File tabs above the editor; the trainer hides them while its project tree lists the files.
+    readonly tabs = input(true);
     readonly file = input.required<string>();
     readonly editorContext = input.required<string>();
     // The student owns this draft: saving, running and the revision choice are offered.

@@ -150,5 +150,65 @@ describe('Account/lesson-bound practice workbench', () => {
     it('discovers an unavailable attempt-only exercise without manufacturing a missing draft', async () => { const { component, http, fixture } = await page('STUDENT', false, () => { }, [{ exerciseId: 'obsolete', active: false, hasDraft: false, hasAttempts: true, hasArchives: false }]); await component.choose('obsolete'); fixture.detectChanges(); const drafts = http.match(root + '/exercises/obsolete/draft'); for (const request of drafts)
         request.flush({ message: 'No saved draft' }, { status: 404, statusText: 'Not Found' }); http.expectOne(root + '/exercises/obsolete/attempts?page=0&size=25').flush({ items: [{ ...attempt, exerciseId: 'obsolete' }], page: 0, size: 25, total: 1 }); http.expectOne(root + '/draft-archives?exerciseId=obsolete&page=0&size=25').flush({ items: [], page: 0, size: 25, total: 0 }); fixture.detectChanges(); expect(drafts).toHaveLength(0); expect(fixture.nativeElement.textContent).toContain('История упражнения obsolete'); http.expectNone(request => request.method === 'POST' || request.method === 'PUT'); fixture.destroy(); });
  it('freezes source and polling until visible-tab session revalidation completes',async () =>{const{component,fixture,http}=await page();component.draft.edit('Task.java','unsaved tab source');const visibility=Object.getOwnPropertyDescriptor(document,'visibilityState');try{Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});document.dispatchEvent(new Event('visibilitychange'));expect(component.runnable()).toBe(false);expect(component.draft.files()).toEqual({'Task.java':'unsaved tab source'});Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true});document.dispatchEvent(new Event('visibilitychange'));component.run('run');http.expectNone(request=>request.method==='POST');http.expectOne('/api/v1/auth/session').flush({account:{userId:'u1',workspaceId:'w1',role:'STUDENT',authVersion:1},csrfToken:'synthetic'});expect(component.runnable()).toBe(true);expect(component.draft.files()).toEqual({'Task.java':'unsaved tab source'});}finally{if(visibility)Object.defineProperty(document,'visibilityState',visibility);else delete(document as unknown as Record<string,unknown>)['visibilityState'];fixture.destroy();}});
- it('resuming a different actual account starts no old HTTP/storage writes and hides source',async () =>{const{component,fixture,http}=await page();component.draft.edit('Task.java','private unsaved source');const visibility=Object.getOwnPropertyDescriptor(document,'visibilityState'),writes=vi.spyOn(Storage.prototype,'setItem');try{Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true});document.dispatchEvent(new Event('visibilitychange'));http.expectOne('/api/v1/auth/session').flush({account:{userId:'teacher',workspaceId:'w1',role:'TEACHER',authVersion:1},csrfToken:'synthetic-other'});component.run('submit');component.draft.edit('Task.java','late old source');http.expectNone(request=>request.method==='PUT'||request.method==='POST');expect(writes).not.toHaveBeenCalled();fixture.detectChanges();expect(fixture.nativeElement.querySelector('.practice-page').hidden).toBe(true);expect(JSON.parse(localStorage.getItem(TestBed.inject(DraftRecovery).key('u1','w1','s1','l1','e1',1))!).files).toEqual({'Task.java':'private unsaved source'});}finally{writes.mockRestore();if(visibility)Object.defineProperty(document,'visibilityState',visibility);else delete(document as unknown as Record<string,unknown>)['visibilityState'];fixture.destroy();}});});
+ it('resuming a different actual account starts no old HTTP/storage writes and hides source',async () =>{const{component,fixture,http}=await page();component.draft.edit('Task.java','private unsaved source');const visibility=Object.getOwnPropertyDescriptor(document,'visibilityState'),writes=vi.spyOn(Storage.prototype,'setItem');try{Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true});document.dispatchEvent(new Event('visibilitychange'));http.expectOne('/api/v1/auth/session').flush({account:{userId:'teacher',workspaceId:'w1',role:'TEACHER',authVersion:1},csrfToken:'synthetic-other'});component.run('submit');component.draft.edit('Task.java','late old source');http.expectNone(request=>request.method==='PUT'||request.method==='POST');expect(writes).not.toHaveBeenCalled();fixture.detectChanges();expect(fixture.nativeElement.querySelector('.practice-page').hidden).toBe(true);expect(JSON.parse(localStorage.getItem(TestBed.inject(DraftRecovery).key('u1','w1','s1','l1','e1',1))!).files).toEqual({'Task.java':'private unsaved source'});}finally{writes.mockRestore();if(visibility)Object.defineProperty(document,'visibilityState',visibility);else delete(document as unknown as Record<string,unknown>)['visibilityState'];fixture.destroy();}});    // The IDE layout: files in the project tree, the statement under the code, a run opens the result and polling never steals the tab.
+    it('lays the trainer out like an IDE and keeps the chosen panel tab while an attempt is polled', async () => {
+        const { component, http, fixture } = await page();
+        try {
+            const element = fixture.nativeElement as HTMLElement;
+            expect(Array.from(element.querySelectorAll('.tree-files button')).map(button => button.textContent?.trim())).toEqual(Object.keys(exercise.starterFiles));
+            expect(element.querySelector('.practice-files')).toBeNull();
+            expect(element.querySelector('.practice-file-name')?.textContent).toBe(Object.keys(exercise.starterFiles)[0]);
+            expect(element.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Условие');
+            expect(element.querySelector('.panel-body .practice-reading')).not.toBeNull();
+            expect(element.querySelector('.tree-archive')).toBeNull();
+            component.run('run');
+            http.expectOne(root + '/exercises/e1/attempts').flush(attempt, { status: 202, statusText: 'Accepted' });
+            fixture.detectChanges();
+            expect(component.panel()).toBe('result');
+            expect(element.querySelector('.panel-body .attempt-result')).not.toBeNull();
+            component.panel.set('statement');
+            fixture.detectChanges();
+            http.expectOne(root + '/exercises/e1/attempts/accepted-id').flush({ ...attempt, jobState: 'running' });
+            fixture.detectChanges();
+            expect(component.panel()).toBe('statement');
+            const selected = element.querySelector<HTMLButtonElement>('[role=tab][aria-selected=true]')!;
+            selected.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+            fixture.detectChanges();
+            expect(component.panel()).toBe('result');
+            component.panel.set('attempts');
+            component.showAttempt('accepted-id');
+            expect(component.panel()).toBe('result');
+            http.expectOne(root + '/exercises/e1/attempts/accepted-id').flush({ ...attempt, jobState: 'running' });
+        } finally { fixture.destroy(); }
+    });
+    it('folds the project tree into a rail with file tabs and remembers it as a display preference', async () => {
+        const { component, fixture } = await page();
+        try {
+            const element = fixture.nativeElement as HTMLElement;
+            element.querySelector<HTMLButtonElement>('.tree-toggle')!.click();
+            fixture.detectChanges();
+            expect(component.treeCollapsed()).toBe(true);
+            expect(localStorage.getItem('mentor.trainer-tree')).toBe('collapsed');
+            expect(element.querySelector('.trainer-grid')?.classList).toContain('tree-collapsed');
+            expect(element.querySelector('.tree-files')).toBeNull();
+            expect(Array.from(element.querySelectorAll('.practice-files button')).map(button => button.textContent)).toEqual(Object.keys(exercise.starterFiles));
+            expect(element.querySelector('.tree-toggle')?.getAttribute('aria-label')).toBe('Показать упражнения и файлы');
+        } finally { localStorage.removeItem('mentor.trainer-tree'); fixture.destroy(); }
+    });
+    it('opens the teacher preview on the attempt list once attempts exist, unless a tab was chosen', async () => {
+        const { component, fixture } = await page('TEACHER', true);
+        try {
+            expect(component.panel()).toBe('statement');
+            component.store.attemptTotal.set(2);
+            TestBed.tick();
+            fixture.detectChanges();
+            expect(component.panel()).toBe('attempts');
+            expect((fixture.nativeElement as HTMLElement).querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Попытки · 2');
+            component.chooseTab('statement');
+            component.store.attemptTotal.set(3);
+            TestBed.tick();
+            expect(component.panel()).toBe('statement');
+        } finally { fixture.destroy(); }
+    });
+});
 
