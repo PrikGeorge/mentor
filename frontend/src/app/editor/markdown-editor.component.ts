@@ -8,6 +8,7 @@ import { MarkdownRenderer } from './markdown-renderer.service';
 import { transform, EditState } from './markdown-editing';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 @Component({ selector: 'mentor-markdown-editor', imports: [IconComponent, ErrorBannerComponent], template: `
 <section class="lesson-md-editor" [hidden]="!active()" [attr.aria-busy]="busy()" aria-label="Редактор Markdown">
   <div class="md-editor-intro"><div><h2>{{labels[kind()]}}</h2><p class="small-muted">@if(kind()==='teacherNotes'){<span class="vis private"><mentor-icon name="eye-off"/>Только вам</span>}@else{<span class="vis public"><mentor-icon name="eye"/>Видно ученику</span>} {{kind()==='teacherNotes'?'Ученик этот текст не увидит.':'Текст появится у ученика в этом занятии.'}}</p></div></div>
@@ -81,7 +82,7 @@ export class MarkdownEditorComponent {
     save(event?: Event) {
         event?.preventDefault(); if (!this.active() || this.busy()) return; this.error.set(''); if (this.source().length > 200000) { this.error.set('В тексте может быть не больше 200 000 символов.'); return; }
         this.request++; this.pending.set(null); this.reading.set(false); this.busy.set(true); const lesson = this.lesson(), kind = this.kind(), revision = this.revision(), markdown = this.source();
-        this.saveRequest = this.scope.track(this.api.save(lesson, kind, markdown, revision)).subscribe({ next: saved => { if (this.active()) { this.busy.set(false); this.saved.emit(saved); } }, error: error => { if (this.active()) { this.busy.set(false); this.conflict.set(error.status === 409); this.error.set(error.error?.message ?? 'Не удалось сохранить текст. Введённый текст сохранён в редакторе.'); } } });
+        this.saveRequest = this.scope.track(this.api.save(lesson, kind, markdown, revision)).subscribe({ next: saved => { if (this.active()) { this.busy.set(false); this.saved.emit(saved); } }, error: error => { if (this.active()) { this.busy.set(false); this.conflict.set(error.status === 409); this.error.set(errorMessage(error, 'Не удалось сохранить текст. Введённый текст сохранён в редакторе.', { 409: 'Текст уже изменили в другой вкладке. Введённый текст сохранён в редакторе.' })); } } });
     }
 }
 let editorSequence = 0;

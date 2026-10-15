@@ -12,6 +12,7 @@ import { MaterialFormComponent } from './material-form.component';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { FileSizePipe } from '../core/file-size.pipe';
+import { errorMessage } from '../core/api-error';
 @Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, MaterialFormComponent, IconComponent, ErrorBannerComponent, FileSizePipe], template: `
 @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="refresh.update(increment)"/>}
 @if(loading()){<p class="loading" role="status">Загружаем материалы…</p>}
@@ -176,7 +177,7 @@ export class MaterialViewComponent {
     private focus(selector: string) { const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(); }, { injector: this.injector }); }
     remove(item: MaterialSummary) {
         if (!this.editable() || this.publicView() || this.removing() || !this.scope.active() || !this.inScope(item) || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== this.workspaceId()) return; this.removing.set(true); this.removeError.set('');
-        this.scope.track(this.api.remove(this.workspaceId(), item.id)).subscribe({ next: () => { this.removing.set(false); this.changedMaterials(); }, error: error => { this.removing.set(false); this.removeError.set(error.error?.message ?? 'Не удалось удалить материал.'); } });
+        this.scope.track(this.api.remove(this.workspaceId(), item.id)).subscribe({ next: () => { this.removing.set(false); this.changedMaterials(); }, error: error => { this.removing.set(false); this.removeError.set(errorMessage(error, 'Не удалось удалить материал.')); } });
     }
     kindLabel(item: MaterialSummary) { return item.kind === 'code' ? 'JAVA' : item.kind === 'view' ? 'СВОДКА' : 'MD'; }
     roleLabel(item: MaterialSummary) { return item.contentKey ? ROLES[item.contentKey] ?? '' : ''; }
@@ -189,4 +190,4 @@ function rank(item: MaterialSummary) { const index = item.contentKey ? ORDER.ind
 interface MaterialReading { items: MaterialSummary[]; selected: MaterialView | null; related: MaterialView[]; loading: boolean; error?: unknown; }
 function materialInScope(item: MaterialSummary, request: { workspace: string; student: string; lesson: string | null; publicView: boolean }) { return item.workspaceId === request.workspace && item.studentId === request.student && item.lessonId === request.lesson && (!request.publicView || item.audience === 'student'); }
 function findMaterial(items: MaterialSummary[], key: string) { const exact = items.find(item => item.id === key); if (exact) return exact; const logical = items.filter(item => item.contentKey === key); return logical.length === 1 ? logical[0] : undefined; }
-function materialError(error: unknown) { return (error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить материалы.'; }
+function materialError(error: unknown) { return errorMessage(error, 'Не удалось загрузить материалы.'); }

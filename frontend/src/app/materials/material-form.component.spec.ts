@@ -25,7 +25,7 @@ describe('Teacher material form', () => {
     });
     it('refuses an empty document locally and explains a role conflict from the server', () => {
         const { fixture, http, component, element } = form(); component.save(); http.expectNone(request => request.method === 'POST'); fixture.detectChanges(); expect(element.textContent).toContain('Введите текст материала.');
-        component.markdown.set('text'); component.save(); http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials').flush({ message: 'exists' }, { status: 409, statusText: 'Conflict' }); fixture.detectChanges();
+        component.markdown.set('text'); component.save(); http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials').flush({ status: 409, code: 'MATERIAL_EXISTS', message: 'exists' }, { status: 409, statusText: 'Conflict' }); fixture.detectChanges();
         expect(element.textContent).toContain('Документ с этой ролью уже есть'); expect(component.markdown()).toBe('text');
     });
     it('uploads a file to the card when no lesson is bound and offers only card roles', () => {

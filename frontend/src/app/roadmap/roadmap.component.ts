@@ -5,6 +5,7 @@ import { readResource } from '../core/read-resource';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { Roadmap, RoadmapApi, RoadmapStage, RoadmapStageInput, stageProgress } from './roadmap-api.service';
+import { errorMessage } from '../core/api-error';
 
 type State = RoadmapStage['state'];
 @Component({ selector: 'mentor-roadmap', imports: [IconComponent, ErrorBannerComponent], template: `
@@ -65,7 +66,7 @@ export class RoadmapComponent {
         effect(() => {
             const state = this.reading.state();
             if (state.status === 'resolved') this.view.set(state.value);
-            else if (state.status === 'error') this.error.set((state.error as { error?: { message?: string } } | null)?.error?.message ?? 'Не удалось загрузить маршрут.');
+            else if (state.status === 'error') this.error.set(errorMessage(state.error, 'Не удалось загрузить маршрут.'));
         });
     }
     label(stage: RoadmapStage) { const word = stage.state === 'done' ? 'пройдено' : stage.state === 'current' ? 'сейчас' : ''; return [word, stage.note].filter(Boolean).join(', ') || 'впереди'; }
@@ -90,7 +91,7 @@ export class RoadmapComponent {
         this.busy.set(true); this.error.set(''); this.stale.set(false);
         this.scope.track(this.api.replace(this.workspaceId(), this.studentId(), rows.map(row => ({ title: row.title.trim(), note: (row.note ?? '').trim(), state: row.state })), view.revision)).subscribe({
             next: saved => { this.busy.set(false); this.view.set(saved); this.draft.set(null); this.submitted.set(false); this.focus('.edit-stages'); },
-            error: e => { this.busy.set(false); this.stale.set(e.status === 409); this.error.set(e.status === 409 ? 'Маршрут уже изменили в другой вкладке. Ваши правки остались в форме — загрузите актуальный маршрут и повторите.' : e.error?.message ?? 'Не удалось сохранить маршрут.'); },
+            error: e => { this.busy.set(false); this.stale.set(e.status === 409); this.error.set(e.status === 409 ? 'Маршрут уже изменили в другой вкладке. Ваши правки остались в форме — загрузите актуальный маршрут и повторите.' : errorMessage(e, 'Не удалось сохранить маршрут.')); },
         });
     }
 }

@@ -13,6 +13,7 @@ import { readResource } from '../core/read-resource';
 import { ScheduleApi } from '../schedule/schedule-api.service';
 import { reminderWindow, unmarkedLabel, unmarkedLessons } from '../schedule/reminder';
 import { moscowDate } from '../schedule/schedule-dates';
+import { errorMessage } from '../core/api-error';
 @Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent, PaginationComponent], template: `
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
@@ -94,7 +95,7 @@ export class StudentsPageComponent {
                 if (state.status === 'resolved') this.total.set(state.value.total);
                 if (state.status === 'idle') this.total.set(0);
                 this.error.set(state.status === 'error'
-                    ? (state.error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить учеников.' : '');
+                    ? errorMessage(state.error, 'Не удалось загрузить учеников.') : '');
             });
         });
         effect(() => {

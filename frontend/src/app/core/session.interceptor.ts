@@ -33,7 +33,9 @@ export const sessionInterceptor: HttpInterceptorFn = (request, next) => {
   // Same-origin relative requests use the browser's HttpOnly session cookie automatically.
   const response = next(request).pipe(catchError((error: HttpErrorResponse) => {
     const publicAuth = /^\/api\/v1\/auth\/(session|login|register|reset-password)$/.test(request.url);
-    if (error.status === 401 && !publicAuth && generation === session.generation()) {
+    // A wrong current password (changing it or confirming an action) is the user's typo, not an ended session.
+    const wrongPassword = (error.error as { code?: unknown } | null)?.code === 'INVALID_CREDENTIALS';
+    if (error.status === 401 && !publicAuth && !wrongPassword && generation === session.generation()) {
       const returnUrl = safeReturnUrl(router.url);
       session.expire(generation);
       void router.navigate(['/login'], { queryParams: returnUrl ? { returnUrl } : {} });

@@ -7,6 +7,7 @@ import { createBoundScope } from '../core/bound-scope';
 import { Grade, GradeComponent, GRADES } from '../homework/grade.component';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 @Component({ selector: 'mentor-lesson-review', imports: [IconComponent, GradeComponent, ErrorBannerComponent], template: `
 @if(active()){
 <details class="submission-review" [open]="!submission().feedback"><summary>{{submission().feedback?'Изменить ревью':'Оставить ревью'}}</summary>
@@ -39,7 +40,7 @@ export class LessonReviewComponent {
         const submission = this.submission(); this.busy.set(true);
         this.request = this.scope.track(this.api.review(this.lesson(), submission.id, submission.revision, this.status(), this.feedback().trim(), this.grade() !== null || submission.grade ? this.grade() : undefined)).subscribe({
             next: result => { if (this.active()) { this.busy.set(false); this.succeeded.set(true); this.reviewed.emit(result); } },
-            error: error => { if (this.active()) { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить ревью. Введённый текст сохранён в форме.'); } }
+            error: error => { if (this.active()) { this.busy.set(false); this.error.set(errorMessage(error, 'Не удалось сохранить ревью. Введённый текст сохранён в форме.', { 409: 'Работу уже изменили. Введённый текст сохранён в форме — обновите страницу.' })); } }
         });
     }
 }

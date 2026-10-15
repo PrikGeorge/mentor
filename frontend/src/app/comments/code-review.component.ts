@@ -8,6 +8,7 @@ import { readResource } from '../core/read-resource';
 import { IconComponent } from '../core/icon.component';
 import { GRADES, Grade, GradeComponent } from '../homework/grade.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 
 export type CodeComment = components['schemas']['CodeComment'];
 export type CodeTarget = CodeComment['targetKind'];
@@ -114,7 +115,7 @@ export class CodeReviewComponent {
         this.busy.set(true); this.error.set(''); this.loadFailed.set(false);
         this.api.create(this.lesson(), { targetKind: this.targetKind(), targetId: this.targetId(), file: d.file, line: d.line, grade: d.grade, body: d.body.trim(), variant: d.variant }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: note => { this.busy.set(false); this.comments.update(list => [...list, note]); this.draft.set(null); this.noted.emit(this.comments().length); this.focus(`[data-note="${CSS.escape(note.id)}"]`); },
-            error: e => { this.busy.set(false); this.error.set(e.status === 409 ? 'У этого кода уже слишком много комментариев.' : 'Не удалось сохранить комментарий. Текст остался в форме.'); },
+            error: e => { this.busy.set(false); this.error.set(errorMessage(e, 'Не удалось сохранить комментарий. Текст остался в форме.')); },
         });
     }
     remove(note: CodeComment) {

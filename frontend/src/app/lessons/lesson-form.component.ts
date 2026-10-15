@@ -9,6 +9,7 @@ import { readResource } from '../core/read-resource';
 import { catchError, map, of } from 'rxjs';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 const moscowDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 // A real calendar day in ISO form: «2026-02-30» is rejected, not silently rolled over.
 function calendarDate(control: AbstractControl): ValidationErrors | null {
@@ -94,7 +95,7 @@ export class LessonFormComponent {
         // Creation sends a deadline only when there is one; an edit always states it, so clearing it removes it.
         const s = this.source(), base: LessonCreateInput = s ? { ...values, source: { studentId: s.studentId, lessonId: s.id } } : values;
         const created: LessonCreateInput = homeworkDue ? { ...base, homeworkDue } : base;
-        const request = l ? this.api.save(this.workspaceId(), this.studentId(), l.id, { ...values, homeworkDue, revision: l.revision }) : this.api.create(this.workspaceId(), s ? this.target() || this.studentId() : this.studentId(), created); this.scope.track(request).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(s && error.status === 404 ? 'Исходное занятие или выбранный ученик недоступны. Обновите страницу.' : error.error?.message ?? 'Не удалось сохранить занятие. Поля сохранены в форме.'); } }); }
+        const request = l ? this.api.save(this.workspaceId(), this.studentId(), l.id, { ...values, homeworkDue, revision: l.revision }) : this.api.create(this.workspaceId(), s ? this.target() || this.studentId() : this.studentId(), created); this.scope.track(request).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(s && error.status === 404 ? 'Исходное занятие или выбранный ученик недоступны. Обновите страницу.' : errorMessage(error, 'Не удалось сохранить занятие. Поля сохранены в форме.', { 409: 'Занятие уже изменили. Поля сохранены в форме — обновите страницу.' })); } }); }
 }
 // A title of spaces only is no title.
 function notBlank(control: AbstractControl): ValidationErrors | null { return typeof control.value === 'string' && control.value.length > 0 && !control.value.trim() ? { blank: true } : null; }

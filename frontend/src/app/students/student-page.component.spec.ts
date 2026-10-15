@@ -76,7 +76,7 @@ describe('Student workspace', () => {
         save.flush({ message: 'Конфликт' }, { status: 409, statusText: 'Conflict' });
         await renderResources(); fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe('Новое имя');
-        expect(element.querySelector('[role="alert"]')?.textContent).toContain('Конфликт');
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain('Карточку уже изменили');
         flushTurns(http);
         http.verify();
     });

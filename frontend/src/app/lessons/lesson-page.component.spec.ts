@@ -245,4 +245,23 @@ describe('Lesson page', () => {
             fixture.destroy();
         }
     });
+
+    it('reports a missing lesson in Russian instead of the page', async () => {
+        const { fixture, http, element } = await open('/teacher/students/s1/lessons/l1');
+        try {
+            http.expectOne((request) => request.url === base).flush(student);
+            http.expectOne((request) => request.url === base + '/lessons/l1').flush(
+                { status: 404, code: 'NOT_FOUND', message: 'Resource unavailable.', requestId: 'synthetic' },
+                { status: 404, statusText: 'Not Found' },
+            );
+            await renderResources();
+            fixture.detectChanges();
+            expect(element.querySelector('.lesson-page-actions')).toBeNull();
+            expect(element.textContent).toContain('Не найдено: запись удалена или недоступна.');
+            expect(element.textContent).not.toContain('Resource unavailable.');
+            http.verify();
+        } finally {
+            fixture.destroy();
+        }
+    });
 });

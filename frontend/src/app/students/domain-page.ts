@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
 import { WorkspaceContext } from '../layout/workspace-context';
+import { errorMessage } from '../core/api-error';
 // Shared route/identity context. Domain DTOs remain aliases of the generated schema.
 @Directive()
 export abstract class DomainPage {
@@ -25,9 +26,5 @@ export abstract class DomainPage {
     readonly base = computed(() => `${this.session.actor()?.role === 'STUDENT' ? '/learn/students' : '/teacher/students'}/${encodeURIComponent(this.studentId() ?? '')}`);
     readonly previewQuery = computed(() => this.preview() ? { preview: 'student' } : {});
     constructor() { this.destroyRef.onDestroy(() => this.context.clear(this)); }
-    protected message(error: unknown): string { return (error as {
-        error?: {
-            message?: string;
-        };
-    })?.error?.message ?? 'Не удалось сохранить или загрузить данные. Попробуйте ещё раз.'; }
+    protected message(error: unknown): string { return errorMessage(error, 'Не удалось сохранить или загрузить данные. Попробуйте ещё раз.'); }
 }

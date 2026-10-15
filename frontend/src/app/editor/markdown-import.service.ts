@@ -4,7 +4,8 @@ export class MarkdownImport {
     async read(file: File): Promise<string> {
         if (!file || !/\.(md|markdown)$/i.test(file.name)) throw new Error('Выберите Markdown-файл .md или .markdown.');
         if (file.size > 1048576) throw new Error('Файл слишком большой: допустимо до 1 МиБ.');
-        const bytes = new Uint8Array(await file.arrayBuffer());
+        let bytes: Uint8Array;
+        try { bytes = new Uint8Array(await file.arrayBuffer()); } catch { throw new Error('Не удалось прочитать файл. Выберите его ещё раз.'); }
         if (bytes.byteLength > 1048576) throw new Error('Файл слишком большой: допустимо до 1 МиБ.');
         let text: string;
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw new Error('Не удалось прочитать UTF-8. Сохраните файл в кодировке UTF-8.'); }

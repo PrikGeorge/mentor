@@ -9,6 +9,7 @@ import { readResource } from '../core/read-resource';
 import { StudentsApi, StudentAccessView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 @Component({ selector: 'mentor-account-access', imports: [ReactiveFormsModule, DatePipe, IconComponent, ErrorBannerComponent], template: `
   <section class="side-section account-access" [class.compact]="compact()" aria-labelledby="access-title"><div class="sh"><h2 id="access-title">Доступ к кабинету</h2></div>
     @if(data();as access){@if(access.account;as account){<div class="account-identity"><span class="small-muted">Логин</span><code>{{account.login}}</code></div>
@@ -54,7 +55,7 @@ export class AccountAccessComponent {
         effect(() => {
             const state = this.reading.state();
             if (state.status === 'resolved') this.data.set(state.value);
-            else if (state.status === 'error') this.error.set((state.error as { error?: { message?: string } } | null)?.error?.message ?? 'Не удалось загрузить доступ.');
+            else if (state.status === 'error') this.error.set(errorMessage(state.error, 'Не удалось загрузить доступ.'));
         });
     }
     reload() { this.refresh.update(v => v + 1); }
@@ -72,7 +73,7 @@ export class AccountAccessComponent {
         if (url.origin !== location.origin || !['/register', '/reset-password'].includes(url.pathname))
             throw new Error('Некорректная ссылка.');
         this.issued.set({ ...link, link: url.href });
-    } return this.api.access(workspace, student); }))).subscribe({ next: view => { this.data.set(view); this.busy.set(false); }, error: error => { this.error.set(error.error?.message ?? 'Не удалось изменить доступ.'); this.busy.set(false); } }); }
+    } return this.api.access(workspace, student); }))).subscribe({ next: view => { this.data.set(view); this.busy.set(false); }, error: error => { this.error.set(errorMessage(error, 'Не удалось изменить доступ.', { INVALID_CREDENTIALS: 'Текущий пароль неверный.' })); this.busy.set(false); } }); }
     invite() { if (this.data()?.account)
         return; this.run(this.api.invite(this.workspaceId(), this.studentId()), true); }
     revoke() { const invitation = this.data()?.invitation; if (invitation?.state !== 'pending')

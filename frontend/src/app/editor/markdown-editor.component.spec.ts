@@ -42,7 +42,7 @@ describe('Isolated one-text Markdown editor', () => {
         const request = http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/texts/teacherNotes');
         expect(request.request.method).toBe('PUT'); expect(request.request.body).toEqual({ markdown: '  введённый 😀\n', revision: 4 });
         request.flush({ message: 'Ревизия устарела' }, { status: 409, statusText: 'Conflict' }); fixture.detectChanges();
-        expect(textarea.value).toBe('  введённый 😀\n'); expect(fixture.nativeElement.textContent).toContain('Ревизия устарела');expect(fixture.nativeElement.textContent).toContain('Скачать введённый .md');
+        expect(textarea.value).toBe('  введённый 😀\n'); expect(fixture.nativeElement.textContent).toContain('Текст уже изменили в другой вкладке.');expect(fixture.nativeElement.textContent).toContain('Скачать введённый .md');
     });
     it('rejects over-limit source and old-generation save handlers', () => {
         const { component, textarea, session, http } = editor();

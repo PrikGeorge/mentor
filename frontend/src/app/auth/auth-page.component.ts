@@ -10,6 +10,7 @@ import { passwordValidator } from '../core/password.validator';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { NgTemplateOutlet } from '@angular/common';
+import { errorMessage } from '../core/api-error';
 type Field = 'login' | 'password' | 'currentPassword' | 'confirmation';
 
 @Component({
@@ -109,7 +110,7 @@ export class AuthPageComponent {
         const home = this.session.actor()?.role === 'ADMIN' ? '/admin/teachers' : this.session.actor()?.role === 'TEACHER' ? '/teacher/students' : '/learn';
         void this.router.navigateByUrl(returnUrl && !/^\/(login|register|reset-password)(?:[/?#]|$)/.test(returnUrl) ? returnUrl : home, { replaceUrl: true });
       },
-      error: (failure: HttpErrorResponse) => { this.submitted.set(false); this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(failure.error?.message ?? 'Не удалось выполнить действие. Попробуйте ещё раз.'); },
+      error: (failure: HttpErrorResponse) => { this.submitted.set(false); this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(errorMessage(failure, 'Не удалось выполнить действие. Попробуйте ещё раз.', this.mode === 'password' ? { INVALID_CREDENTIALS: 'Текущий пароль неверный.' } : {})); },
     });
   }
 }

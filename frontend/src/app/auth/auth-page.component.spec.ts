@@ -26,7 +26,8 @@ describe('AuthPage routes', () => {
     expect(request.request.body.password).toBe('  exact password  ');
     request.flush({ status: 401, code: 'INVALID_CREDENTIALS', message: 'Неверные данные', fieldErrors: {}, requestId: 'synthetic' }, { status: 401, statusText: 'Unauthorized' });
     harness.detectChanges();
-    expect(element.querySelector('[role="alert"]')).not.toBeNull();
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Неверный логин или пароль.');
+    expect(element.textContent).not.toContain('Неверные данные');
   });
   for (const [path, heading] of [['/register?token=synthetic', 'Приглашение'], ['/reset-password?token=synthetic', 'Восстановление пароля']]) {
     it(`renders ${path} using its route mode`, async () => {

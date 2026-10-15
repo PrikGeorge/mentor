@@ -4,6 +4,7 @@ import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 type Kind = 'doc' | 'download';
 type FieldErrors = { title?: string; markdown?: string; file?: string };
 type Audience = 'student' | 'teacher';
@@ -72,7 +73,7 @@ export class MaterialFormComponent {
         this.busy.set(true);
         this.scope.track(this.api.create(this.workspaceId(), this.studentId(), this.lessonId(), form)).subscribe({
             next: created => { this.busy.set(false); this.title.set(''); this.markdown.set(''); this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.saved.emit(created); },
-            error: error => { this.busy.set(false); this.error.set(error.status === 409 ? 'Документ с этой ролью уже есть. Удалите его или выберите другую роль.' : error.status === 413 ? 'Файл больше 20 МиБ.' : error.error?.message ?? 'Не удалось сохранить материал.'); },
+            error: error => { this.busy.set(false); this.error.set(errorMessage(error, 'Не удалось сохранить материал.', { 413: 'Файл больше 20 МиБ.' })); },
         });
     }
 }

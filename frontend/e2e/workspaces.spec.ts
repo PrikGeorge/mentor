@@ -214,7 +214,7 @@ for (const width of [1280, 390]) {
         await expect(page.locator('form')).toHaveCount(1);
         await page.getByRole('textbox', { name: /^Тема занятия/ }).fill('Ошибка формы');
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText('Синтетическая ошибка');
+        await expect(page.getByRole('alert')).toContainText('Не удалось сохранить занятие. Поля сохранены в форме.');
         await expect(page.getByRole('textbox', { name: /^Тема занятия/ })).toHaveValue('Ошибка формы');
         await page.getByRole('textbox', { name: /^Тема занятия/ }).fill('Новое занятие');
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
@@ -224,7 +224,7 @@ for (const width of [1280, 390]) {
         await page.getByRole('button', { name: 'Добавить сценарий', exact: true }).click();
         await page.getByRole('textbox', { name: 'Текст занятия', exact: true }).fill('  только преподавателю  \n');
         await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText('Ревизия устарела');
+        await expect(page.getByRole('alert')).toContainText('Текст уже изменили в другой вкладке.');
         await expect(page.getByRole('textbox', { name: 'Текст занятия', exact: true })).toHaveValue('  только преподавателю  \n');
         await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(0);

@@ -16,6 +16,7 @@ import { FileSizePipe } from '../core/file-size.pipe';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, validateAnswer } from './text-answer';
 import { afterDeadline, dueLine, HomeworkDue } from './homework-due';
+import { errorMessage, apiProblem } from '../core/api-error';
 @Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent, PaginationComponent, FileSizePipe, ErrorBannerComponent], template: `
 <section class="homework-page" [class.single]="!canSubmit()" [hidden]="!active()">
 @if(canSubmit()){
@@ -85,7 +86,7 @@ export class HomeworkPageComponent {
         effect(() => {
             const state = this.historyReading.state();
             this.loading.set(state.status === 'loading');
-            this.listError.set(state.status === 'error' ? (state.error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить историю работ.' : '');
+            this.listError.set(state.status === 'error' ? errorMessage(state.error, 'Не удалось загрузить историю работ.') : '');
             if (state.status !== 'resolved') return;
             this.submissions.set(state.value.items); this.total.set(state.value.total); this.unknown.set(false);
             if (state.params.page === 0) this.latest.set(state.value.items[0] ?? null);
@@ -121,7 +122,7 @@ export class HomeworkPageComponent {
             if (!this.active() || stamp !== this.sequence) return;
             if (event.type === HttpEventType.UploadProgress) this.progress.set(event.total ? Math.min(100, Math.floor(event.loaded/event.total*100)) : null);
             if (event instanceof HttpResponse && event.status === 201 && event.body) { this.busy.set(false); this.clearForm(); this.succeeded.set(true); this.page.set(0); this.load(0); }
-        }, error: error => { if (this.active() && stamp === this.sequence) { this.busy.set(false); this.progress.set(null); this.unknown.set(error.status === 0 || error.status === 503); this.error.set(error.error?.message ?? error.message ?? 'Не удалось подтвердить отправку.'); } } });
+        }, error: error => { if (this.active() && stamp === this.sequence) { this.busy.set(false); this.progress.set(null); this.unknown.set(error.status === 0 || error.status === 503); this.error.set(apiProblem(error).status === null && error instanceof Error ? error.message : errorMessage(error, 'Не удалось подтвердить отправку.')); } } });
     }
     updatedReview(result: Submission) { if (!this.canReview()) return; this.submissions.update(items => items.map(item => item.id === result.id ? result : item)); if (this.latest()?.id === result.id) this.latest.set(result); }
     isText(submission: Submission) { return /\.(java|txt|md)$/i.test(submission.filename) && submission.size <= 262144; }
@@ -136,7 +137,7 @@ export class HomeworkPageComponent {
     }
     download(submission: Submission) {
         if (!this.active()) return; const stamp = this.sequence; this.downloadErrors.update(errors => Object.fromEntries(Object.entries(errors).filter(([id]) => id !== submission.id)));
-        const request = this.scope.track(this.api.download(this.lesson(), submission.id)).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: error.error?.message ?? 'Не удалось скачать работу.' })); } }); this.downloads.push(request);
+        const request = this.scope.track(this.api.download(this.lesson(), submission.id)).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: errorMessage(error, 'Не удалось скачать работу.') })); } }); this.downloads.push(request);
     }
     date(value: string) { return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
     repositoryLink(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null; } catch { return null; } }

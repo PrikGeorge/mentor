@@ -12,6 +12,7 @@ import { PaginationComponent } from '../core/pagination.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { createBoundScope } from '../core/bound-scope';
 import { readResource } from '../core/read-resource';
+import { errorMessage } from '../core/api-error';
 type Teacher = components['schemas']['TeacherView'];
 type Invitation = components['schemas']['InvitationView'];
 type LinkIssue = components['schemas']['PasswordResetIssue'];
@@ -110,7 +111,7 @@ export class TeachersPageComponent {
       const state = this.listsResource.state();
       untracked(() => {
         this.loading.set(state.status === 'loading');
-        this.readError.set(state.status === 'error' ? (state.error as HttpErrorResponse)?.error?.message ?? 'Не удалось загрузить список.' : '');
+        this.readError.set(state.status === 'error' ? errorMessage(state.error, 'Не удалось загрузить список.') : '');
         this.teachers.set(state.status === 'resolved' ? state.value.teachers.items : []);
         this.invitations.set(state.status === 'resolved' ? state.value.invitations.items : []);
         if (state.status === 'resolved') {
@@ -154,7 +155,7 @@ export class TeachersPageComponent {
     this.busy.set(true); this.actionError.set('');
     this.session.scope(action).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.busy.set(false))).subscribe({
       next: value => { done?.(value); if (reload) this.refresh.update(count => count + 1); },
-      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.actionError.set(failure.error?.message ?? 'Действие не выполнено. Попробуйте ещё раз.'); },
+      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.actionError.set(errorMessage(failure, 'Действие не выполнено. Попробуйте ещё раз.', { INVALID_CREDENTIALS: 'Текущий пароль неверный.' })); },
     });
   }
 }

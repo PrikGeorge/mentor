@@ -5,6 +5,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { StudentsApi, StudentView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { errorMessage } from '../core/api-error';
 type Field = 'name' | 'direction' | 'goal' | 'schedule' | 'notes' | 'studentRoadmap' | 'studentReview';
 @Component({ selector: 'mentor-student-form', imports: [ReactiveFormsModule, IconComponent, ErrorBannerComponent], template: `
   <section class="editor box" aria-labelledby="student-form-title"><h2 id="student-form-title">{{student()?'Карточка ученика':'Новый ученик'}}</h2><p>У каждого ученика будут свои занятия и материалы.</p>
@@ -44,7 +45,7 @@ export class StudentFormComponent {
         return; this.error.set(''); this.submitted.set(true); if (this.form.invalid) {
         this.form.markAllAsTouched(); const current = this.scope.capture(); afterNextRender(() => { if (current()) this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, { injector: this.injector });
         return;
-    } this.busy.set(true); const s = this.student(); this.scope.track(this.api.save(this.workspaceId(), s?.id ?? null, this.form.getRawValue(), s?.revision)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(error.error?.message ?? 'Не удалось сохранить карточку. Поля сохранены в форме.'); } }); }
+    } this.busy.set(true); const s = this.student(); this.scope.track(this.api.save(this.workspaceId(), s?.id ?? null, this.form.getRawValue(), s?.revision)).subscribe({ next: view => { this.busy.set(false); this.submitted.set(false); this.saved.emit(view); }, error: error => { this.busy.set(false); this.error.set(errorMessage(error, 'Не удалось сохранить карточку. Поля сохранены в форме.', { 409: 'Карточку уже изменили. Поля сохранены в форме — обновите страницу.' })); } }); }
 }
 // A name of spaces only is no name.
 function notBlank(control: { value: unknown }) { return typeof control.value === 'string' && control.value.length > 0 && !control.value.trim() ? { blank: true } : null; }

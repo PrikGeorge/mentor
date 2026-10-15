@@ -116,7 +116,7 @@ describe('Lesson creation and preparation', () => {
         save.flush({ message: 'Ревизия устарела' }, { status: 409, statusText: 'Conflict' });
         await renderResources(); fixture.detectChanges();
         expect(element.querySelector<HTMLTextAreaElement>('[name="markdown"]')?.value).toBe('  сохранить локально\n');
-        expect(element.textContent).toContain('Ревизия устарела');
+        expect(element.textContent).toContain('Текст уже изменили в другой вкладке.');
         flushTurns(http); http.verify();
     });
     it('metadata form excludes all lesson texts and uses the metadata revision', async () => {

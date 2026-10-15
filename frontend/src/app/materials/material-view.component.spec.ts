@@ -108,7 +108,7 @@ describe('Scoped material reading', () => {
         const related = http.expectOne('/api/v1/workspaces/w1/materials/code1?audience=student');
         await renderResources(); expect(element.textContent).toContain('Основной документ'); expect(fixture.componentInstance.loading()).toBe(false);
         related.flush({ message: 'Связанный код недоступен' }, { status: 503, statusText: 'Unavailable' });
-        await renderResources(); expect(element.textContent).toContain('Основной документ'); expect(element.textContent).toContain('Связанный код недоступен');
+        await renderResources(); expect(element.textContent).toContain('Основной документ'); expect(element.textContent).toContain('Сервис временно недоступен. Повторите позже.'); expect(element.textContent).not.toContain('Связанный код недоступен');
     });
     it('preserves stored zero studentParts while linking positive values to known public targets', async () => {
         const { fixture, http, element } = view('guide',false);

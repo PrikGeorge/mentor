@@ -50,6 +50,18 @@ describe('session HTTP boundary', () => {
     await signedIn;
     http.expectNone('/api/v1/workspaces/w1/students');
   });
+  it('keeps the session when a wrong current password is the only 401', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/teacher/students');
+    client.post('/api/v1/auth/change-password', { currentPassword: 'typo', newPassword: 'synthetic-new' }).subscribe({ error: () => {} });
+    http.expectOne('/api/v1/auth/change-password').flush(
+      { status: 401, code: 'INVALID_CREDENTIALS', message: 'Invalid login or password.', requestId: 'synthetic' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(session.actor()?.userId).toBe('first');
+    expect(router.url).toBe('/teacher/students');
+  });
   it('cancels old private reads and clears their rendered data when the account changes', () => {
     const rendered = TestBed.createComponent(PrivateView);
     rendered.detectChanges();
