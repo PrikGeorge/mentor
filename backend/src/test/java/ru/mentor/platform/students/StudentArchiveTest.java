@@ -6,26 +6,11 @@ import java.io.*;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class StudentArchiveTest extends IdentityHttpTest {
-    private static final Path RUNTIME=isolatedRuntime();
-    private static Path isolatedRuntime(){
-        try {
-            Path root=Files.createTempDirectory("mentor-archive-test-");
-            System.setProperty("mentor.blobs.type","local");System.setProperty("mentor.blobs.local-root",root.resolve("objects").toString());
-            System.setProperty("mentor.blobs.spool-root",root.resolve("spool").toString());System.setProperty("mentor.blobs.cleanup-enabled","false");
-            System.setProperty("spring.servlet.multipart.location",Files.createDirectory(root.resolve("multipart")).toString());return root;
-        } catch(IOException failure){throw new ExceptionInInitializerError(failure);}
-    }
-    @AfterAll static void cleanupRuntime()throws IOException {
-        for(String key:List.of("mentor.blobs.type","mentor.blobs.local-root","mentor.blobs.spool-root","mentor.blobs.cleanup-enabled","spring.servlet.multipart.location"))System.clearProperty(key);
-        try(var paths=Files.walk(RUNTIME)){for(Path path:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}
-    }
-
     // Catches an archived card still queuing work, a student locked out of reading, and a stale revision silently archiving.
     @Test void archivedCardLeavesTheListsStaysReadableAndRefusesNewWork()throws Exception {
         var teacher=teacher("archive-teacher");String a=student(teacher,"Archived A").get("id").asText(),b=student(teacher,"Active B").get("id").asText();

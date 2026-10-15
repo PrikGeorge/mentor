@@ -1,14 +1,14 @@
 package ru.mentor.platform.support;
 
 import org.junit.jupiter.api.*;
-import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import ru.mentor.platform.MentorApplication;
-import ru.mentor.platform.identity.PasswordCodec;
 import tools.jackson.databind.*;
 import java.net.*;
 import java.net.http.*;
@@ -18,13 +18,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class IdentityHttpTest extends PostgresTest {
+@ExtendWith(HttpTestRuntime.Extension.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock("mentor-http-runtime")
+public abstract class IdentityHttpTest {
     protected static final String PASSWORD="synthetic-password-😀";
     protected ConfigurableApplicationContext context;
     protected JdbcTemplate jdbc;
     protected String origin;
     protected final ObjectMapper json=new ObjectMapper();
     protected HttpClient admin;
+    HttpTestRuntime runtime;
+    protected java.nio.file.Path runtimeRoot;
     protected static final MutableClock CLOCK=new MutableClock();
     public static class MutableClock extends Clock {
         final AtomicReference<Instant> time=new AtomicReference<>(Instant.now());
@@ -36,21 +41,14 @@ public abstract class IdentityHttpTest extends PostgresTest {
     @TestConfiguration(proxyBeanMethods=false) public static class ClockConfiguration {
         @Bean @Primary Clock testClock(){return CLOCK;}
     }
-    private String passwordHash;
-    @BeforeAll void start(){
-        POSTGRES.start();
-        context=new SpringApplicationBuilder(MentorApplication.class,ClockConfiguration.class).run("--server.port=0",
-            "--spring.datasource.url="+POSTGRES.getJdbcUrl(),"--spring.datasource.username="+POSTGRES.getUsername(),"--spring.datasource.password="+POSTGRES.getPassword());
-        origin="http://localhost:"+((WebServerApplicationContext)context).getWebServer().getPort();
-        jdbc=context.getBean(JdbcTemplate.class); passwordHash=context.getBean(PasswordCodec.class).encode(PASSWORD);
-    }
     @BeforeEach void seed() throws Exception {
+        runtime.bind(this);
+        runtime.reset();
         CLOCK.advance(Duration.ofDays(16));
-        jdbc.execute("TRUNCATE identity_account, SPRING_SESSION CASCADE");
-        jdbc.update("INSERT INTO identity_account(id,login,password_hash,role) VALUES ('admin','admin',?,'ADMIN')",passwordHash);
+        jdbc.update("INSERT INTO identity_account(id,login,password_hash,role) VALUES ('admin','admin',?,'ADMIN')",runtime.passwordHash);
         admin=client(); assertEquals(200,write(admin,"POST","/auth/login",Map.of("login","admin","password",PASSWORD)).statusCode());
     }
-    @AfterAll void stop(){if(context!=null)context.close();POSTGRES.stop();}
+    protected void restartContext() throws java.io.IOException {runtime.restart();runtime.bind(this);}
     protected HttpClient client(){return HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();}
     protected HttpResponse<String> get(HttpClient c,String path) throws Exception {
         return c.send(HttpRequest.newBuilder(URI.create(origin+"/api/v1"+path)).GET().build(),HttpResponse.BodyHandlers.ofString());

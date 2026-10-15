@@ -42,8 +42,5 @@ abstract class AttemptHttpTest extends PracticeHttpTest {
     }
     protected HttpResponse<String> complete(JsonNode lease,Object result)throws Exception{return internal("/"+lease.get("jobId").asText()+"/complete",Map.of("leaseToken",lease.get("leaseToken").asText(),"result",result),workerSecret);}
     protected HttpResponse<String> heartbeat(JsonNode lease)throws Exception{return internal("/"+lease.get("jobId").asText()+"/heartbeat",Map.of("leaseToken",lease.get("leaseToken").asText()),workerSecret);}
-    protected void restart(){
-        context.close();context=new org.springframework.boot.builder.SpringApplicationBuilder(ru.mentor.platform.MentorApplication.class,ClockConfiguration.class).run("--server.port=0","--spring.datasource.url="+POSTGRES.getJdbcUrl(),"--spring.datasource.username="+POSTGRES.getUsername(),"--spring.datasource.password="+POSTGRES.getPassword(),"--mentor.runner.token-file="+credential);
-        origin="http://localhost:"+((org.springframework.boot.web.server.context.WebServerApplicationContext)context).getWebServer().getPort();jdbc=context.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
-    }
+    protected void restart() throws java.io.IOException {restartContext();}
 }

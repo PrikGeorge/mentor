@@ -9,7 +9,7 @@ import java.io.*;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -20,24 +20,8 @@ import ru.mentor.platform.lessons.LessonRef;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HomeworkFlowTest extends IdentityHttpTest {
-    private static final Path RUNTIME=isolatedRuntime();
     private static final String BOUNDARY="mentor-synthetic-homework-boundary";
     private static final byte[] TEXT="synthetic project bytes\n".getBytes(StandardCharsets.UTF_8);
-    private static Path isolatedRuntime(){
-        try {
-            Path root=Files.createTempDirectory("mentor-homework-test-");
-            System.setProperty("mentor.blobs.type","local");
-            System.setProperty("mentor.blobs.local-root",root.resolve("objects").toString());
-            System.setProperty("mentor.blobs.spool-root",root.resolve("spool").toString());
-            System.setProperty("mentor.blobs.cleanup-enabled","false");
-            System.setProperty("spring.servlet.multipart.location",Files.createDirectory(root.resolve("multipart")).toString());
-            return root;
-        } catch(IOException failure){throw new ExceptionInInitializerError(failure);}
-    }
-    @AfterAll static void cleanupRuntime()throws IOException {
-        for(String key:List.of("mentor.blobs.type","mentor.blobs.local-root","mentor.blobs.spool-root","mentor.blobs.cleanup-enabled","spring.servlet.multipart.location"))System.clearProperty(key);
-        try(var paths=Files.walk(RUNTIME)){for(Path path:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}
-    }
 
     // Catches missing submission handling, file-cap off-by-one and a preview actor gaining write rights.
     @Test void boundariesAndOwnership()throws Exception {
@@ -223,7 +207,7 @@ class HomeworkFlowTest extends IdentityHttpTest {
             String response=new String(socket.getInputStream().readAllBytes(),StandardCharsets.UTF_8);assertTrue(response.isEmpty()||response.startsWith("HTTP/1.1 4"),()->"Disconnected request must never succeed: "+response.lines().findFirst().orElse("<closed without response>"));
         }
         assertEquals(1,data(get(f.learner().client(),f.path()),200).get("total").asLong());assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM stored_blob",Integer.class));
-        try(var parts=Files.list(RUNTIME.resolve("multipart"))){assertEquals(0,parts.count());}
+        try(var parts=Files.list(runtimeRoot.resolve("multipart"))){assertEquals(0,parts.count());}
     }
     // Catches regex wildcard behavior accidentally allowing multiple filename control characters.
     @Test void serviceRejectsMultipleFilenameControlsBeforeStaging()throws Exception {

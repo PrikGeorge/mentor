@@ -1,11 +1,8 @@
 package ru.mentor.platform.homework;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import ru.mentor.platform.support.IdentityHttpTest;
-import ru.mentor.platform.support.IsolatedBlobRuntime;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -13,9 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** The grade and the status of a review are CAS-guarded by revision; a stale form never changes the sign (Q-06). */
 class HomeworkReviewRevisionTest extends IdentityHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-review-revision-test-");
     private static final byte[] TEXT="class Main {}\n".getBytes(StandardCharsets.UTF_8);
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     private record Fixture(User teacher,User learner,String student,String lesson,String homework,String moves){}
     private Fixture fixture(String login)throws Exception {

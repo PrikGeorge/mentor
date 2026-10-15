@@ -5,7 +5,6 @@ import java.net.*;
 import java.net.http.*;
 import java.util.*;
 import java.io.*;
-import java.nio.file.*;
 import ru.mentor.platform.files.*;
 import ru.mentor.platform.shared.Actor;
 import ru.mentor.platform.students.StudentService;
@@ -13,9 +12,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 class MaterialAccessTest extends IdentityHttpTest {
-    static final Path OBJECT_ROOT=temporaryObjects();
-    private static Path temporaryObjects(){try{Path path=Files.createTempDirectory("mentor-material-test-");System.setProperty("mentor.blobs.local-root",path.toString());return path;}catch(IOException failed){throw new ExceptionInInitializerError(failed);}}
-    @AfterAll static void cleanupObjects()throws IOException {System.clearProperty("mentor.blobs.local-root");try(var files=Files.walk(OBJECT_ROOT)){for(Path file:files.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(file);}}
     @Test void directUrls()throws Exception {
         var teacher=teacher("material-teacher");var student=student(teacher,"Synthetic material student");
         var page=data(get(teacher.client(),card(teacher,student.get("id").asText())+"/materials"),200);

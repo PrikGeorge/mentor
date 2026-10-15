@@ -13,10 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** The "Moves" journal of one card: four sources in one page, stable order and paging, lesson filter and workspace boundary (Q-05 / B-12). */
 class MoveJournalTest extends IdentityHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-moves-test-");
     private static final byte[] TEXT="class Main {}\n".getBytes(StandardCharsets.UTF_8);
     @TempDir Path temporary;
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     private record Fixture(User teacher,User learner,String student,String first,String second){}
     private Fixture fixture(String login)throws Exception {

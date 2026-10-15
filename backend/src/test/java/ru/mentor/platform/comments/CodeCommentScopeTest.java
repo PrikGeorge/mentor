@@ -1,6 +1,5 @@
 package ru.mentor.platform.comments;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.mentor.platform.support.*;
@@ -13,10 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** A line comment belongs to one target of one lesson of one card; the lesson in the route must own the target (Q-12). */
 class CodeCommentScopeTest extends IdentityHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-comment-scope-test-");
     private static final byte[] SOURCE="class Main {\n  void run() {}\n}\n".getBytes(StandardCharsets.UTF_8);
     @TempDir Path temporary;
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     private record Fixture(User teacher,User learner,String student,String first,String second){
         String lesson(String id){return "/workspaces/"+teacher.workspace()+"/students/"+student+"/lessons/"+id;}

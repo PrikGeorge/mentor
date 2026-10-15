@@ -1,20 +1,15 @@
 package ru.mentor.platform.lessons;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import ru.mentor.platform.support.IdentityHttpTest;
-import ru.mentor.platform.support.IsolatedBlobRuntime;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LessonConductedTest extends IdentityHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-conducted-test-");
     private static final byte[] TEXT="class Main {}\n".getBytes(StandardCharsets.UTF_8);
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     // Catches numbering by creation instead of the calendar, an implicit "held" claim, a moving first mark and a student editing the mark.
     @Test void numberFollowsTheCalendarAndConductedIsAnExplicitTeacherMark() throws Exception {

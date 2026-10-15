@@ -43,9 +43,15 @@ class LessonAudienceTest extends LessonHttpTest {
     }
     @Test void historicalFocusUsesDeclaredMoscowZoneRatherThanFixedOffset()throws Exception {
         var f=fixture("lesson-history");lesson(f,"Historical","2012-01-01","12:00",60);
-        CLOCK.advance(Duration.between(CLOCK.instant(),Instant.parse("2012-01-01T09:10:00Z")));
-        var result=data(get(f.teacher().client(),f.path()+"/dashboard"),200);
-        assertFalse(result.get("focus").get("upcoming").asBoolean()); // Europe/Moscow was UTC+04, end09:00Z; fixed+03 would still be current.
+        Instant previous=CLOCK.instant();
+        try {
+            CLOCK.advance(Duration.between(previous,Instant.parse("2012-01-01T09:10:00Z")));
+            var result=data(get(f.teacher().client(),f.path()+"/dashboard"),200);
+            assertFalse(result.get("focus").get("upcoming").asBoolean()); // Europe/Moscow was UTC+04, end09:00Z; fixed+03 would still be current.
+        } finally {
+            // Authentication TTLs belong to the shared context; the historical instant must not escape this test.
+            CLOCK.advance(Duration.between(CLOCK.instant(),previous));
+        }
     }
     @Test void materialReaderChecksCurrentBindingPreparedBundleAndActualActor()throws Exception {
         var f=fixture("lesson-material");var l=lesson(f,"Materials","2030-01-01","12:00",60);String id=l.get("id").asText();var learner=enroll(f.teacher(),f.student(),"material-learner");

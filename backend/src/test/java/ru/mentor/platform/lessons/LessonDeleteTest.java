@@ -6,26 +6,11 @@ import java.io.*;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LessonDeleteTest extends IdentityHttpTest {
-    private static final Path RUNTIME=isolatedRuntime();
-    private static Path isolatedRuntime(){
-        try {
-            Path root=Files.createTempDirectory("mentor-lesson-delete-test-");
-            System.setProperty("mentor.blobs.type","local");System.setProperty("mentor.blobs.local-root",root.resolve("objects").toString());
-            System.setProperty("mentor.blobs.spool-root",root.resolve("spool").toString());System.setProperty("mentor.blobs.cleanup-enabled","false");
-            System.setProperty("spring.servlet.multipart.location",Files.createDirectory(root.resolve("multipart")).toString());return root;
-        } catch(IOException failure){throw new ExceptionInInitializerError(failure);}
-    }
-    @AfterAll static void cleanupRuntime()throws IOException {
-        for(String key:List.of("mentor.blobs.type","mentor.blobs.local-root","mentor.blobs.spool-root","mentor.blobs.cleanup-enabled","spring.servlet.multipart.location"))System.clearProperty(key);
-        try(var paths=Files.walk(RUNTIME)){for(Path path:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}
-    }
-
     // Catches a mistaken lesson that cannot be removed, a lesson with work vanishing, and numbers not closing the gap.
     @Test void emptyLessonsDisappearWhileLessonsWithWorkOrMaterialsStay()throws Exception {
         var teacher=teacher("delete-teacher");var other=teacher("delete-other");String student=student(teacher,"Delete student").get("id").asText();var learner=enroll(teacher,student,"delete-learner");

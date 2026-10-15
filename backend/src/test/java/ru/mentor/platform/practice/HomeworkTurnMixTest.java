@@ -1,20 +1,15 @@
 package ru.mentor.platform.practice;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
-import ru.mentor.platform.support.IsolatedBlobRuntime;
 import tools.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** One lesson mixes homework files and submit attempts of a homework-placement exercise; the latest exchange decides whose turn it is (Q-08). */
 class HomeworkTurnMixTest extends AttemptHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-turn-mix-test-");
     private static final byte[] TEXT="class Main {}\n".getBytes(StandardCharsets.UTF_8);
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     private String homework(Fixture f){return card(f.teacher(),f.student())+"/lessons/"+f.lesson()+"/homework";}
     private JsonNode turn(Fixture f)throws Exception{var page=data(get(f.learner().client(),card(f.teacher(),f.student())+"/homework/turns"),200);assertEquals(1,page.get("total").asLong(),"One lesson, one turn.");return page.get("items").get(0);}

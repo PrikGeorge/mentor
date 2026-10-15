@@ -1,21 +1,16 @@
 package ru.mentor.platform.homework;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import ru.mentor.platform.support.IdentityHttpTest;
-import ru.mentor.platform.support.IsolatedBlobRuntime;
 import tools.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Whose turn it is on the edge cases of the homework exchange: lesson dates, resubmission, review without a grade, idle students (Q-08). */
 class HomeworkTurnsTest extends IdentityHttpTest {
-    private static final Path RUNTIME=IsolatedBlobRuntime.create("mentor-turns-test-");
     private static final byte[] TEXT="class Main {}\n".getBytes(StandardCharsets.UTF_8);
-    @AfterAll static void cleanupRuntime()throws Exception{IsolatedBlobRuntime.cleanup(RUNTIME);}
 
     private record Fixture(User teacher,User learner,String student){
         String turns(){return "/workspaces/"+teacher.workspace()+"/students/"+student+"/homework/turns";}
