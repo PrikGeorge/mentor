@@ -21,7 +21,6 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   backend:
@@ -130,54 +129,156 @@ jobs:
           if ($failed) { Write-Output "Failed: $($failed -join ', ')"; exit 1 }
 
   images:
-    name: Container images (multi-stage build)
+    name: Container images (build and vulnerability gate)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: [backend, frontend]
+    timeout-minutes: 60
+    needs: [backend, frontend, infra]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/release-')
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Release tag
-        id: tag
+      - name: Install verified Trivy
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/release-* ]]; then echo "release=${GITHUB_REF#refs/tags/release-}" >> "$GITHUB_OUTPUT"; else echo "release=ci-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"; fi
+          mkdir -p "$RUNNER_TEMP/trivy" image-reports
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/trivy/archive.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz
+          echo "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  $RUNNER_TEMP/trivy/archive.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/trivy/archive.tar.gz" -C "$RUNNER_TEMP/trivy" trivy
+          echo "$RUNNER_TEMP/trivy" >> "$GITHUB_PATH"
       - name: Build backend
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/backend/Dockerfile
           build-args: JAR_SOURCE=build
-          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
-          tags: ghcr.io/${{ github.repository }}/backend:${{ steps.tag.outputs.release }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          push: false
+          load: true
+          tags: mentor-ci-backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
       - name: Build web
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/frontend/Dockerfile
           build-args: DIST_SOURCE=build
-          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
-          tags: ghcr.io/${{ github.repository }}/web:${{ steps.tag.outputs.release }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          push: false
+          load: true
+          tags: mentor-ci-web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
       - name: Build runner
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/runner-service/Dockerfile
           build-args: JAR_SOURCE=build
-          push: ${{ startsWith(github.ref, 'refs/tags/release-') }}
-          tags: ghcr.io/${{ github.repository }}/runner:${{ steps.tag.outputs.release }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          push: false
+          load: true
+          tags: mentor-ci-runner:${{ github.sha }}
+          cache-from: type=gha,scope=runner
+          cache-to: type=gha,scope=runner,mode=max
+      - name: Scan exact images and enforce policy
+        shell: pwsh
+        env:
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $images = [ordered]@{}
+          $failed = @()
+          $postgres = 'postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94'
+          docker pull $postgres
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL image pull failed.' }
+          foreach ($profile in @('backend', 'web', 'runner', 'postgres')) {
+            try {
+              $image = if ($profile -eq 'postgres') { $postgres } else { "mentor-ci-${profile}:$env:GITHUB_SHA" }
+              $id = docker image inspect --format '{{.Id}}' $image
+              if ($LASTEXITCODE -ne 0 -or $id -cnotmatch '^sha256:[a-f0-9]{64}$') { throw "Cannot identify $profile image." }
+              $images[$profile] = $id
+              $packages = if ($profile -eq 'postgres') { 'os' } else { 'os,library' }
+              $report = Join-Path $PWD "image-reports/$profile.json"
+              trivy image --config /dev/null --timeout 15m --image-src docker --scanners vuln --pkg-types $packages --list-all-pkgs --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --ignore-unfixed=false --ignorefile /dev/null --format json --output $report $id
+              if ($LASTEXITCODE -ne 0) { throw "Trivy failed for $profile." }
+              ./infra/check-image-scan.ps1 -ReportFile $report -ExpectedImageId $id -Profile $profile | Format-List
+            } catch { $failed += $profile; Write-Output $_ }
+          }
+          $images | ConvertTo-Json | Set-Content image-reports/image-ids.json
+          trivy --version --format json > image-reports/scanner.json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot record scanner/database version.' }
+          if ($failed.Count) { throw "Image gates failed: $($failed -join ', ')" }
+      - name: Keep complete image reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-vulnerability-reports
+          path: image-reports/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Save scanned release images
+        if: startsWith(github.ref, 'refs/tags/release-')
+        shell: pwsh
+        run: |
+          $images = Get-Content image-reports/image-ids.json -Raw | ConvertFrom-Json -AsHashtable
+          New-Item -ItemType Directory release-images | Out-Null
+          docker image save --output release-images/images.tar $images.backend $images.web $images.runner
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot export scanned images.' }
+          $manifest = @{ Images = @{ backend = $images.backend; web = $images.web; runner = $images.runner }; ArchiveSha256 = (Get-FileHash release-images/images.tar -Algorithm SHA256).Hash }
+          $manifest | ConvertTo-Json | Set-Content release-images/manifest.json
+      - name: Pass scanned images to publisher
+        if: startsWith(github.ref, 'refs/tags/release-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanned-release-images
+          path: release-images/
+          retention-days: 1
+          if-no-files-found: error
+
+  publish-images:
+    name: Publish the scanned images
+    if: startsWith(github.ref, 'refs/tags/release-')
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: scanned-release-images
+          path: release-images
+      - name: Verify and load scanned archives
+        shell: pwsh
+        run: |
+          $manifest = Get-Content release-images/manifest.json -Raw | ConvertFrom-Json -AsHashtable
+          if ($manifest.ArchiveSha256 -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash release-images/images.tar -Algorithm SHA256).Hash -ne $manifest.ArchiveSha256) { throw 'Image archive checksum mismatch.' }
+          docker image load --input release-images/images.tar
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot load image archive.' }
+          foreach ($profile in @('backend', 'web', 'runner')) {
+            $id = $manifest.Images[$profile]
+            if ($id -cnotmatch '^sha256:[a-f0-9]{64}$') { throw "Invalid image ID: $profile" }
+            $loadedId = docker image inspect --format '{{.Id}}' $id
+            if ($LASTEXITCODE -ne 0 -or $loadedId -cne $id) { throw "Image ID mismatch: $profile" }
+          }
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish without rebuilding
+        shell: pwsh
+        run: |
+          $manifest = Get-Content release-images/manifest.json -Raw | ConvertFrom-Json -AsHashtable
+          $release = $env:GITHUB_REF -creplace '^refs/tags/release-', ''
+          if ($release -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$') { throw 'Invalid release tag.' }
+          $repository = $env:GITHUB_REPOSITORY.ToLowerInvariant()
+          foreach ($profile in @('backend', 'web', 'runner')) {
+            $tag = "ghcr.io/$repository/${profile}:$release"
+            docker image tag $manifest.Images[$profile] $tag
+            if ($LASTEXITCODE -ne 0) { throw "Cannot tag $profile." }
+            docker image push $tag
+            if ($LASTEXITCODE -ne 0) { throw "Cannot publish $profile." }
+          }
 
   runner-module:
     name: Runner module (manual, needs prepared sandbox images)

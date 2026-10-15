@@ -52,6 +52,27 @@ docker build -f infra/runner-service/Dockerfile -t mentor-platform-runner:releas
 
 На Windows используйте эти команды внутри выбранного дистрибутива WSL с его Linux-путём проекта. Образы копируют только executable JAR или собранные публичные Angular-файлы. Старые `dist`, `data`, `private`, снимки и исходники заданий не должны становиться корнем публичной статики.
 
+## Сканирование образов перед публикацией
+
+CI собирает backend/web/runner с `push: false`, загружает их в локальный Docker и сканирует по image ID. Дополнительно проверяется закреплённый PostgreSQL из Compose. Trivy 0.76.0 загружается из конкретного релиза GitHub с проверкой SHA256 архива; базы уязвимостей обновляются при запуске. Полные JSON, состав пакетов, image IDs и версия сканера/баз сохраняются в artifact `image-vulnerability-reports` на 7 дней, включая неуспешные проверки.
+
+`infra/check-image-scan.ps1` требует ожидаемый image ID, поддерживаемую схему отчёта и непустой состав OS-пакетов. Backend/runner дополнительно требуют Java-библиотеки из JAR; web — Go-пакеты Caddy; runner — Go-пакеты `/usr/local/bin/docker`. Отсутствие отчёта, ошибка сканера или неполный состав пакетов не считаются успешной проверкой. Любая HIGH/CRITICAL с непустой `FixedVersion` блокирует публикацию. Уязвимости без исправления остаются в полном отчёте и счётчике; исключений нет. Более низкие уровни тоже сохраняются. Настройки из `trivy.yaml` и `.trivyignore` не применяются.
+
+Публикующий job имеет `packages: write` и запускается только для тега `release-*` после успешных backend/frontend/infra/image checks. Он получает архив уже проверенных трёх образов, сверяет SHA256 архива и image IDs после `docker load`, затем присваивает GHCR-теги без пересборки. Архив хранится 1 день. Браузерный прогон с настоящим backend, выделенный runner/practice-контур и репетиция миграций остаются отдельными воротами релиза; наличие CI image artifact их не заменяет. Публикация не переключает работающие контейнеры.
+
+Локальная проверка уже собранного образа на Linux с PowerShell 7 и установленным проверенным Trivy той же версии (для остальных образов выберите профиль `web`, `runner` или `postgres`; PostgreSQL проверяется с `--pkg-types os`):
+
+```powershell
+$imageId = docker image inspect --format '{{.Id}}' mentor-platform-backend:release-1
+if ($LASTEXITCODE -ne 0) { throw 'Image lookup failed' }
+$report = Join-Path $PWD 'backend-image-report.json'
+trivy image --config /dev/null --timeout 15m --image-src docker --scanners vuln --pkg-types os,library --list-all-pkgs --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --ignore-unfixed=false --ignorefile /dev/null --format json --output $report $imageId
+if ($LASTEXITCODE -ne 0) { throw 'Image scan failed' }
+./infra/check-image-scan.ps1 -ReportFile $report -ExpectedImageId $imageId -Profile backend
+```
+
+При обновлении digest сначала сверяйте конкретный тег и OCI index в registry, затем пересобирайте и проверяйте итоговый образ: закрепление digest обеспечивает воспроизводимость, но не отсутствие уязвимостей. Проверка PostgreSQL здесь охватывает OS-пакеты; бинарник PostgreSQL, собранный из исходников, не обязательно обнаруживается сканером. Аналогично отсутствие версии main Go module ограничивает покрытие Caddy/Docker. Обновление `training/environments.json` меняет ревизии окружений и требует отдельной подготовки и проверки упражнений; это не обычное обновление сервисного образа.
+
 ## Первый запуск нового контура
 
 Выберите новый закрытый каталог конфигурации. Инициализация создаст пароль PostgreSQL, credential исполнителя и отдельный пароль шифрования копий. Она не создаёт пользователей и не импортирует старые данные.
