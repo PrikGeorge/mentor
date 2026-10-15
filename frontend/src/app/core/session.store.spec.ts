@@ -17,6 +17,72 @@ describe('SessionStore', () => {
   });
   afterEach(() => http.verify());
 
+  it('signs out and forgets only the local trainer copies of that account', () => {
+    const draft = (account: string) => JSON.stringify(['mentor.practice.source.v1', account, 'w1', 's1', 'l1', 'e1', ['number', 1]]);
+    localStorage.setItem(draft('first'), JSON.stringify({ files: { 'A.java': 'unsaved' }, savedAt: Date.now() }));
+    localStorage.setItem(draft('second'), JSON.stringify({ files: { 'B.java': 'other' }, savedAt: Date.now() }));
+    try {
+      store.load().subscribe();
+      http.expectOne('/api/v1/auth/session').flush({ account: first, csrfToken: 'synthetic-first' });
+      store.signOut().subscribe();
+      expect(localStorage.getItem(draft('first'))).not.toBeNull();
+      http.expectOne('/api/v1/auth/logout').flush({ account: null, csrfToken: 'synthetic-anonymous' });
+      http.expectOne('/api/v1/auth/session').flush({ account: null, csrfToken: 'synthetic-anonymous' });
+      expect(store.actor()).toBeNull();
+      expect(localStorage.getItem(draft('first'))).toBeNull();
+      expect(localStorage.getItem(draft('second'))).not.toBeNull();
+    } finally {
+      localStorage.clear();
+    }
+  });
+
+  it('keeps the local copies when sign-out fails and when the session merely expires', () => {
+    const draft = JSON.stringify(['mentor.practice.source.v1', 'first', 'w1', 's1', 'l1', 'e1', ['number', 1]]);
+    localStorage.setItem(draft, JSON.stringify({ files: { 'A.java': 'unsaved' }, savedAt: Date.now() }));
+    try {
+      store.load().subscribe();
+      http.expectOne('/api/v1/auth/session').flush({ account: first, csrfToken: 'synthetic-first' });
+      store.signOut().subscribe({ error: () => {} });
+      http.expectOne('/api/v1/auth/logout').flush({ status: 500, code: 'INTERNAL_ERROR' }, { status: 500, statusText: 'Server Error' });
+      expect(localStorage.getItem(draft)).not.toBeNull();
+      store.load().subscribe();
+      http.expectOne('/api/v1/auth/session').flush({ account: first, csrfToken: 'synthetic-first' });
+      store.expire(store.generation());
+      expect(store.actor()).toBeNull();
+      expect(localStorage.getItem(draft)).not.toBeNull();
+    } finally {
+      localStorage.clear();
+    }
+  });
+
+  it('forgets the copies when the server session had already ended at sign-out', () => {
+    const draft = JSON.stringify(['mentor.practice.source.v1', 'first', 'w1', 's1', 'l1', 'e1', ['number', 1]]);
+    localStorage.setItem(draft, JSON.stringify({ files: { 'A.java': 'unsaved' }, savedAt: Date.now() }));
+    try {
+      store.load().subscribe();
+      http.expectOne('/api/v1/auth/session').flush({ account: first, csrfToken: 'synthetic-first' });
+      store.signOut().subscribe({ error: () => {} });
+      http.expectOne('/api/v1/auth/logout').flush({ status: 401, code: 'UNAUTHORIZED' }, { status: 401, statusText: 'Unauthorized' });
+      expect(localStorage.getItem(draft)).toBeNull();
+    } finally {
+      localStorage.clear();
+    }
+  });
+
+  it('drops copies older than two weeks when the app starts', () => {
+    const old = JSON.stringify(['mentor.practice.source.v1', 'first', 'w1', 's1', 'l1', 'old', ['number', 1]]);
+    localStorage.setItem(old, JSON.stringify({ files: { 'A.java': 'old' }, savedAt: Date.now() - 15 * 24 * 60 * 60 * 1000 }));
+    try {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+      TestBed.inject(SessionStore);
+      http = TestBed.inject(HttpTestingController);
+      expect(localStorage.getItem(old)).toBeNull();
+    } finally {
+      localStorage.clear();
+    }
+  });
+
   it('loads the server account and anonymous CSRF without browser storage', () => {
     store.load().subscribe();
     http.expectOne('/api/v1/auth/session').flush({ account: first, csrfToken: 'synthetic-first' });

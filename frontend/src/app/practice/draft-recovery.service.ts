@@ -1,5 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { SessionStore } from '../core/session.store';
+import { localDraftExpired } from '../core/local-drafts';
 import type { SourceFiles, ExerciseRevision, AttemptIntent } from './practice-api.service';
 export interface Recovery {
     files: SourceFiles;
@@ -19,7 +20,7 @@ export class DraftRecovery {
         return false;
     } }
     save(key: string, files: SourceFiles): void { if (this.owned(key))
-        this.write(key, { files }); }
+        this.write(key, { files, savedAt: Date.now() }); }
     read(key: string): Recovery | null { const value = this.load(key); return value && this.files(value['files']) ? { files: { ...value['files'] } } : null; }
     remove(key: string): void { this.removeOwned(key); }
     removeIntent(key: string): void { this.removeOwned(key, ':intent'); }
@@ -31,7 +32,7 @@ export class DraftRecovery {
         this.storageError.set('Локальное хранилище недоступно.');
     } }
     saveIntent(key: string, intent: AttemptIntent) { if (this.owned(key))
-        this.write(key + ':intent', intent); }
+        this.write(key + ':intent', { ...intent, savedAt: Date.now() }); }
     readIntent(key: string): AttemptIntent | null {
         const value = this.load(key, ':intent');
         if (!value)
@@ -45,6 +46,11 @@ export class DraftRecovery {
     private load(key: string, suffix = ''): Record<string, unknown> | null { if (!this.owned(key))
         return null; try {
         const raw = localStorage.getItem(key + suffix), value: unknown = raw ? JSON.parse(raw) : null;
+        // FE-07: an expired copy is dropped instead of restored over the server draft.
+        if (localDraftExpired(value)) {
+            localStorage.removeItem(key + suffix);
+            return null;
+        }
         return record(value) ? value : null;
     }
     catch {

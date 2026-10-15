@@ -2,6 +2,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { defer, filter, map, Observable, of, Subject, switchMap, takeUntil, tap, throwError } from 'rxjs';
 import { Actor, PlatformApi, SessionView } from './platform-api.service';
 import { identityContext } from './session-context';
+import { expireLocalDrafts, forgetLocalDrafts } from './local-drafts';
 export type { Actor, SessionView } from './platform-api.service';
 
 @Injectable({ providedIn: 'root' })
@@ -19,6 +20,8 @@ export class SessionStore {
   readonly csrfToken = this.token.asReadonly();
   readonly login = this.name.asReadonly();
   readonly loaded = signal(false);
+
+  constructor() { expireLocalDrafts(); }
 
   load(): Observable<SessionView> {
     return defer(() => {
@@ -74,9 +77,12 @@ export class SessionStore {
       this.invalidate();
       const stamp = this.generation();
       return this.ensureCsrf().pipe(
-        switchMap(() => this.api.post('/auth/logout', undefined as never, { context: identityContext(previous) })),
+        // An already ended server session (401) is still the user's explicit sign-out for the local copies.
+        switchMap(() => this.api.post('/auth/logout', undefined as never, { context: identityContext(previous) }).pipe(
+          tap({ error: (error: { status?: number }) => { if (error?.status === 401 && previous) forgetLocalDrafts(previous); } }))),
         filter(() => stamp === this.generation()),
-        tap(() => { this.token.set(null); this.pendingLogoutAccount = null; }),
+        // FE-07: the shell asked about unsaved trainer code before signing out; its local copies go with the account.
+        tap(() => { this.token.set(null); this.pendingLogoutAccount = null; if (previous) forgetLocalDrafts(previous); }),
         switchMap(() => this.load()), map(() => undefined)
       );
     });
