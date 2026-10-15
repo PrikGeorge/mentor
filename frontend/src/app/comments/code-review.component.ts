@@ -4,6 +4,7 @@ import type { components } from '../api/schema';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
+import { readResource } from '../core/read-resource';
 import { IconComponent } from '../core/icon.component';
 import { GRADES, Grade, GradeComponent } from '../homework/grade.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
@@ -83,12 +84,19 @@ export class CodeReviewComponent {
     reload() { this.refresh.update(value => value + 1); }
     readonly listing = computed(() => Object.keys(this.files()).sort().map(name => ({ name, lines: codeLines(this.files()[name] ?? '') })));
     private readonly byLine = computed(() => { const map = new Map<string, CodeComment[]>(); for (const note of this.comments()) { const key = note.file + '\n' + note.line; map.set(key, [...(map.get(key) ?? []), note]); } return map; });
+    private readonly reading = readResource({
+        params: () => ({ lesson: { ...this.lesson() }, kind: this.targetKind(), id: this.targetId(), preview: this.preview(), refresh: this.refresh() }),
+        load: params => this.api.list(params.lesson, params.kind, params.id, params.preview),
+    });
     constructor() {
-        effect(onCleanup => {
-            this.session.generation(); const lesson = this.lesson(), kind = this.targetKind(), id = this.targetId(), preview = this.preview(); this.refresh();
+        effect(() => {
+            this.session.generation(); this.lesson(); this.targetKind(); this.targetId(); this.preview(); this.refresh();
             this.comments.set([]); this.draft.set(null); this.error.set(''); this.loadFailed.set(false); this.noted.emit(0);
-            const sub = this.api.list(lesson, kind, id, preview).subscribe({ next: list => { this.comments.set(list.items); this.noted.emit(list.items.length); }, error: () => { this.loadFailed.set(true); this.error.set('Не удалось загрузить комментарии к коду.'); } });
-            onCleanup(() => sub.unsubscribe());
+        });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'resolved') { this.comments.set(state.value.items); this.noted.emit(state.value.items.length); }
+            else if (state.status === 'error') { this.loadFailed.set(true); this.error.set('Не удалось загрузить комментарии к коду.'); }
         });
     }
     notesAt(file: string, line: number) { return this.byLine().get(file + '\n' + line) ?? []; }

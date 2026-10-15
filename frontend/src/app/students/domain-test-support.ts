@@ -97,3 +97,10 @@ export function fill(element: HTMLElement, name: string, value: string) {
     input.value = value;
     input.dispatchEvent(new Event('input'));
 }
+
+// Publish the resource's first Observable emission and run its UI projection without
+// waiting for unrelated HTTP requests (which the test may still need to answer).
+export async function renderResources() {
+    await Promise.resolve();
+    TestBed.tick();
+}

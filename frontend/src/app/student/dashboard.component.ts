@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { catchError, of, switchMap, throwError } from 'rxjs';
@@ -10,6 +10,7 @@ import { HomeworkApi } from '../homework/homework-api.service';
 import { Turn, TurnClockComponent, turnHeadline, turnOf } from '../homework/turn-clock.component';
 import { MovesComponent } from '../journal/moves.component';
 import { RoadmapApi, stageProgress } from '../roadmap/roadmap-api.service';
+import { readResource } from '../core/read-resource';
 const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 @Component({
     selector: 'mentor-dashboard',
@@ -194,54 +195,61 @@ export class DashboardComponent extends DomainPage {
     private readonly homework = inject(HomeworkApi);
     private readonly roadmap = inject(RoadmapApi);
     readonly stage = signal<ReturnType<typeof stageProgress>>(null);
+    private readonly dashboardResource = readResource({
+        scope: this.scope,
+        params: () => {
+            const workspace = this.workspaceId();
+            return workspace ? {
+                workspace, student: this.studentId(), preview: this.preview(), refresh: this.refresh(),
+                prefix: this.session.actor()?.role === 'TEACHER' ? '/teacher/students/' : '/learn/students/',
+            } : undefined;
+        },
+        load: ({ workspace, student, preview }) => student
+            ? this.api.dashboard(workspace, student, preview)
+            : this.api.list(workspace, 0).pipe(switchMap(page => page.items.length === 1
+                ? this.api.dashboard(workspace, page.items[0].id)
+                : throwError(() => new Error('Карточка ученика недоступна.')))),
+    });
+    private readonly turnsResource = readResource({
+        scope: this.scope,
+        params: () => {
+            const primary = this.dashboardResource.state();
+            return primary.status === 'resolved' && primary.value.lessonCount
+                ? { ...primary.params, student: primary.value.student.id } : undefined;
+        },
+        load: ({ workspace, student, preview }) => this.homework.lessonTurns(workspace, student, preview, 1).pipe(catchError(() => of(null))),
+    });
+    // Optional panels never block the dashboard or turn a successful main read into an error.
+    private readonly stagesResource = readResource({
+        scope: this.scope,
+        params: () => {
+            const primary = this.dashboardResource.state();
+            return primary.status === 'resolved' ? { ...primary.params, student: primary.value.student.id } : undefined;
+        },
+        load: ({ workspace, student, preview }) => this.roadmap.get(workspace, student, preview).pipe(catchError(() => of(null))),
+    });
     constructor() {
         super();
-        effect((onCleanup) => {
-            this.session.generation();
-            const w = this.workspaceId(),
-                s = this.studentId(),
-                preview = this.preview();
-            this.refresh();
-            this.view.set(null);
-            this.error.set('');
-            this.context.clear(this);
-            if (!w) return;
-            const resolve = s
-                ? this.api.dashboard(w, s, preview)
-                : this.api
-                      .list(w, 0)
-                      .pipe(
-                          switchMap((page) =>
-                              page.items.length === 1 ? this.api.dashboard(w, page.items[0].id) : throwError(() => new Error('Карточка ученика недоступна.'))
-                          )
-                      );
-            this.turn.set(null);
-            const sub = resolve
-                .pipe(
-                    switchMap((view) => {
-                        this.view.set(view);
-                        this.context.set(this, { student: view.student, base: this.studentBase(), preview, learner: true, page: '' });
-                        return view.lessonCount ? this.homework.lessonTurns(w, view.student.id, preview, 1).pipe(catchError(() => of(null))) : of(null);
-                    })
-                )
-                .subscribe({ next: (turns) => this.turn.set(turns ? turnOf(turns.items[0]) : null), error: (e) => this.error.set(this.message(e)) });
-            onCleanup(() => sub.unsubscribe());
+        effect(() => {
+            const state = this.dashboardResource.state();
+            untracked(() => {
+                this.view.set(state.status === 'resolved' ? state.value : null);
+                this.error.set(state.status === 'error' ? this.message(state.error) : '');
+                if (state.status === 'resolved') {
+                    const { prefix, preview } = state.params;
+                    this.context.set(this, { student: state.value.student, base: prefix + encodeURIComponent(state.value.student.id), preview, learner: true, page: '' });
+                } else this.context.clear(this);
+            });
+        });
+        effect(() => {
+            const state = this.turnsResource.state();
+            this.turn.set(state.status === 'resolved' && state.value ? turnOf(state.value.items[0]) : null);
+        });
+        effect(() => {
+            const state = this.stagesResource.state();
+            this.stage.set(state.status === 'resolved' && state.value ? stageProgress(state.value.stages) : null);
         });
     }
-    // The roadmap cell is optional: a failed request simply leaves it out.
-    private readonly stages = effect((onCleanup) => {
-        this.session.generation();
-        const w = this.workspaceId(),
-            s = this.view()?.student.id,
-            preview = this.preview();
-        this.stage.set(null);
-        if (!w || !s) return;
-        const sub = this.roadmap
-            .get(w, s, preview)
-            .pipe(catchError(() => of(null)))
-            .subscribe((view) => this.stage.set(view ? stageProgress(view.stages) : null));
-        onCleanup(() => sub.unsubscribe());
-    });
     reload() {
         this.refresh.update((v) => v + 1);
     }

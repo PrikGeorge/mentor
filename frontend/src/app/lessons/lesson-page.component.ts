@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, merge, skip, takeUntil } from 'rxjs';
@@ -12,6 +12,7 @@ import { MaterialViewComponent } from '../materials/material-view.component';
 import { HomeworkPageComponent } from '../homework/homework-page.component';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { readResource } from '../core/read-resource';
 @Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent, IconComponent, ErrorBannerComponent], template: `
   @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()"/>}
   @if(lesson();as l){
@@ -63,8 +64,39 @@ export class LessonPageComponent extends DomainPage {
     readonly editingText = signal<LessonText | null>(null);
     readonly textLabels = { teacherNotes: 'Сценарий занятия', studentNotes: 'Задания ученика', reviewNotes: 'Ревью занятия' };
     readonly sectionLabels: Record<string, string> = { practice: 'Тренажёр', homework: 'Домашняя работа', materials: 'Материалы', answers: 'Эталоны', code: 'Учебный код' };
-    constructor() { super(); effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(), l = this.lessonId(), preview = this.preview(), section = this.section(); this.refresh(); this.lesson.set(null); this.student.set(null); this.error.set(''); this.textError.set(''); this.closeText(); this.editingMetadata.set(false); this.busy.set(false); this.context.clear(this); if (!w || !s || !l)
-        return; const sub = forkJoin({ student: this.students.load(w, s, preview), lesson: this.api.load(w, s, l, preview) }).subscribe({ next: view => { this.student.set(view.student); this.lesson.set(view.lesson); this.context.set(this, { student: view.student, lesson: view.lesson, base: this.base(), preview, learner: this.learner(), page: section }); }, error: e => this.error.set(this.message(e)) }); onCleanup(() => sub.unsubscribe()); }); }
+    private readonly pageParams = computed(() => {
+        const workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId();
+        return workspace && student && lesson
+            ? { workspace, student, lesson, preview: this.preview(), section: this.section(), base: this.base(), learner: this.learner(), refresh: this.refresh() }
+            : undefined;
+    });
+    private readonly pageResource = readResource({
+        scope: this.scope,
+        params: this.pageParams,
+        load: ({ workspace, student, lesson, preview }) => forkJoin({
+            student: this.students.load(workspace, student, preview),
+            lesson: this.api.load(workspace, student, lesson, preview),
+        }),
+    });
+    constructor() {
+        super();
+        effect(() => {
+            this.scope.current(); this.pageParams();
+            untracked(() => { this.closeText(); this.editingMetadata.set(false); this.busy.set(false); });
+        });
+        effect(() => {
+            const state = this.pageResource.state();
+            untracked(() => {
+                this.lesson.set(state.status === 'resolved' ? state.value.lesson : null);
+                this.student.set(state.status === 'resolved' ? state.value.student : null);
+                this.error.set(state.status === 'error' ? this.message(state.error) : '');
+                if (state.status === 'resolved') {
+                    const { base, preview, learner, section } = state.params;
+                    this.context.set(this, { student: state.value.student, lesson: state.value.lesson, base, preview, learner, page: section });
+                } else this.context.clear(this);
+            });
+        });
+    }
     reload() { this.refresh.update(v => v + 1); }
     teacherNotes() { const l = this.lesson(); return l && 'teacherNotes' in l ? l.teacherNotes : ''; }
     currentKind(): TextKind { return this.section() === 'review' ? 'reviewNotes' : this.learner() ? 'studentNotes' : 'teacherNotes'; }

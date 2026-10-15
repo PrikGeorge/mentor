@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { HomeworkApi, Submission, validateHomework } from './homework-api.service';
 import { LessonReviewComponent } from '../reviews/lesson-review.component';
 import { IconComponent } from '../core/icon.component';
@@ -54,19 +55,30 @@ export class HomeworkPageComponent {
     private readonly session = inject(SessionStore); private readonly api = inject(HomeworkApi);
     private readonly scope = createBoundScope(() => { const lesson = this.lesson(); return [lesson.workspaceId, lesson.studentId, lesson.id, this.preview(), this.mode()]; });
     private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
-    private sequence = 0; private uploadRequest?: Subscription; private listRequest?: Subscription; private downloads: Subscription[] = []; private urls = new Set<string>();
+    private sequence = 0; private uploadRequest?: Subscription; private downloads: Subscription[] = []; private urls = new Set<string>();
     readonly active = computed(() => this.scope.active() && this.session.actor()?.workspaceId === this.lesson().workspaceId);
     readonly canSubmit = computed(() => this.active() && this.session.actor()?.role === 'STUDENT' && !this.preview() && this.mode() === 'homework');
     readonly canReview = computed(() => this.active() && this.session.actor()?.role === 'TEACHER' && !this.preview());
+    private readonly historyRefresh = signal(0);
+    private readonly historyReading = readResource({
+        scope: this.scope,
+        params: () => this.active() ? { lesson: this.lesson(), page: this.page(), refresh: this.historyRefresh() } : undefined,
+        load: request => this.api.list(request.lesson, request.page),
+    });
     constructor() {
-        effect(() => { this.session.generation(); this.scope.bind(); this.cancel(); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); if (this.active()) this.load(0); });
+        effect(() => { this.session.generation(); this.scope.bind(); this.cancel(); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); });
+        effect(() => {
+            const state = this.historyReading.state();
+            this.loading.set(state.status === 'loading');
+            this.listError.set(state.status === 'error' ? (state.error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить историю работ.' : '');
+            if (state.status !== 'resolved') return;
+            this.submissions.set(state.value.items); this.total.set(state.value.total); this.unknown.set(false);
+            if (state.params.page === 0) this.latest.set(state.value.items[0] ?? null);
+        });
         inject(DestroyRef).onDestroy(() => this.cancel());
     }
-    private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); this.listRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls.clear(); this.busy.set(false); this.loading.set(false); }
-    private load(page: number) {
-        if (!this.active()) return; this.listRequest?.unsubscribe(); this.loading.set(true); this.listError.set(''); const stamp = this.sequence;
-        this.listRequest = this.scope.track(this.api.list(this.lesson(), page)).subscribe({ next: result => { if (this.active() && stamp === this.sequence) { this.submissions.set(result.items); if (page === 0) this.latest.set(result.items[0] ?? null); this.total.set(result.total); this.loading.set(false); this.unknown.set(false); } }, error: error => { if (this.active() && stamp === this.sequence) { this.loading.set(false); this.listError.set(error.error?.message ?? 'Не удалось загрузить историю работ.'); } } });
-    }
+    private cancel() { this.sequence++; this.codeRequest?.unsubscribe(); this.openCode.set(null); this.code.set(null); this.codeError.set(''); this.uploadRequest?.unsubscribe(); for (const request of this.downloads) request.unsubscribe(); this.downloads = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls.clear(); this.busy.set(false); this.loading.set(false); }
+    private load(page: number) { if (this.active()) { this.page.set(page); this.historyRefresh.update(value => value + 1); } }
     refreshHistory() { if (!this.active() || this.busy()) return; this.page.set(0); this.load(0); }
     setPage(page: number) { if (!this.active() || this.busy() || this.loading()) return; this.page.set(page); this.load(page); }
     // One Idempotency-Key per upload attempt: kept while the same file, comment and link are retried after a lost

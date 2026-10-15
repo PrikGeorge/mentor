@@ -1,6 +1,7 @@
 import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { Roadmap, RoadmapApi, RoadmapStage, RoadmapStageInput, stageProgress } from './roadmap-api.service';
@@ -48,13 +49,23 @@ export class RoadmapComponent {
     missingTitle(row: RoadmapStageInput) { return this.submitted() && !row.title.trim(); }
     readonly progress = computed(() => stageProgress(this.view()?.stages ?? []));
     readonly canEdit = computed(() => this.editable() && !this.preview() && this.scope.active() && this.session.actor()?.role === 'TEACHER' && this.session.actor()?.workspaceId === this.workspaceId());
+    private readonly reading = readResource({
+        scope: this.scope,
+        params: () => {
+            const workspace = this.workspaceId(), student = this.studentId(), preview = this.preview();
+            return this.session.actor()?.workspaceId === workspace ? { workspace, student, preview } : undefined;
+        },
+        load: params => this.api.get(params.workspace, params.student, params.preview),
+    });
     constructor() {
-        effect(onCleanup => {
-            this.session.generation(); const w = this.workspaceId(), s = this.studentId(), preview = this.preview(); this.refresh();
+        effect(() => {
+            this.session.generation(); this.refresh();
             this.scope.bind(); this.view.set(null); this.draft.set(null); this.error.set(''); this.stale.set(false); this.busy.set(false); this.submitted.set(false);
-            if (!this.scope.current() || this.session.actor()?.workspaceId !== w) return;
-            const sub = this.scope.track(this.api.get(w, s, preview)).subscribe({ next: view => this.view.set(view), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить маршрут.') });
-            onCleanup(() => sub.unsubscribe());
+        });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'resolved') this.view.set(state.value);
+            else if (state.status === 'error') this.error.set((state.error as { error?: { message?: string } } | null)?.error?.message ?? 'Не удалось загрузить маршрут.');
         });
     }
     label(stage: RoadmapStage) { const word = stage.state === 'done' ? 'пройдено' : stage.state === 'current' ? 'сейчас' : ''; return [word, stage.note].filter(Boolean).join(', ') || 'впереди'; }

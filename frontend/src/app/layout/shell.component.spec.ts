@@ -1,11 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { NavigationEnd, provideRouter, Router } from '@angular/router';
+import { filter, firstValueFrom } from 'rxjs';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ShellComponent } from './shell.component';
 import { SessionStore } from '../core/session.store';
 import { sessionInterceptor } from '../core/session.interceptor';
 import { routes } from '../app.routes';
+import { renderResources } from '../students/domain-test-support';
 describe('Shell identity transitions', () => {
   beforeEach(() => TestBed.configureTestingModule({ imports: [ShellComponent], providers: [provideRouter(routes), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting()] }));
   afterEach(() => { TestBed.inject(HttpTestingController).verify(); TestBed.resetTestingModule(); });
@@ -60,9 +62,11 @@ describe('Shell identity transitions', () => {
     fixture.detectChanges();
     const refresh = http.expectOne('/api/v1/auth/session');
     expect(refresh.cancelled).toBe(false);
+    const navigation = firstValueFrom(router.events.pipe(filter(event => event instanceof NavigationEnd)));
     refresh.flush({ account: session.actor(), csrfToken: 'synthetic-rotated' });
-    await fixture.whenStable(); fixture.detectChanges();
+    await navigation; fixture.detectChanges();
     http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush({items:[],page:0,size:25,total:0});fixture.detectChanges();
+    await renderResources(); fixture.detectChanges();
     expect(router.url).toBe('/teacher/students');
     expect(element.textContent).toContain('Мои ученики');
   });

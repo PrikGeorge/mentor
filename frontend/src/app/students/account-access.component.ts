@@ -5,6 +5,7 @@ import { EMPTY, Observable, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { StudentsApi, StudentAccessView } from './students-api.service';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
@@ -40,8 +41,22 @@ export class AccountAccessComponent {
     readonly password = new FormControl('', { nonNullable: true, validators: Validators.required });
     // Wording bound by students/student-page.component.spec.ts; the administrator's page uses the short design words.
     readonly invitationLabels = { pending: 'Приглашение действует', used: 'Приглашение использовано', revoked: 'Приглашение отозвано', expired: 'Приглашение истекло' };
-    constructor() { effect(onCleanup => { this.session.generation(); const w = this.workspaceId(), s = this.studentId(); this.refresh(); this.scope.bind(); this.data.set(null); this.error.set(''); this.issued.set(null); this.busy.set(false); this.confirming.set(false); this.copied.set(false); this.cancelReset(); if (!this.scope.current() || this.session.actor()?.role !== 'TEACHER' || this.session.actor()?.workspaceId !== w)
-        return; const sub = this.scope.track(this.api.access(w, s)).subscribe({ next: v => this.data.set(v), error: e => this.error.set(e.error?.message ?? 'Не удалось загрузить доступ.') }); onCleanup(() => sub.unsubscribe()); }); }
+    private readonly reading = readResource({
+        scope: this.scope,
+        params: () => {
+            const workspace = this.workspaceId(), student = this.studentId(), actor = this.session.actor();
+            return actor?.role === 'TEACHER' && actor.workspaceId === workspace ? { workspace, student } : undefined;
+        },
+        load: params => this.api.access(params.workspace, params.student),
+    });
+    constructor() {
+        effect(() => { this.session.generation(); this.refresh(); this.scope.bind(); this.data.set(null); this.error.set(''); this.issued.set(null); this.busy.set(false); this.confirming.set(false); this.copied.set(false); this.cancelReset(); });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'resolved') this.data.set(state.value);
+            else if (state.status === 'error') this.error.set((state.error as { error?: { message?: string } } | null)?.error?.message ?? 'Не удалось загрузить доступ.');
+        });
+    }
     reload() { this.refresh.update(v => v + 1); }
     cancelReset() { this.resetOpen.set(false); this.password.reset(); this.passwordMissing.set(false); }
     // Opening and closing by hand move keyboard focus with the box: into the password field, back to the link button.

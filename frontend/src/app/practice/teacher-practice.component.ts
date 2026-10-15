@@ -3,6 +3,7 @@ import type { components } from '../api/schema';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { PracticeApi, LessonPracticeView, PublicExercise } from './practice-api.service';
 import { IconComponent } from '../core/icon.component';
 export const lessonKey = (lesson: LessonRef) => JSON.stringify([lesson.workspaceId, lesson.studentId, lesson.id]);
@@ -22,18 +23,25 @@ export class TeacherPracticeComponent {
     private bound = '';
     private counter = 0;
     private selection: components['schemas']['AssignmentsPut']['assignments'] = [];
-    constructor() { effect(onCleanup => { const lesson = this.lesson(), view = this.view(), key = lessonKey(lesson), page = this.page(); this.session.generation(); if (key !== this.bound) {
+    private readonly reading = readResource({
+        scope: this.scope,
+        params: () => this.active() ? { workspace: this.lesson().workspaceId, lesson: lessonKey(this.lesson()), page: this.page(), view: this.view() } : undefined,
+        load: params => this.api.catalog(params.workspace, false, params.page),
+    });
+    constructor() { effect(() => { const lesson = this.lesson(), view = this.view(), key = lessonKey(lesson); this.session.generation(); if (key !== this.bound) {
         this.scope.bind();
         this.selection = view.exercises.map(row => ({ exerciseId: row.exercise.id, placement: row.placement }));
         this.counter = view.revision;
         this.bound = key;
         this.error.set('');
         this.busy.set(false);
-    } if (!this.active())
-        return; const sub = this.scope.track(this.api.catalog(lesson.workspaceId, false, page)).subscribe({ next: result => { if (this.active()) {
-            this.catalog.set(result.items);
-            this.total.set(result.total);
-        } }, error: () => this.error.set('Не удалось загрузить каталог.') }); onCleanup(() => sub.unsubscribe()); }); }
+    } });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'resolved') { this.catalog.set(state.value.items); this.total.set(state.value.total); }
+            else if (state.status === 'error') this.error.set('Не удалось загрузить каталог.');
+        });
+    }
     private active() { return this.scope.active() && this.session.actor()?.role === 'TEACHER'; }
     assigned(id: string) { return this.selection.some(row => row.exerciseId === id); }
     placement(id: string) { return this.selection.find(row => row.exerciseId === id)?.placement; }

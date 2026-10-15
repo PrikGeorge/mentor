@@ -1,9 +1,10 @@
 import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { EMPTY, forkJoin, map, of, switchMap } from 'rxjs';
+import { catchError, concat, forkJoin, map, Observable, of, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { MaterialsApi, MaterialView, MaterialSummary } from './materials-api.service';
 import { DocumentNavigationComponent } from './document-navigation.component';
 import { LegacyHtmlComponent } from './legacy-blocks.component';
@@ -77,77 +78,62 @@ export class MaterialViewComponent {
     readonly profileFacts = signal('');
     readonly code = signal<Record<string, components['schemas']['MaterialCode']>>({});
     private readonly studentIds = signal<Set<string>>(new Set());
-    constructor() {
-        effect(onCleanup => {
-            this.session.generation(); const workspace = this.workspaceId(), student = this.studentId(), lesson = this.lessonId(), section = this.section(), detail = this.detail(), preview = this.preview();
-            this.refresh();
-            this.scope.bind(); const current = this.scope.capture();
-            this.selected.set(null);
-            this.items.set([]);
-            this.downloads.set([]);
-            this.code.set({});
-            this.profileFacts.set('');
-            this.studentIds.set(new Set());
-            this.error.set('');
-            this.loading.set(false);
-            this.pendingRemoval.set(null); this.removing.set(false); this.removeError.set('');
-            if (!this.scope.current() || this.session.actor()?.workspaceId !== workspace)
-                return;
-            this.loading.set(true);
-            const listing = section === 'materials' && !detail;
-            const catalog = this.scope.track(this.api.catalog(workspace, student, lesson, preview));
-            const source = listing ? catalog.pipe(switchMap(items => { this.items.set(items.filter(item => this.inScope(item))); return of(null); })) :catalog.pipe(switchMap(items => {
-                if (!current())
-                    return EMPTY;
-                const scoped = items.filter(item => this.inScope(item));
-                this.items.set(scoped);
-                this.downloads.set(scoped.filter(item => item.kind === 'download'));
-                const keys = detail ? [detail] : section === 'roadmap' ? [this.publicView() ? 'student-roadmap' : 'roadmap'] : section === 'tasks' ? ['student'] : section === 'plan' ? ['lesson'] : section === 'review' ? ['review', 'student-review'] : [section];
-                const summary = keys.map(key => this.resourceMaterial(key)).find(Boolean);
-                if (summary)
-                    return this.api.load(workspace, summary.id, preview);
-                if (detail)
-                    return of(null);
-                const field = section === 'goal' ? 'goalHtml' : section === 'plan' ? 'lessonHtml' : section === 'review' ? 'reviewHtml' : section === 'answers' ? 'answersCards' : null;
-                const views = field ? scoped.filter(item => item.kind === 'view' && (field === 'goalHtml' ? item.audience === 'student' : !this.publicView() && item.audience === 'teacher')) : [];
-                return views.length ? forkJoin(views.map(item => this.api.load(workspace, item.id, preview))).pipe(map(loaded => loaded.find(item => item.kind === 'view' && !!item.viewData[field as keyof components['schemas']['MaterialViewData']]) ?? null)) : of(null);
-            }));
-            const sub = this.scope.track(source.pipe(switchMap(material => {
-                if (!current())
-                    return EMPTY;
-                this.selected.set(material && this.inScope(material) ? material : null);
-                this.loading.set(false);
-                if (material?.kind !== 'doc')
-                    return of(null);
-                const html = material.document.html + material.document.intro + material.document.sections.map(section => section.html).join('');
+    private readonly reading = readResource({
+        scope: this.scope,
+        params: () => this.session.actor()?.workspaceId === this.workspaceId() ? {
+            workspace: this.workspaceId(), student: this.studentId(), lesson: this.lessonId(), section: this.section(),
+            detail: this.detail(), preview: this.preview(), publicView: this.publicView(),
+        } : undefined,
+        load: request => this.scope.track(this.api.catalog(request.workspace, request.student, request.lesson, request.preview)).pipe(switchMap(catalog => {
+            const items = catalog.filter(item => materialInScope(item, request));
+            const empty: MaterialReading = { items, selected: null, related: [], loading: false };
+            if (request.section === 'materials' && !request.detail) return of(empty);
+            const keys = request.detail ? [request.detail] : request.section === 'roadmap' ? [request.publicView ? 'student-roadmap' : 'roadmap'] : request.section === 'tasks' ? ['student'] : request.section === 'plan' ? ['lesson'] : request.section === 'review' ? ['review', 'student-review'] : [request.section];
+            const summary = keys.map(key => findMaterial(items, key)).find(Boolean);
+            const field = request.section === 'goal' ? 'goalHtml' : request.section === 'plan' ? 'lessonHtml' : request.section === 'review' ? 'reviewHtml' : request.section === 'answers' ? 'answersCards' : null;
+            const views = field ? items.filter(item => item.kind === 'view' && (field === 'goalHtml' ? item.audience === 'student' : !request.publicView && item.audience === 'teacher')) : [];
+            const selected = summary ? this.api.load(request.workspace, summary.id, request.preview)
+                : !request.detail && views.length ? forkJoin(views.map(item => this.api.load(request.workspace, item.id, request.preview))).pipe(map(loaded => loaded.find(item => item.kind === 'view' && !!item.viewData[field as keyof components['schemas']['MaterialViewData']]) ?? null))
+                : of(null);
+            return concat(of({ ...empty, loading: true }), this.scope.track(selected).pipe(switchMap(material => {
+                const base: MaterialReading = { ...empty, selected: material && materialInScope(material, request) ? material : null };
+                if (base.selected?.kind !== 'doc') return of(base);
+                const document = base.selected.document;
+                const html = document.html + document.intro + document.sections.map(section => section.html).join('');
                 const names = new Set(Array.from(html.matchAll(/<!--\s*task-code:(\w+):(prediction|practice)\s*-->/g), match => match[1]));
-                const records = this.items().filter(item => item.kind === 'code' && item.contentKey && names.has(item.contentKey));
-                const studentDoc = this.items().find(item => item.kind === 'doc' && item.contentKey === 'student');
-                const needsParts = material.document.sections.some(section => section.studentParts?.some(part => part > 0));
-                const requests = records.map(item => this.api.load(workspace, item.id, preview));
-                if (studentDoc && needsParts)
-                    requests.push(this.api.load(workspace, studentDoc.id, true));
-                if (material.contentKey === 'profile' && !this.publicView())
-                    requests.push(...this.items().filter(item => item.kind === 'view' && item.audience === 'teacher' && this.inScope(item)).map(item => this.api.load(workspace, item.id, preview)));
-                return requests.length ? forkJoin(requests) : of([] as MaterialView[]);
-            }))).subscribe({ next: related => {
-                    if (!related)
-                        return;
-                    const code: Record<string, components['schemas']['MaterialCode']> = {};
-                    for (const item of related) {
-                        if (item.kind === 'view' && this.inScope(item) && !this.publicView() && item.viewData.profileFacts)
-                            this.profileFacts.set(item.viewData.profileFacts);
-                        if (item.kind === 'code' && item.contentKey && (!this.learner() || !item.code.teacher))
-                            code[item.contentKey] = item.code;
-                        if (item.kind === 'doc' && item.contentKey === 'student')
-                            this.studentIds.set(new Set(item.document.sections.map(section => section.id)));
-                    }
-                    this.code.set(code);
-                }, error: error => {
-                    this.loading.set(false);
-                    this.error.set(error.error?.message ?? 'Не удалось загрузить материалы.');
-                } });
-            onCleanup(() => sub.unsubscribe());
+                const records = items.filter(item => item.kind === 'code' && item.contentKey && names.has(item.contentKey));
+                const studentDoc = items.find(item => item.kind === 'doc' && item.contentKey === 'student');
+                const requests = records.map(item => this.api.load(request.workspace, item.id, request.preview));
+                if (studentDoc && document.sections.some(section => section.studentParts?.some(part => part > 0))) requests.push(this.api.load(request.workspace, studentDoc.id, true));
+                if (base.selected.contentKey === 'profile' && !request.publicView) requests.push(...items.filter(item => item.kind === 'view' && item.audience === 'teacher').map(item => this.api.load(request.workspace, item.id, request.preview)));
+                const related: Observable<MaterialReading> = requests.length ? forkJoin(requests).pipe(map(related => ({ ...base, related })), catchError(error => of({ ...base, error }))) : of(base);
+                return concat(of(base), related);
+            }), catchError(error => of({ ...empty, error }))));
+        })),
+    });
+    constructor() {
+        effect(() => {
+            this.session.generation(); this.refresh(); this.scope.bind();
+            this.selected.set(null); this.items.set([]); this.downloads.set([]); this.code.set({}); this.profileFacts.set('');
+            this.studentIds.set(new Set()); this.error.set(''); this.loading.set(false);
+            this.pendingRemoval.set(null); this.removing.set(false); this.removeError.set('');
+        });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'loading') { this.loading.set(true); return; }
+            if (state.status === 'error') { this.loading.set(false); this.error.set(materialError(state.error)); return; }
+            if (state.status !== 'resolved') return;
+            const result = state.value;
+            this.items.set(result.items); this.selected.set(result.selected); this.downloads.set(result.items.filter(item => item.kind === 'download'));
+            this.loading.set(result.loading); this.error.set(result.error ? materialError(result.error) : '');
+            const code: Record<string, components['schemas']['MaterialCode']> = {};
+            let facts = ''; const studentIds = new Set<string>();
+            for (const item of result.related) {
+                if (item.kind === 'view' && materialInScope(item, state.params) && !state.params.publicView && item.viewData.profileFacts) facts = item.viewData.profileFacts;
+                if (item.kind === 'code' && item.contentKey && (!state.params.publicView || !item.code.teacher)) code[item.contentKey] = item.code;
+                if (item.kind === 'doc' && item.contentKey === 'student') for (const section of item.document.sections) studentIds.add(section.id);
+            }
+            this.profileFacts.set(facts); this.studentIds.set(studentIds); this.code.set(code);
         });
     }
     studentParts(parts?: number[]) { return parts?.filter(part => Number.isInteger(part) && part > 0 && this.studentIds().has('section-' + (part - 1))) ?? []; }
@@ -199,3 +185,8 @@ export class MaterialViewComponent {
 const ROLES: Record<string, string> = { student: 'Задания на занятие', homework: 'Домашняя работа', 'student-materials': 'Материалы занятия', review: 'Ревью домашней работы', 'student-review': 'Ревью домашней работы', 'student-roadmap': 'Маршрут обучения', lesson: 'Сценарий преподавателя', guide: 'Подробный сценарий', source: 'Описание комплекта', roadmap: 'Маршрут обучения', profile: 'Профиль ученика' };
 const ORDER = ['student', 'homework', 'student-materials', 'review', 'student-review', 'student-roadmap', 'lesson', 'guide', 'source', 'roadmap', 'profile'];
 function rank(item: MaterialSummary) { const index = item.contentKey ? ORDER.indexOf(item.contentKey) : -1; return index < 0 ? ORDER.length : index; }
+
+interface MaterialReading { items: MaterialSummary[]; selected: MaterialView | null; related: MaterialView[]; loading: boolean; error?: unknown; }
+function materialInScope(item: MaterialSummary, request: { workspace: string; student: string; lesson: string | null; publicView: boolean }) { return item.workspaceId === request.workspace && item.studentId === request.student && item.lessonId === request.lesson && (!request.publicView || item.audience === 'student'); }
+function findMaterial(items: MaterialSummary[], key: string) { const exact = items.find(item => item.id === key); if (exact) return exact; const logical = items.filter(item => item.contentKey === key); return logical.length === 1 ? logical[0] : undefined; }
+function materialError(error: unknown) { return (error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить материалы.'; }

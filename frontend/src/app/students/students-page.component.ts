@@ -1,7 +1,7 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
-import { catchError, of, switchMap } from 'rxjs';
+import { catchError, of } from 'rxjs';
 import { SessionStore } from '../core/session.store';
 import { Dashboard, StudentsApi, StudentView } from './students-api.service';
 import { StudentFormComponent } from './student-form.component';
@@ -9,6 +9,7 @@ import { IconComponent } from '../core/icon.component';
 import { PaginationComponent } from '../core/pagination.component';
 import { HomeworkApi, StudentTurn } from '../homework/homework-api.service';
 import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-clock.component';
+import { readResource } from '../core/read-resource';
 @Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent, PaginationComponent], template: `
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
@@ -43,12 +44,48 @@ export class StudentsPageComponent {
     readonly clocks = computed(() => Object.fromEntries(this.queue().map(row => [row.studentId, turnOf(row)])) as Record<string, Turn>);
     readonly waiting = computed(() => this.queue().filter(row => row.status === 'submitted'));
     readonly creating = signal(false);
-    readonly loading = signal(false);
+    readonly loading = computed(() => {
+        const primary = this.studentsResource.state(), turns = this.turnsResource.state();
+        return primary.status === 'loading' || (primary.status === 'resolved' && primary.value.items.length > 0 && turns.status !== 'resolved' && turns.status !== 'error');
+    });
     readonly error = signal('');
     // Archived cards live on a separate screen; the review queue belongs to the active ones only.
     readonly archive = signal(false);
-    constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(), archive = this.archive(); this.refresh(); this.students.set([]); this.summaries.set({}); this.queue.set([]); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
-        return; this.loading.set(true); const sub = this.api.dashboards(w, page, archive ? 'true' : undefined).pipe(switchMap(view => { this.students.set(view.items.map(item => item.student)); this.total.set(view.total); this.summaries.set(Object.fromEntries(view.items.map(item => [item.student.id, item]))); return view.items.length ? this.homework.studentTurns(w).pipe(catchError(() => of(null))) : of(null); })).subscribe({ next: turns => { this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
+    private readonly studentsParams = computed(() => {
+        const actor = this.session.actor();
+        return actor?.role === 'TEACHER' && actor.workspaceId
+            ? { workspace: actor.workspaceId, page: this.page(), archive: this.archive(), refresh: this.refresh() }
+            : undefined;
+    });
+    private readonly studentsResource = readResource({
+        params: this.studentsParams,
+        load: ({ workspace, page, archive }) => this.api.dashboards(workspace, page, archive ? 'true' : undefined),
+    });
+    private readonly turnsResource = readResource({
+        params: () => {
+            const primary = this.studentsResource.state();
+            return primary.status === 'resolved' && primary.value.items.length ? primary.params : undefined;
+        },
+        load: ({ workspace }) => this.homework.studentTurns(workspace).pipe(catchError(() => of(null))),
+    });
+    constructor() {
+        effect(() => { this.session.generation(); this.studentsParams(); this.creating.set(false); });
+        effect(() => {
+            const state = this.studentsResource.state();
+            untracked(() => {
+                this.students.set(state.status === 'resolved' ? state.value.items.map(item => item.student) : []);
+                this.summaries.set(state.status === 'resolved' ? Object.fromEntries(state.value.items.map(item => [item.student.id, item])) : {});
+                if (state.status === 'resolved') this.total.set(state.value.total);
+                if (state.status === 'idle') this.total.set(0);
+                this.error.set(state.status === 'error'
+                    ? (state.error as { error?: { message?: string } })?.error?.message ?? 'Не удалось загрузить учеников.' : '');
+            });
+        });
+        effect(() => {
+            const state = this.turnsResource.state();
+            this.queue.set(state.status === 'resolved' ? state.value?.items ?? [] : []);
+        });
+    }
     reload() { this.refresh.update(v => v + 1); }
     initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }
     direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }

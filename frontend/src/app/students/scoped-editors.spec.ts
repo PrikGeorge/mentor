@@ -9,7 +9,7 @@ import { LessonFormComponent } from '../lessons/lesson-form.component';
 import { StudentFormComponent } from './student-form.component';
 import { AccountAccessComponent } from './account-access.component';
 import { RoadmapComponent } from '../roadmap/roadmap.component';
-import { lesson, student } from './domain-test-support';
+import { lesson, renderResources, student } from './domain-test-support';
 
 describe('Editors bound to one card and revision', () => {
     beforeEach(() =>
@@ -67,9 +67,10 @@ describe('Editors bound to one card and revision', () => {
         expect(component.busy()).toBe(false);
     });
 
-    it('does not issue a link or reload another card from an invitation that finishes before reset', () => {
+    it('does not issue a link or reload another card from an invitation that finishes before reset', async () => {
         const { fixture, http, component } = mount(AccountAccessComponent, { workspaceId: 'w1', studentId: 's1' });
         http.expectOne(root + '/s1/access').flush({ account: null, invitation: null });
+        await renderResources();
         component.invite();
         const invitation = http.expectOne(root + '/s1/invitations');
         fixture.componentRef.setInput('studentId', 's2');
@@ -81,9 +82,10 @@ describe('Editors bound to one card and revision', () => {
         expect(component.busy()).toBe(false);
     });
 
-    it('blocks an old access panel action before its student reset', () => {
+    it('blocks an old access panel action before its student reset', async () => {
         const { fixture, http, component } = mount(AccountAccessComponent, { workspaceId: 'w1', studentId: 's1' });
         http.expectOne(root + '/s1/access').flush({ account: null, invitation: null });
+        await renderResources();
         fixture.componentRef.setInput('studentId', 's2');
         component.invite();
         http.expectNone((request) => request.method === 'POST');
@@ -91,16 +93,18 @@ describe('Editors bound to one card and revision', () => {
         http.expectOne(root + '/s2/access').flush({ account: null, invitation: null });
     });
 
-    it('drops an old roadmap save before reset and prevents sending its draft to the next pupil', () => {
+    it('drops an old roadmap save before reset and prevents sending its draft to the next pupil', async () => {
         const { fixture, http, component } = mount(RoadmapComponent, { workspaceId: 'w1', studentId: 's1', editable: true });
         const roadmap = { stages: [{ title: 'Collections', state: 'current', note: '' }], revision: 3 };
         http.expectOne(root + '/s1/roadmap').flush(roadmap);
+        await renderResources();
         component.edit();
         fixture.componentRef.setInput('studentId', 's2');
         component.save(new Event('submit'));
         http.expectNone((request) => request.method === 'PUT');
         fixture.detectChanges();
         http.expectOne(root + '/s2/roadmap').flush({ ...roadmap, revision: 8 });
+        await renderResources();
         component.edit();
         component.save(new Event('submit'));
         const pending = http.expectOne(root + '/s2/roadmap');

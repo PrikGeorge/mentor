@@ -1,9 +1,10 @@
-import { Injectable, OnDestroy, inject, signal } from '@angular/core';
+import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { MonoTypeOperatorFunction, Subject, Subscription, takeUntil } from 'rxjs';
 import type { components } from '../api/schema';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { PracticeApi, Attempt, SourceFiles } from './practice-api.service';
 import { AttemptPoller } from './attempt-poller.service';
+import { readResource } from '../core/read-resource';
 import type { AttemptSummary, WorkerStatus } from './attempt-labels';
 export type DraftArchive = components['schemas']['DraftArchive'];
 export type DraftArchiveSummary = components['schemas']['DraftArchiveSummary'];
@@ -47,8 +48,30 @@ export class PracticeSessionStore implements OnDestroy {
     private readonly lessonChanged = new Subject<void>();
     private readonly selectionChanged = new Subject<void>();
     private poll: Subscription | null = null;
-    private attemptsRequest: Subscription | null = null;
-    private archivesRequest: Subscription | null = null;
+    private readonly attemptsRequest = signal<HistoryRequest | undefined>(undefined);
+    private readonly archivesRequest = signal<HistoryRequest | undefined>(undefined);
+    private readonly attemptsReading = readResource({
+        params: () => this.attemptsRequest(),
+        load: request => this.api.attempts(request.lesson, request.id, request.preview, request.page).pipe(this.untilSelectionChange()),
+    });
+    private readonly archivesReading = readResource({
+        params: () => this.archivesRequest(),
+        load: request => this.api.archives(request.lesson, request.id, request.preview, request.page).pipe(this.untilSelectionChange()),
+    });
+    constructor() {
+        effect(() => {
+            const state = this.attemptsReading.state();
+            if (state.status === 'idle' || !this.scope?.valid(state.params.id, state.params.key)) return;
+            if (state.status === 'resolved') { this.attempts.set(state.value.items); this.attemptTotal.set(state.value.total); }
+            else if (state.status === 'error') this.fail('Не удалось загрузить историю попыток.', () => this.attemptsReading.reload());
+        });
+        effect(() => {
+            const state = this.archivesReading.state();
+            if (state.status === 'idle' || !this.scope?.valid(state.params.id, state.params.key)) return;
+            if (state.status === 'resolved') { this.archives.set(state.value.items); this.archiveTotal.set(state.value.total); }
+            else if (state.status === 'error') this.fail('Не удалось загрузить архив черновиков.', () => this.archivesReading.reload());
+        });
+    }
     private queuedSince = 0;
     private workerChecked = 0;
     attach(scope: PracticeScope) { this.scope = scope; }
@@ -57,8 +80,8 @@ export class PracticeSessionStore implements OnDestroy {
     untilLessonChange<T>(): MonoTypeOperatorFunction<T> { return takeUntil(this.lessonChanged); }
     // Requests that must also stop when another exercise is chosen or the tab is suspended.
     untilSelectionChange<T>(): MonoTypeOperatorFunction<T> { return source => source.pipe(takeUntil(this.selectionChanged), takeUntil(this.lessonChanged)); }
-    cancelLesson() { this.lessonChanged.next(); this.stopWatching(); }
-    cancelSelection() { this.selectionChanged.next(); this.stopWatching(); this.attemptsRequest?.unsubscribe(); this.archivesRequest?.unsubscribe(); }
+    cancelLesson() { this.lessonChanged.next(); this.stopWatching(); this.attemptsRequest.set(undefined); this.archivesRequest.set(undefined); }
+    cancelSelection() { this.selectionChanged.next(); this.stopWatching(); this.attemptsRequest.set(undefined); this.archivesRequest.set(undefined); }
     stopWatching() { this.poll?.unsubscribe(); this.poll = null; }
     // Everything that belongs to one chosen exercise; called before a new selection loads.
     resetSelection() {
@@ -78,20 +101,10 @@ export class PracticeSessionStore implements OnDestroy {
     clearFailure() { this.failure.set(null); }
     retryFailure() { const failure = this.failure(); this.failure.set(null); failure?.retry?.(); }
     loadAttempts(lesson: LessonRef, id: string, preview: boolean, page: number) {
-        const scope = this.scope!, key = scope.key();
-        this.attemptsRequest?.unsubscribe();
-        this.attemptsRequest = this.api.attempts(lesson, id, preview, page).pipe(this.untilSelectionChange()).subscribe({
-            next: result => { if (scope.valid(id, key)) { this.attempts.set(result.items); this.attemptTotal.set(result.total); } },
-            error: () => { if (scope.valid(id, key)) this.fail('Не удалось загрузить историю попыток.', () => this.loadAttempts(lesson, id, preview, page)); },
-        });
+        this.attemptsRequest.set({ lesson, id, preview, page, key: this.scope!.key() });
     }
     loadArchives(lesson: LessonRef, id: string, preview: boolean, page: number) {
-        const scope = this.scope!, key = scope.key();
-        this.archivesRequest?.unsubscribe();
-        this.archivesRequest = this.api.archives(lesson, id, preview, page).pipe(this.untilSelectionChange()).subscribe({
-            next: result => { if (scope.valid(id, key)) { this.archives.set(result.items); this.archiveTotal.set(result.total); } },
-            error: () => { if (scope.valid(id, key)) this.fail('Не удалось загрузить архив черновиков.', () => this.loadArchives(lesson, id, preview, page)); },
-        });
+        this.archivesRequest.set({ lesson, id, preview, page, key: this.scope!.key() });
     }
     // Follows one attempt until it finishes; each answer refreshes the shown result and the first page of history.
     watch(id: string) {
@@ -126,3 +139,5 @@ export class PracticeSessionStore implements OnDestroy {
         this.api.worker(workspaceId).subscribe({ next: status => this.worker.set(status), error: () => this.worker.set(null) });
     }
 }
+
+interface HistoryRequest { lesson: LessonRef; id: string; preview: boolean; page: number; key: string; }

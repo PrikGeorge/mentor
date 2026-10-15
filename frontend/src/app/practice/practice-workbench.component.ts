@@ -1,8 +1,9 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { EMPTY, Subscription, expand, forkJoin, map, reduce } from 'rxjs';
+import { EMPTY, Subscription, catchError, expand, forkJoin, map, of, reduce, switchMap } from 'rxjs';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { SessionStore } from '../core/session.store';
 import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { PracticeExit } from '../core/practice-exit.service';
 import { MarkdownRenderer } from '../editor/markdown-renderer.service';
 import { MaterialsApi, MaterialView } from '../materials/materials-api.service';
@@ -66,6 +67,38 @@ export class PracticeWorkbench {
     readonly dark = signal(storedTheme());
     private bound = '';
     private selection = '';
+    private readonly lessonReading = readResource({
+        scope: this.scope,
+        params: () => ({ lesson: this.lesson(), preview: this.preview() }),
+        load: ({ lesson, preview }) => {
+            const history = this.api.history(lesson, preview).pipe(
+                expand(page => page.items.length && (page.page + 1) * page.size < page.total ? this.api.history(lesson, preview, page.page + 1) : EMPTY),
+                map(page => page.items), reduce((all, items) => [...all, ...items], [] as HistoryEntry[]));
+            return forkJoin({ view: this.api.practice(lesson, preview), history });
+        },
+    });
+    private readonly referenceReading = readResource({
+        scope: this.scope,
+        params: () => ({ lesson: this.lesson(), preview: this.preview() }),
+        load: ({ lesson, preview }) => this.scope.track(this.materials.catalog(lesson.workspaceId, lesson.studentId, lesson.id, preview)).pipe(
+            // Discovery is optional; a known material that fails to load still offers a retry.
+            catchError(() => of([])),
+            switchMap(rows => {
+                const publicCode = rows.filter(row => row.kind === 'code' && row.audience === 'student');
+                return publicCode.length ? forkJoin(publicCode.map(row => this.materials.load(lesson.workspaceId, row.id, preview))) : of([] as MaterialView[]);
+            })),
+    });
+    private readonly selectionScope = createBoundScope(() => [lessonKey(this.lesson()), this.preview(), this.selectedId(), this.selectionTick()]);
+    private readonly draftReading = readResource({
+        scope: this.selectionScope,
+        params: () => {
+            const id = this.selectedId(), refresh = this.selectionTick();
+            const exercise = untracked(this.current), history = untracked(this.history);
+            return id && this.owned() && (exercise || history.some(row => row.exerciseId === id && row.hasDraft))
+                ? { lesson: this.lesson(), preview: this.preview(), id, exercise, refresh } : undefined;
+        },
+        load: ({ lesson, preview, id }) => this.api.draft(lesson, id, preview).pipe(this.store.untilSelectionChange()),
+    });
     constructor() {
         this.store.attach({ lesson: () => this.lesson(), preview: () => this.preview(), selectedId: () => this.selectedId(), key: () => this.bound, valid: (id, key) => this.validSelection(id, key) });
         const unregister = this.exit.register({ valid: () => this.sourceOwner(), blocked: () => this.scope.current() && this.checking(), dirty: () => this.draft.dirty(), pause: value => this.draft.pause(value), save: () => this.draft.save(), export: () => this.exportFiles(), discard: () => this.draft.discard() });
@@ -87,61 +120,49 @@ export class PracticeWorkbench {
         effect(() => document.body.classList.toggle('theme-dark', this.dark()));
         // Lesson scope: assignments, history and public code materials; everything restarts when the lesson or account changes.
         effect(onCleanup => {
-            const lesson = this.lesson(), preview = this.preview();
-            this.loadTick();
-            this.session.generation();
-            this.scope.bind();
-            this.bound = lessonKey(lesson);
-            this.selectedId.set('');
-            this.view.set(null);
-            this.history.set([]);
-            this.references.set([]);
-            this.store.clearFailure();
-            this.draft.stop();
-            this.store.cancelLesson();
-            if (!this.owned()) return;
-            this.loading.set(true);
-            const history = this.api.history(lesson, preview).pipe(
-                expand(page => page.items.length && (page.page + 1) * page.size < page.total ? this.api.history(lesson, preview, page.page + 1) : EMPTY),
-                map(page => page.items), reduce((all, items) => [...all, ...items], [] as HistoryEntry[]));
-            const sub = this.scope.track(forkJoin({ view: this.api.practice(lesson, preview), history })).subscribe({
-                next: result => {
-                    if (!this.owned()) return;
-                    this.view.set(result.view);
-                    this.history.set(result.history);
-                    this.loading.set(false);
-                    const preferred = this.initialExercise();
-                    const known = preferred && (result.view.exercises.some(row => row.exercise.id === preferred) || result.history.some(row => row.exerciseId === preferred));
-                    this.selectedId.set(known ? preferred : result.view.exercises[0]?.exercise.id ?? result.history[0]?.exerciseId ?? '');
-                },
-                error: () => { if (this.owned()) { this.loading.set(false); this.store.fail('Не удалось загрузить тренажёр. Обновите страницу.', () => this.reload()); } },
-            });
-            const sources = this.loadReferences(lesson, preview);
-            onCleanup(() => { sub.unsubscribe(); sources.unsubscribe(); this.store.cancelLesson(); this.draft.stop(); });
+            const lesson = this.lesson(); this.preview(); this.loadTick(); this.session.generation();
+            this.scope.bind(); this.bound = lessonKey(lesson); this.selectedId.set('');
+            this.view.set(null); this.history.set([]); this.references.set([]); this.loading.set(false);
+            this.store.clearFailure(); this.draft.stop(); this.store.cancelLesson();
+            onCleanup(() => { this.store.cancelLesson(); this.draft.stop(); });
         });
-        // Exercise scope: the draft (or the read-only files of a removed exercise) and a pending attempt to resume.
+        effect(() => {
+            const state = this.lessonReading.state();
+            this.loading.set(state.status === 'loading');
+            if (!this.owned()) return;
+            if (state.status === 'resolved') {
+                this.view.set(state.value.view); this.history.set(state.value.history);
+                const preferred = untracked(this.initialExercise);
+                const known = preferred && (state.value.view.exercises.some(row => row.exercise.id === preferred) || state.value.history.some(row => row.exerciseId === preferred));
+                this.selectedId.set(known ? preferred : state.value.view.exercises[0]?.exercise.id ?? state.value.history[0]?.exerciseId ?? '');
+            } else if (state.status === 'error') this.store.fail('Не удалось загрузить тренажёр. Обновите страницу.', () => this.reload());
+        });
+        effect(() => {
+            const state = this.referenceReading.state();
+            if (!this.owned()) return;
+            if (state.status === 'resolved') this.references.set(state.value);
+            else if (state.status === 'error') this.store.fail('Исходные материалы временно недоступны. Черновик остаётся в редакторе.', () => this.referenceReading.reload());
+        });
+        // Selection resets remain local; only the resource owns the draft GET.
         effect(onCleanup => {
-            const id = this.selectedId(), lesson = this.lesson(), preview = this.preview();
-            this.selectionTick();
-            this.session.generation();
-            this.selection = id;
-            this.store.resetSelection();
-            this.draft.stop();
-            if (!id || !this.owned()) return;
-            const exercise = untracked(this.current), key = this.bound;
-            const hasDraft = exercise || untracked(this.history).some(row => row.exerciseId === id && row.hasDraft);
-            const sub = hasDraft ? this.scope.track(this.api.draft(lesson, id, preview)).subscribe({
-                next: result => {
-                    if (!this.validSelection(id, key)) return;
-                    if (!exercise) { this.store.historicalFiles.set({ ...result.files }); return; }
-                    this.draft.bind(lesson, exercise, result, preview, () => this.validSelection(id, key));
-                    this.file.set(Object.keys(this.draft.files())[0] ?? '');
-                    const pending = this.draft.pending();
-                    if (pending?.attemptId) this.store.watch(pending.attemptId);
-                },
-                error: () => { if (this.validSelection(id, key)) this.store.fail('Не удалось загрузить сохранённый черновик. История остаётся доступна.', () => this.selectionTick.update(value => value + 1)); },
-            }) : new Subscription();
-            onCleanup(() => { sub.unsubscribe(); this.store.cancelSelection(); this.draft.stop(); });
+            const id = this.selectedId(); this.lesson(); this.preview(); this.selectionTick(); this.session.generation();
+            this.selectionScope.bind(); this.selection = id; this.store.resetSelection(); this.draft.stop();
+            onCleanup(() => { this.store.cancelSelection(); this.draft.stop(); });
+        });
+        effect(() => {
+            const state = this.draftReading.state();
+            untracked(() => {
+            if (!this.owned()) return;
+            if (state.status === 'error') { this.store.fail('Не удалось загрузить сохранённый черновик. История остаётся доступна.', () => this.selectionTick.update(value => value + 1)); return; }
+            if (state.status !== 'resolved') return;
+            const { lesson, preview, id, exercise } = state.params, key = lessonKey(lesson);
+            if (!this.validSelection(id, key)) return;
+            if (!exercise) { this.store.historicalFiles.set({ ...state.value.files }); return; }
+            this.draft.bind(lesson, exercise, state.value, preview, () => this.validSelection(id, key));
+            this.file.set(Object.keys(this.draft.files())[0] ?? '');
+            const pending = this.draft.pending();
+            if (pending?.attemptId) untracked(() => this.store.watch(pending.attemptId!));
+            });
         });
         // A republished catalog updates the exercise shown next to the retained draft.
         effect(() => { const exercise = this.current(); if (exercise) this.draft.updateExercise(exercise); });
@@ -152,19 +173,6 @@ export class PracticeWorkbench {
         effect(() => {
             const id = this.selectedId(), page = this.store.archivePage(), preview = this.preview(), lesson = this.lesson();
             if (id && this.owned()) this.store.loadArchives(lesson, id, preview, page);
-        });
-    }
-    private loadReferences(lesson: LessonRef, preview: boolean): Subscription {
-        return this.scope.track(this.materials.catalog(lesson.workspaceId, lesson.studentId, lesson.id, preview)).subscribe({
-            next: rows => {
-                const publicCode = rows.filter(row => row.kind === 'code' && row.audience === 'student');
-                if (!publicCode.length) return;
-                this.scope.track(forkJoin(publicCode.map(row => this.materials.load(lesson.workspaceId, row.id, preview))).pipe(this.store.untilLessonChange())).subscribe({
-                    next: items => { if (this.owned()) this.references.set(items); },
-                    error: () => { if (this.owned()) this.store.fail('Исходные материалы временно недоступны. Черновик остаётся в редакторе.', () => { this.loadReferences(lesson, preview); }); },
-                });
-            },
-            error: () => { /* references are optional; the statement and the draft stay usable without them */ },
         });
     }
     private reload() { this.loadTick.update(value => value + 1); }

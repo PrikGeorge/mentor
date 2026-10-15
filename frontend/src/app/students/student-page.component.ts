@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { StudentsApi, StudentView } from './students-api.service';
@@ -17,6 +17,7 @@ import { catchError, of } from 'rxjs';
 import { RoadmapComponent } from '../roadmap/roadmap.component';
 import { MovesComponent } from '../journal/moves.component';
 import { lessonStatus } from '../lessons/lesson-status';
+import { readResource } from '../core/read-resource';
 @Component({
     selector: 'mentor-student-page',
     imports: [
@@ -449,7 +450,7 @@ export class StudentPageComponent extends DomainPage {
     readonly total = signal(0);
     readonly page = signal(0);
     readonly pages = computed(() => Math.max(1, Math.ceil(this.total() / 25)));
-    readonly loading = signal(false);
+    readonly loading = computed(() => this.lessonsResource.state().status === 'loading');
     readonly error = signal('');
     readonly editStudent = signal(false);
     readonly createLesson = signal(false);
@@ -467,72 +468,68 @@ export class StudentPageComponent extends DomainPage {
         const s = this.student();
         return s ? { student: s, base: this.base(), preview: false, learner: false, page: this.section() } : null;
     });
+    private readonly studentParams = computed(() => {
+        const workspace = this.workspaceId(), student = this.studentId(), preview = this.preview(), section = this.section();
+        return workspace && student && !(preview && !section)
+            ? { workspace, student, preview, section, base: this.base(), learner: this.learner(), refresh: this.refresh() }
+            : undefined;
+    });
+    private readonly studentResource = readResource({
+        scope: this.scope,
+        params: this.studentParams,
+        load: ({ workspace, student, preview }) => this.studentsApi.load(workspace, student, preview),
+    });
+    private readonly lessonsResource = readResource({
+        scope: this.scope,
+        params: () => {
+            const workspace = this.workspaceId(), student = this.studentId(), preview = this.preview(), section = this.section();
+            return workspace && student && !(preview && !section) && !this.profileSection() && section !== 'materials'
+                ? { workspace, student, preview, section, page: this.page(), refresh: this.refresh() }
+                : undefined;
+        },
+        load: ({ workspace, student, preview, page }) => this.lessonsApi.list(workspace, student, page, preview),
+    });
+    private readonly turnsResource = readResource({
+        scope: this.scope,
+        params: () => {
+            const workspace = this.workspaceId(), student = this.studentId(), section = this.section();
+            // The teacher's card has no section; the learner's lesson list uses the same exchanges.
+            return workspace && student && (!section || section === 'lessons')
+                ? { workspace, student, section, preview: this.preview(), refresh: this.refresh() }
+                : undefined;
+        },
+        load: ({ workspace, student, preview }) => this.homework.lessonTurns(workspace, student, preview).pipe(catchError(() => of(null))),
+    });
     constructor() {
         super();
-        effect((onCleanup) => {
-            this.session.generation();
-            const w = this.workspaceId(),
-                s = this.studentId(),
-                preview = this.preview(),
-                section = this.section();
-            this.refresh();
-            this.student.set(null);
-            this.error.set('');
-            this.editStudent.set(false);
-            this.createLesson.set(false);
-            this.context.clear(this);
-            if (!w || !s || (preview && !section)) return;
-            const sub = this.studentsApi.load(w, s, preview).subscribe({
-                next: (view) => {
-                    this.student.set(view);
-                    this.context.set(this, { student: view, base: this.base(), preview, learner: this.learner(), page: section });
-                },
-                error: (e) => this.error.set(this.message(e)),
-            });
-            onCleanup(() => sub.unsubscribe());
+        effect(() => {
+            this.scope.current(); this.studentParams();
+            untracked(() => { this.error.set(''); this.editStudent.set(false); this.createLesson.set(false); });
         });
-        effect((onCleanup) => {
-            this.session.generation();
-            const w = this.workspaceId(),
-                s = this.studentId(),
-                preview = this.preview(),
-                page = this.page(),
-                section = this.section();
-            this.refresh();
-            this.lessons.set([]);
-            this.total.set(0);
-            if (!w || !s || (preview && !section) || this.profileSection() || section === 'materials') return;
-            this.loading.set(true);
-            const sub = this.lessonsApi.list(w, s, page, preview).subscribe({
-                next: (view) => {
-                    this.lessons.set(view.items);
-                    this.total.set(view.total);
-                    this.loading.set(false);
-                },
-                error: (e) => {
-                    this.error.set(this.message(e));
-                    this.loading.set(false);
-                },
+        effect(() => {
+            const state = this.studentResource.state();
+            untracked(() => {
+                this.student.set(state.status === 'resolved' ? state.value : null);
+                if (state.status === 'resolved') {
+                    const { base, preview, learner, section } = state.params;
+                    this.context.set(this, { student: state.value, base, preview, learner, page: section });
+                } else {
+                    if (state.status === 'error') this.error.set(this.message(state.error));
+                    this.context.clear(this);
+                }
             });
-            onCleanup(() => sub.unsubscribe());
         });
-        effect((onCleanup) => {
-            this.session.generation();
-            const w = this.workspaceId(),
-                s = this.studentId(),
-                section = this.section(),
-                preview = this.preview();
-            this.refresh();
-            this.turns.set(null);
-            // The teacher's card has no section; the learner's list of lessons is the lessons section.
-            if (!w || !s || (section && section !== 'lessons')) return;
-
-            // The student sees the same latest exchanges in their own words; a preview asks for the student projection.
-            const sub = this.homework
-                .lessonTurns(w, s, preview)
-                .pipe(catchError(() => of(null)))
-                .subscribe((page) => this.turns.set(page ? new Map(page.items.map((turn) => [turn.lessonId, turn])) : null));
-            onCleanup(() => sub.unsubscribe());
+        effect(() => {
+            const state = this.lessonsResource.state();
+            untracked(() => {
+                this.lessons.set(state.status === 'resolved' ? state.value.items : []);
+                this.total.set(state.status === 'resolved' ? state.value.total : 0);
+                if (state.status === 'error') this.error.set(this.message(state.error));
+            });
+        });
+        effect(() => {
+            const state = this.turnsResource.state();
+            this.turns.set(state.status === 'resolved' && state.value ? new Map(state.value.items.map(turn => [turn.lessonId, turn])) : null);
         });
     }
     readonly status = lessonStatus;

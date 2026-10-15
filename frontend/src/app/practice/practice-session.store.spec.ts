@@ -1,3 +1,4 @@
+import { renderResources } from '../students/domain-test-support';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -32,20 +33,26 @@ describe('Practice session store', () => {
         store.retryFailure();
         expect(store.failure()).toBeNull();
     });
-    it('accepts list pages only for the live selection and offers a retry that reloads the same page', () => {
+    it('accepts list pages only for the live selection and offers a retry that reloads the same page', async () => {
         const store = TestBed.inject(PracticeSessionStore), http = TestBed.inject(HttpTestingController);
-        store.loadAttempts(lesson, 'e1', false, 1);
-        http.expectOne(root + '/exercises/e1/attempts?page=1&size=25').error(new ProgressEvent('error'));
+        store.loadAttempts(lesson, 'e1', false, 1); TestBed.tick();
+        http.expectOne(root + '/exercises/e1/attempts?page=1&size=25').error(new ProgressEvent('error')); await renderResources();
         expect(store.failure()?.message).toBe('Не удалось загрузить историю попыток.');
-        store.retryFailure();
+        store.retryFailure(); TestBed.tick();
         const retry = http.expectOne(root + '/exercises/e1/attempts?page=1&size=25');
         selected = 'e2';
-        retry.flush({ items: [{ ...attempt, files: undefined }], page: 1, size: 25, total: 26 });
+        retry.flush({ items: [{ ...attempt, files: undefined }], page: 1, size: 25, total: 26 }); await renderResources();
         expect(store.attempts()).toEqual([]);
         selected = 'e1';
-        store.loadArchives(lesson, 'e1', false, 0);
-        http.expectOne(root + '/draft-archives?exerciseId=e1&page=0&size=25').flush({ items: [], page: 0, size: 25, total: 3 });
+        store.loadArchives(lesson, 'e1', false, 0); TestBed.tick();
+        http.expectOne(root + '/draft-archives?exerciseId=e1&page=0&size=25').flush({ items: [], page: 0, size: 25, total: 3 }); await renderResources();
         expect(store.archiveTotal()).toBe(3);
+    });
+    it('cancels scheduled history reads before the resource effect runs on lesson exit', () => {
+        const store = TestBed.inject(PracticeSessionStore), http = TestBed.inject(HttpTestingController);
+        store.loadAttempts(lesson, 'e1', false, 1); store.loadArchives(lesson, 'e1', false, 0);
+        store.cancelLesson(); TestBed.tick();
+        http.expectNone(request => request.url.startsWith(root));
     });
     it('records polled attempts into the first history page and clears everything on a new selection', () => {
         const store = TestBed.inject(PracticeSessionStore), http = TestBed.inject(HttpTestingController);

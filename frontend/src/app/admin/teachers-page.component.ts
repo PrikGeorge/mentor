@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -10,6 +10,8 @@ import { SessionStore } from '../core/session.store';
 import { IconComponent } from '../core/icon.component';
 import { PaginationComponent } from '../core/pagination.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 type Teacher = components['schemas']['TeacherView'];
 type Invitation = components['schemas']['InvitationView'];
 type LinkIssue = components['schemas']['PasswordResetIssue'];
@@ -69,7 +71,7 @@ export class TeachersPageComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly refresh = signal(0);
-  private ownerGeneration = -1;
+  private readonly scope = createBoundScope();
   readonly teachers = signal<Teacher[]>([]);
   readonly invitations = signal<Invitation[]>([]);
   readonly teacherPage = signal(0);
@@ -78,7 +80,9 @@ export class TeachersPageComponent {
   readonly invitationTotal = signal(0);
   readonly loading = signal(false);
   readonly busy = signal(false);
-  readonly error = signal('');
+  private readonly readError = signal('');
+  private readonly actionError = signal('');
+  readonly error = computed(() => this.readError() || this.actionError());
   readonly issued = signal<LinkIssue | null>(null);
   readonly copied = signal(false);
   readonly resetTeacher = signal<Teacher | null>(null);
@@ -86,27 +90,35 @@ export class TeachersPageComponent {
   // Shown under the password field after a submit without a password.
   readonly passwordMissing = signal(false);
   readonly invitationLabels = { pending: 'Ожидает регистрации', used: 'Использовано', revoked: 'Отозвано', expired: 'Истекло' };
+  private readonly listsResource = readResource({
+    scope: this.scope,
+    params: () => this.session.actor()?.role === 'ADMIN'
+      ? { teacherPage: this.teacherPage(), invitationPage: this.invitationPage(), refresh: this.refresh() }
+      : undefined,
+    load: ({ teacherPage, invitationPage }) => forkJoin({
+      teachers: this.api.get('/admin/teachers', { query: { page: teacherPage, size: 25 } }),
+      invitations: this.api.get('/admin/teacher-invitations', { query: { page: invitationPage, size: 25 } }),
+    }),
+  });
   constructor() {
-    effect(onCleanup => {
-      const generation = this.session.generation();
-      const actor = this.session.actor();
-      const teacherPage = this.teacherPage();
-      const invitationPage = this.invitationPage();
-      this.refresh();
-      this.teachers.set([]); this.invitations.set([]);
-      if (generation !== this.ownerGeneration) {
-        this.ownerGeneration = generation; this.issued.set(null); this.cancelReset(); this.error.set(''); this.busy.set(false);
-      }
-      if (actor?.role !== 'ADMIN') { this.loading.set(false); return; }
-      this.loading.set(true);
-      const subscription = forkJoin({
-        teachers: this.api.get('/admin/teachers', { query: { page: teacherPage, size: 25 } }),
-        invitations: this.api.get('/admin/teacher-invitations', { query: { page: invitationPage, size: 25 } }),
-      }).pipe(finalize(() => this.loading.set(false))).subscribe({
-        next: view => { this.teachers.set(view.teachers.items); this.teacherTotal.set(view.teachers.total); this.invitations.set(view.invitations.items); this.invitationTotal.set(view.invitations.total); },
-        error: (failure: HttpErrorResponse) => this.error.set(failure.error?.message ?? 'Не удалось загрузить список.'),
+    // A mounted page belongs to its original session; the next login gets a new routed instance.
+    effect(() => {
+      this.session.generation();
+      untracked(() => { this.issued.set(null); this.cancelReset(); this.actionError.set(''); this.busy.set(false); });
+    });
+    effect(() => {
+      const state = this.listsResource.state();
+      untracked(() => {
+        this.loading.set(state.status === 'loading');
+        this.readError.set(state.status === 'error' ? (state.error as HttpErrorResponse)?.error?.message ?? 'Не удалось загрузить список.' : '');
+        this.teachers.set(state.status === 'resolved' ? state.value.teachers.items : []);
+        this.invitations.set(state.status === 'resolved' ? state.value.invitations.items : []);
+        if (state.status === 'resolved') {
+          this.teacherTotal.set(state.value.teachers.total); this.invitationTotal.set(state.value.invitations.total);
+        } else if (state.status === 'idle') {
+          this.teacherTotal.set(0); this.invitationTotal.set(0);
+        }
       });
-      onCleanup(() => subscription.unsubscribe());
     });
   }
   invite(): void { this.mutate(this.api.post('/admin/teacher-invitations', {}), issue => this.showIssue(issue)); }
@@ -135,14 +147,14 @@ export class TeachersPageComponent {
       const url = new URL(issue.link, document.baseURI);
       if (!['http:', 'https:'].includes(url.protocol) || url.origin !== window.location.origin) throw new Error('Invalid issue link');
       this.issued.set({ ...issue, link: url.href }); this.copied.set(false);
-    } catch { this.error.set('Ссылка недоступна. Проверьте адрес кабинета.'); }
+    } catch { this.actionError.set('Ссылка недоступна. Проверьте адрес кабинета.'); }
   }
   private mutate<T>(action: Observable<T>, done?: (value: T) => void, reload = true): void {
-    if (this.busy() || this.session.actor()?.role !== 'ADMIN') return;
-    this.busy.set(true); this.error.set('');
+    if (!this.scope.current() || this.busy() || this.session.actor()?.role !== 'ADMIN') return;
+    this.busy.set(true); this.actionError.set('');
     this.session.scope(action).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.busy.set(false))).subscribe({
       next: value => { done?.(value); if (reload) this.refresh.update(count => count + 1); },
-      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.error.set(failure.error?.message ?? 'Действие не выполнено. Попробуйте ещё раз.'); },
+      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.actionError.set(failure.error?.message ?? 'Действие не выполнено. Попробуйте ещё раз.'); },
     });
   }
 }

@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import type { components } from '../api/schema';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
+import { createBoundScope } from '../core/bound-scope';
+import { readResource } from '../core/read-resource';
 import { GradeComponent } from '../homework/grade.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 
@@ -57,6 +59,7 @@ export class MovesComponent {
     readonly id = 'moves-title-' + (++next);
     private readonly api = inject(MovesApi);
     private readonly session = inject(SessionStore);
+    private readonly scope = createBoundScope(() => [this.workspaceId(), this.studentId(), this.lessonId(), this.preview()]);
     private readonly extra = signal(0);
     private readonly refresh = signal(0);
     reload() { this.refresh.update(value => value + 1); }
@@ -68,12 +71,22 @@ export class MovesComponent {
     readonly action = moveAction;
     readonly hasMore = computed(() => this.items().length < this.total() && this.limit() < 100);
     readonly countLabel = computed(() => this.items().length < this.total() ? 'последние ' + this.items().length + ' из ' + this.total() : 'всего ' + this.total());
+    private readonly reading = readResource({
+        scope: this.scope,
+        params: () => ({ workspace: this.workspaceId(), student: this.studentId(), lesson: this.lessonId(), preview: this.preview(), size: this.limit(), refresh: this.refresh() }),
+        load: params => this.api.list(params.workspace, params.student, params.size, params.lesson, params.preview),
+    });
     constructor() {
-        effect(onCleanup => {
-            this.session.generation(); const w = this.workspaceId(), s = this.studentId(), lesson = this.lessonId(), preview = this.preview(), size = this.limit(); this.refresh();
-            this.error.set('');
-            const sub = this.api.list(w, s, size, lesson, preview).subscribe({ next: page => { this.items.set(page.items); this.total.set(page.total); this.loaded.set(true); }, error: () => { this.loaded.set(true); this.error.set('Не удалось загрузить ходы.'); } });
-            onCleanup(() => sub.unsubscribe());
+        effect(() => {
+            this.session.generation(); this.scope.bind();
+            this.items.set([]); this.total.set(0); this.loaded.set(false); this.error.set(''); this.extra.set(0);
+        });
+        effect(() => {
+            const state = this.reading.state();
+            if (state.status === 'idle') { this.items.set([]); this.total.set(0); this.loaded.set(false); this.error.set(''); }
+            else if (state.status === 'loading') this.error.set('');
+            else if (state.status === 'resolved') { this.items.set(state.value.items); this.total.set(state.value.total); this.loaded.set(true); this.error.set(''); }
+            else { this.loaded.set(true); this.error.set('Не удалось загрузить ходы.'); }
         });
     }
     more() { this.extra.update(v => v + 20); }

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, student, publicStudent, lessonSummary, base, click, fill, flushTurns, flushJournal } from './domain-test-support';
+import { renderResources, configure, open, page, student, publicStudent, lessonSummary, base, click, fill, flushTurns, flushJournal } from './domain-test-support';
 describe('Student workspace', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -7,9 +7,9 @@ describe('Student workspace', () => {
         const { fixture, http, session, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         click(element, 'Изменить карточку');
         fixture.detectChanges();
         fill(element, 'name', 'Старое значение');
@@ -21,7 +21,7 @@ describe('Student workspace', () => {
         });
         oldForm.dispatchEvent(new Event('submit'));
         http.expectNone((request) => request.method === 'PATCH');
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.match((request) => request.method === 'GET').forEach((request) => {
             if (!request.cancelled) request.flush({ items: [], page: 0, size: 25, total: 0 });
         });
@@ -30,9 +30,9 @@ describe('Student workspace', () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary], 26));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('h1')?.textContent).toContain('Тестовая Анна');
         expect(element.textContent).toContain('Доступ к кабинету');
         expect(element.textContent).toContain('Частные заметки');
@@ -47,12 +47,12 @@ describe('Student workspace', () => {
         const { fixture, http, element } = await open('/learn/students/s1/lessons', 'STUDENT');
         http.expectOne(base).flush(publicStudent);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         const turns = http.expectOne((request) => request.url.endsWith('/homework/turns'));
         turns.flush(
             page([{ lessonId: 'l1', submissionId: 'h1', kind: 'homework', filename: 'Main.java', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }])
         );
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(Array.from(element.querySelectorAll('th')).map((cell) => cell.textContent?.trim())).toContain('Чей ход');
         expect(element.querySelector('.turn-cell')?.textContent).toContain('Ход у наставника');
         flushJournal(http);
@@ -62,9 +62,9 @@ describe('Student workspace', () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         click(element, 'Изменить карточку');
         fixture.detectChanges();
         fill(element, 'name', 'Новое имя');
@@ -74,7 +74,7 @@ describe('Student workspace', () => {
         expect(save.request.method).toBe('PATCH');
         expect(save.request.body.revision).toBe(1);
         save.flush({ message: 'Конфликт' }, { status: 409, statusText: 'Conflict' });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe('Новое имя');
         expect(element.querySelector('[role="alert"]')?.textContent).toContain('Конфликт');
         flushTurns(http);
@@ -96,9 +96,9 @@ describe('Student workspace', () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: { userId: 'p1', login: 'anna', disabled: false }, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         click(element, 'Приостановить доступ');
         fixture.detectChanges();
         click(element, 'Да, приостановить');
@@ -107,7 +107,7 @@ describe('Student workspace', () => {
         expect(change.request.body).toEqual({ disabled: true });
         change.flush(null, { status: 204, statusText: 'No Content' });
         http.expectOne(base + '/access').flush({ account: { userId: 'p1', login: 'anna', disabled: true }, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.textContent).toContain('Восстановить доступ');
         click(element, 'Ссылка для смены пароля');
         fixture.detectChanges();
@@ -117,7 +117,7 @@ describe('Student workspace', () => {
         expect(reset.request.body).toEqual({ currentPassword: 'synthetic password' });
         reset.flush({ link: '/reset-password?token=synthetic-only', expiresAt: '2026-10-01T12:30:00Z' });
         http.expectOne(base + '/access').flush({ account: { userId: 'p1', login: 'anna', disabled: true }, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector<HTMLInputElement>('[name="accessLink"]')?.value).toContain('/reset-password?token=synthetic-only');
         expect(element.querySelector('[name="currentPassword"]')).toBeNull();
         expect(localStorage.length).toBe(0);
@@ -128,16 +128,16 @@ describe('Student workspace', () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         click(element, 'Создать приглашение');
         http.expectOne(base + '/invitations').flush({ id: 'i1', link: '/register?token=synthetic-only', expiresAt: '2026-10-04T12:00:00Z' });
         http.expectOne(base + '/access').flush({
             account: null,
             invitation: { id: 'i1', state: 'pending', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' },
         });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('[name="accessLink"]')).toBeTruthy();
         click(element, 'Отозвать');
         const revoke = http.expectOne(base + '/invitations/i1');
@@ -147,7 +147,7 @@ describe('Student workspace', () => {
             account: null,
             invitation: { id: 'i1', state: 'revoked', expiresAt: '2026-10-04T12:00:00Z', createdAt: '2026-10-01T12:00:00Z' },
         });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('[name="accessLink"]')).toBeNull();
         expect(element.textContent).toContain('Приглашение отозвано');
         flushTurns(http);

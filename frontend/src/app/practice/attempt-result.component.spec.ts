@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { flushJournal } from '../students/domain-test-support';
+import { flushJournal, renderResources } from '../students/domain-test-support';
 import { AttemptResultComponent } from './attempt-result.component';
 import type { Attempt } from './practice-api.service';
 const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' };
@@ -31,7 +31,7 @@ describe('Attempt result pane', () => {
         expect(element.querySelector('.attempt-result h3')?.textContent?.trim()).toBe('Выполняется');
         fixture.destroy();
     });
-    it('lists each test with its verdict, values and output and reports mentor comment counts', () => {
+    it('lists each test with its verdict, values and output and reports mentor comment counts', async () => {
         const { fixture, element, component } = setup(wrong, { noted: 2 });
         const heading = element.querySelector('.attempt-result h3')!;
         expect(heading.textContent?.trim()).toBe('Есть неверный ответ');
@@ -54,6 +54,7 @@ describe('Attempt result pane', () => {
         let noted = 0;
         component.notedChanged.subscribe(count => noted = count);
         http().match(request => request.url.endsWith('/code-comments')).forEach(request => request.flush({ items: [{ id: 'c1', targetKind: 'attempt', targetId: 'a2', file: 'Task.java', line: 1, body: 'Проверь max', variant: 'note', createdAt: '2030-01-01T10:00:00Z' }] }));
+        await renderResources();
         expect(noted).toBe(1);
         fixture.destroy();
     });

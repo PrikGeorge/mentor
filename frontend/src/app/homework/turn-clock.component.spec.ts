@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { TurnClockComponent, turnHeadline, turnOf } from './turn-clock.component';
-import { configure, open, page, base, student, lessonSummary, flushTurns, flushJournal } from '../students/domain-test-support';
+import { renderResources, configure, open, page, base, student, lessonSummary, flushTurns, flushJournal } from '../students/domain-test-support';
 
 describe('Whose turn it is', () => {
     afterEach(() => {
@@ -68,7 +68,7 @@ describe('Turns on the teacher pages', () => {
         http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush(
             page([{ student, lessonCount: 1, focus: { lesson: lessonSummary, upcoming: true } }])
         );
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne('/api/v1/workspaces/w1/homework/turns?page=0&size=100').flush(
             page([
                 {
@@ -86,7 +86,7 @@ describe('Turns on the teacher pages', () => {
                 },
             ])
         );
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('#queue-title')?.textContent).toBe('Ход за вами');
         expect(element.querySelector('.queue')?.textContent).toContain('ещё работ на ревью: 1');
         expect(element.querySelector('.queue a')?.getAttribute('href')).toBe('/teacher/students/s1/lessons/l1/teacher/review');
@@ -97,10 +97,10 @@ describe('Turns on the teacher pages', () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
         http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
         flushTurns(http, [{ lessonId: 'l1', submissionId: 'h1', filename: 'work.zip', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }]);
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('.turn-cell')?.textContent).toContain('Ход за вами');
         expect(element.querySelector('.lesson-table .num')?.classList.contains('mine')).toBe(true);
         const review = Array.from(element.querySelectorAll<HTMLAnchorElement>('a')).filter(
@@ -113,13 +113,13 @@ describe('Turns on the teacher pages', () => {
     it('shows the learner that the move belongs to the mentor after sending work', async () => {
         const { fixture, http, element } = await open('/learn', 'STUDENT');
         http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([student]));
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/dashboard').flush({ student, lessonCount: 1, focus: { lesson: lessonSummary, upcoming: true } });
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/homework/turns?page=0&size=1').flush(
             page([{ lessonId: 'l1', submissionId: 'h1', filename: 'work.zip', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }])
         );
-        fixture.detectChanges();
+        await renderResources(); fixture.detectChanges();
         expect(element.querySelector('.turn')?.textContent).toContain('Ход у наставника');
         expect(element.querySelector('.home-clock .face.on')?.textContent).toContain('Наставник');
         flushJournal(http);
