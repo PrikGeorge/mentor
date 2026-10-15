@@ -14,12 +14,17 @@ import { CodeReviewComponent } from '../comments/code-review.component';
 import { PaginationComponent } from '../core/pagination.component';
 import { FileSizePipe } from '../core/file-size.pipe';
 import { ErrorBannerComponent } from '../core/error-banner.component';
+import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, validateAnswer } from './text-answer';
 @Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent, PaginationComponent, FileSizePipe, ErrorBannerComponent], template: `
 <section class="homework-page" [class.single]="!canSubmit()" [hidden]="!active()">
 @if(canSubmit()){
-<section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или отдельный файл. Ревью наставника появится под отправленной работой.</p>
+<section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или файл либо напиши ответ текстом. Ревью наставника появится под отправленной работой.</p>
 <form (submit)="upload($event)" novalidate [attr.aria-busy]="busy()">
-<label class="field">Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
+<div class="seg answer-mode" role="group" aria-label="Способ сдачи"><button type="button" [attr.aria-pressed]="answerMode()==='file'" (click)="setAnswerMode('file')" [disabled]="busy()"><mentor-icon name="file-up"/>Файл</button><button type="button" [attr.aria-pressed]="answerMode()==='text'" (click)="setAnswerMode('text')" [disabled]="busy()"><mentor-icon name="pencil"/>Текстом</button></div>
+<label class="field" [hidden]="answerMode()!=='file'">Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
+@if(answerMode()==='text'){<div class="field answer-field"><label for="homework-answer">Ответ</label><textarea id="homework-answer" class="answer" name="answer" rows="14" spellcheck="false" autocomplete="off" [value]="answer()" (input)="setAnswer($any($event.target).value)" [readOnly]="busy()" [attr.aria-invalid]="answerError()?true:null" aria-describedby="homework-answer-hint homework-answer-size"></textarea>
+<div class="answer-format"><div class="seg" role="group" aria-label="Формат ответа"><button type="button" [attr.aria-pressed]="format()==='java'" (click)="setFormat('java')" [disabled]="busy()">Код Java</button><button type="button" [attr.aria-pressed]="format()==='md'" (click)="setFormat('md')" [disabled]="busy()">Текст или Markdown</button></div><small class="counter" id="homework-answer-size">{{answerSize()}}</small></div>
+<small id="homework-answer-hint">Сохранится как файл <span class="mono">{{answerName()}}</span> — наставник сможет прокомментировать строки.</small>@if(answerError();as text){<small class="error" role="alert">{{text}}</small>}</div>}
 <label class="field">Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="setRepositoryUrl($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
 <label class="field">Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="setComment($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
 @if(busy()){<div class="upload-progress" role="status" aria-live="polite">{{progress()===null?'Передаём файл…':progress()===100?'Файл передан. Ожидаем подтверждение сохранения…':'Передаём файл: '+progress()+'%'}}@if(progress()!==null){<progress max="100" [value]="progress()" aria-label="Передача файла"></progress>}</div>}
@@ -47,6 +52,9 @@ export class HomeworkPageComponent {
     readonly lesson = input.required<LessonRef>(); readonly preview = input(false); readonly mode = input<'homework'|'review'>('homework'); readonly studentName = input('');
     // The newest submission of this lesson decides whose turn it is; undefined until the first page arrives.
     readonly latest = signal<Submission | null | undefined>(undefined); readonly turn = computed(() => turnOf(this.latest()));
+    // T13: the work is either a chosen file or an answer typed here; the typed answer is sent as one text file.
+    readonly answerMode = signal<'file'|'text'>('file'); readonly answer = signal(''); readonly format = signal<AnswerFormat>('java'); readonly answerError = signal('');
+    readonly answerName = computed(() => answerFilename(this.answer(), this.format())); readonly answerSize = computed(() => answerSize(answerBytes(this.answer())));
     readonly file = signal<File|null>(null); readonly comment = signal(''); readonly repositoryUrl = signal(''); readonly succeeded = signal(false); readonly progress = signal<number|null>(null); readonly unknown = signal(false); readonly error = signal('');
     readonly submissions = signal<Submission[]>([]); readonly loading = signal(false); readonly listError = signal(''); readonly page = signal(0); readonly total = signal(0); readonly busy = signal(false); readonly downloadErrors = signal<Record<string,string>>({});
     // One work's code is open at a time; its text is fetched on demand and never cached across lessons.
@@ -66,7 +74,7 @@ export class HomeworkPageComponent {
         load: request => this.api.list(request.lesson, request.page),
     });
     constructor() {
-        effect(() => { this.session.generation(); this.scope.bind(); this.cancel(); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); });
+        effect(() => { this.session.generation(); this.scope.bind(); this.cancel(); this.file.set(null); untracked(() => { const input = this.fileInput(); if (input) input.nativeElement.value = ''; }); this.comment.set(''); this.repositoryUrl.set(''); this.answerMode.set('file'); this.answer.set(''); this.format.set('java'); this.answerError.set(''); this.idempotencyKey = null; this.succeeded.set(false); this.progress.set(null); this.unknown.set(false); this.error.set(''); this.listError.set(''); this.downloadErrors.set({}); this.submissions.set([]); this.latest.set(undefined); this.page.set(0); this.total.set(0); });
         effect(() => {
             const state = this.historyReading.state();
             this.loading.set(state.status === 'loading');
@@ -87,13 +95,19 @@ export class HomeworkPageComponent {
     private resetKey() { this.idempotencyKey = null; this.unknown.set(false); }
     private newKey() { return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
     chooseFile(event: Event) { if (!this.canSubmit() || this.busy()) return; this.file.set((event.target as HTMLInputElement).files?.[0] ?? null); this.succeeded.set(false); this.error.set(''); this.resetKey(); }
+    // Switching keeps what was typed or chosen in the other mode; only the active one is sent.
+    setAnswerMode(mode: 'file'|'text') { if (!this.canSubmit() || this.busy() || this.answerMode() === mode) return; this.answerMode.set(mode); this.succeeded.set(false); this.error.set(''); this.answerError.set(''); this.resetKey(); }
+    setAnswer(value: string) { if (this.busy()) return; this.answer.set(value); this.answerError.set(''); this.succeeded.set(false); this.resetKey(); }
+    setFormat(format: AnswerFormat) { if (this.busy() || this.format() === format) return; this.format.set(format); this.resetKey(); }
     setComment(value: string) { if (this.busy()) return; this.comment.set(value); this.resetKey(); }
     setRepositoryUrl(value: string) { if (this.busy()) return; this.repositoryUrl.set(value); this.resetKey(); }
     // After a confirmed upload the form is emptied so a second click cannot send the same work again by accident.
-    private clearForm() { this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.comment.set(''); this.repositoryUrl.set(''); this.resetKey(); }
+    private clearForm() { this.file.set(null); const input = this.fileInput(); if (input) input.nativeElement.value = ''; this.answer.set(''); this.answerError.set(''); this.comment.set(''); this.repositoryUrl.set(''); this.resetKey(); }
     upload(event?: Event) {
         event?.preventDefault(); if (!this.canSubmit() || this.busy() || this.loading()) return; this.succeeded.set(false); this.error.set('');
-        const file = this.file(), invalid = validateHomework(file, this.comment(), this.repositoryUrl()); if (invalid) { this.error.set(invalid); return; }
+        let file = this.file();
+        if (this.answerMode() === 'text') { const wrong = validateAnswer(this.answer()); this.answerError.set(wrong ?? ''); if (wrong) return; file = answerFile(this.answer(), this.format()); }
+        const invalid = validateHomework(file, this.comment(), this.repositoryUrl()); if (invalid) { this.error.set(invalid); return; }
         const key = this.idempotencyKey ??= this.newKey();
         this.busy.set(true); this.progress.set(null); const stamp = this.sequence;
         this.uploadRequest = this.scope.track(this.api.upload(this.lesson(), file!, this.comment(), this.repositoryUrl(), () => this.canSubmit() && stamp === this.sequence, key)).subscribe({ next: event => {

@@ -66,6 +66,18 @@ for(const width of [1280,390])test(`real upload, needs revision, resubmit and re
  const history=await get<components['schemas']['HomeworkPage']>(learner.client,lessonPath(lesson)+'/homework');expect(history.items.map(item=>item.id)).toEqual([second.id,first.id]);expect(history.items[0].status).toBe('reviewed');expect(history.items[1].status).toBe('needs_revision');
 });
 
+ // T13: a typed answer is stored as one ordinary text file, so the real server keeps it and the code view opens it.
+ test('real typed answer is stored as a Java file named after its class and opens as code',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));const lesson=await createLesson('Ответ текстом');const answer='public class Solver {\n    int twice(int x) { return 2 * x; }\n}\n';
+  await login(page,learner);await page.goto(studentRoute(lesson));await page.getByRole('button',{name:'Текстом',exact:true}).click();await expect(page.getByLabel('Файл работы')).toBeHidden();
+  await page.getByLabel('Ответ',{exact:true}).fill(answer);await expect(page.getByText('Solver.java',{exact:true})).toBeVisible();
+  const response=page.waitForResponse(response=>response.request().method()==='POST'&&response.url().endsWith(lessonPath(lesson)+'/homework'));await page.getByRole('button',{name:'Отправить на ревью',exact:true}).click();expect((await response).status()).toBe(201);
+  await expect(page.getByText('Работа отправлена на ревью.',{exact:true})).toBeVisible();await expect(page.getByLabel('Ответ',{exact:true})).toHaveValue('');
+  const history=await get<components['schemas']['HomeworkPage']>(learner.client,lessonPath(lesson)+'/homework');expect(history.items).toHaveLength(1);expect(history.items[0].filename).toBe('Solver.java');expect(history.items[0].size).toBe(Buffer.byteLength(answer));
+  const text=await get<{filename:string;text:string}>(learner.client,lessonPath(lesson)+`/homework/${history.items[0].id}/text`);expect(text.text).toBe(answer);
+  await page.getByRole('button',{name:'Открыть код',exact:true}).click();await expect(page.locator('.submission-code')).toContainText('return 2 * x;');
+  await logout(page);expect(errors).toEqual([]);
+ });
  test('real in-flight upload is cancelled on lesson navigation and account logout',async({page})=>{
   test.setTimeout(90000);const lesson=await createLesson('Отмена отправки'),other=await createLesson('Следующее занятие');
   await login(page,learner);await page.goto(studentRoute(lesson));const cdp=await page.context().newCDPSession(page);await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:50,downloadThroughput:1048576,uploadThroughput:32768});

@@ -56,6 +56,34 @@ describe('Lesson-bound homework submission UI',()=>{
  it('cancels an authenticated download on lesson change before it can create a browser URL',async () =>{const{fixture,component,http}=await page();const create=vi.fn();const OriginalURL=URL;vi.stubGlobal('URL',class extends OriginalURL{static override createObjectURL=create;});try{component.download(submission);const request=http.expectOne(root+'/'+submission.id+'/file');fixture.componentRef.setInput('lesson',{...lesson,id:'l2'});fixture.detectChanges();expect(request.cancelled).toBe(true);expect(create).not.toHaveBeenCalled();http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l2/homework?page=0&size=25').flush({items:[],page:0,size:25,total:0});}finally{vi.unstubAllGlobals();}});
  it('revokes the authenticated download object URL after use',async () =>{const{component,http}=await page();const create=vi.fn(()=> 'blob:test-homework'),revoke=vi.fn(),click=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{}),OriginalURL=URL;vi.stubGlobal('URL',class extends OriginalURL{static override createObjectURL=create;static override revokeObjectURL=revoke;});vi.useFakeTimers();try{component.download(submission);const blob=new Blob(['work']);http.expectOne(root+'/'+submission.id+'/file').flush(blob);expect(create).toHaveBeenCalledWith(blob);expect(click).toHaveBeenCalledOnce();vi.runAllTimers();expect(revoke).toHaveBeenCalledWith('blob:test-homework');}finally{vi.useRealTimers();click.mockRestore();vi.unstubAllGlobals();}});
 
+ it('sends a typed Java answer as one file named after its public class and empties it once confirmed',async () =>{
+  const{component,http,fixture,element}=await page();element.querySelectorAll<HTMLButtonElement>('.answer-mode button')[1].click();fixture.detectChanges();
+  const area=element.querySelector<HTMLTextAreaElement>('textarea#homework-answer')!;area.value='public final class Solver {\n  int x;\n}\n';area.dispatchEvent(new Event('input'));fixture.detectChanges();
+  expect(element.textContent).toContain('Solver.java');expect(element.querySelector<HTMLElement>('input[type=file]')!.closest('label')!.hidden).toBe(true);
+  component.upload();const request=http.expectOne(root);const sent=(request.request.body as FormData).get('file') as File;expect(sent.name).toBe('Solver.java');expect(await sent.text()).toBe('public final class Solver {\n  int x;\n}\n');expect(request.request.headers.get('Idempotency-Key')).toBeTruthy();
+  request.flush({...submission,filename:'Solver.java'},{status:201,statusText:'Created'});TestBed.tick();http.expectOne(root+'?page=0&size=25').flush({items:[],page:0,size:25,total:0});await renderResources();fixture.detectChanges();
+  expect(component.succeeded()).toBe(true);expect(component.answer()).toBe('');expect(component.answerMode()).toBe('text');
+ });
+ it('keeps an empty or oversized answer local and explains it under the field',async () =>{
+  const{component,http,fixture,element}=await page();component.setAnswerMode('text');component.setAnswer('  \n ');component.upload();fixture.detectChanges();http.expectNone(request=>request.method==='POST');
+  expect(element.querySelector('.answer-field .error')?.textContent).toBe('Напиши ответ или переключись на файл.');expect(element.querySelector('textarea#homework-answer')?.getAttribute('aria-invalid')).toBe('true');
+  component.setAnswer('я'.repeat(131073));fixture.detectChanges();expect(element.querySelector('.answer-field .error')).toBeNull();expect(component.answerSize()).toBe('256 КиБ из 256 КиБ');component.upload();fixture.detectChanges();http.expectNone(request=>request.method==='POST');expect(component.answerError()).toBe('Ответ больше 256 КиБ. Сдай его файлом или архивом.');
+ });
+ it('keeps both modes filled while switching and sends only the active one as Markdown or file',async () =>{
+  const{component,http}=await page();component.file.set(new File(['zip?'],'work.java'));component.setAnswerMode('text');component.setAnswer('Ответ на вопрос');component.setFormat('md');component.upload();
+  const text=http.expectOne(root);expect(((text.request.body as FormData).get('file') as File).name).toBe('answer.md');const textKey=text.request.headers.get('Idempotency-Key');text.error(new ProgressEvent('error'));
+  component.setAnswerMode('file');expect(component.answer()).toBe('Ответ на вопрос');component.upload();const file=http.expectOne(root);expect(((file.request.body as FormData).get('file') as File).name).toBe('work.java');expect(file.request.headers.get('Idempotency-Key')).not.toBe(textKey);file.error(new ProgressEvent('error'));
+ });
+ it('retries a typed answer with the same key and changes the key when the text or format changes',async () =>{
+  const{component,http}=await page();component.setAnswerMode('text');component.setAnswer('class A {}');component.upload();const first=http.expectOne(root);const key=first.request.headers.get('Idempotency-Key');expect(((first.request.body as FormData).get('file') as File).name).toBe('Main.java');first.error(new ProgressEvent('error'));
+  component.upload();const retry=http.expectOne(root);expect(retry.request.headers.get('Idempotency-Key')).toBe(key);retry.error(new ProgressEvent('error'));
+  component.setFormat('md');component.upload();const changed=http.expectOne(root);expect(changed.request.headers.get('Idempotency-Key')).not.toBe(key);changed.error(new ProgressEvent('error'));
+ });
+ it('returns to file mode and forgets the typed answer when the lesson changes',async () =>{
+  const{fixture,component,http}=await page();component.setAnswerMode('text');component.setAnswer('public class Old {}');fixture.componentRef.setInput('lesson',{...lesson,id:'l2'});fixture.detectChanges();http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l2/homework?page=0&size=25').flush({items:[],page:0,size:25,total:0});
+  expect(component.answerMode()).toBe('file');expect(component.answer()).toBe('');expect(component.format()).toBe('java');
+ });
+ it('never offers typed answers in the teacher preview',async () =>{const{component,http,element}=await page('TEACHER',true);component.setAnswerMode('text');component.setAnswer('class A {}');component.upload();http.expectNone(request=>request.method==='POST');expect(element.querySelector('.answer-mode')).toBeNull();expect(component.answerMode()).toBe('file');});
 });
 
 
