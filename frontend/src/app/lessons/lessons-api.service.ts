@@ -3,6 +3,7 @@ import type { components } from '../api/schema';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
 export type LessonView = components['schemas']['LessonView'];
+export type LessonSummary = components['schemas']['LessonSummary'];
 export type LessonCreateInput = components['schemas']['LessonCreateInput'];
 export type LessonMetadataInput = components['schemas']['LessonMetadataInput'];
 export type LessonText = components['schemas']['LessonText'];

@@ -12,13 +12,23 @@ public class LessonRepository {
     public LessonRepository(JdbcTemplate jdbc){this.jdbc=jdbc;}
     // number is the lesson's position in its student's calendar (date, time, creation, id ascending), starting at 1.
     public record Metadata(LessonRef ref,String title,String date,String time,int duration,String status,String bundleId,long revision,Instant createdAt,Instant conductedAt,long number){}
+    public record Summary(Metadata metadata,boolean hasStudentNotes){}
     private static final RowMapper<Metadata> MAPPER=(r,n)->new Metadata(new LessonRef(r.getString("workspace_id"),r.getString("student_id"),r.getString("id")),r.getString("title"),r.getString("local_date"),r.getString("local_time"),r.getInt("duration"),r.getString("status"),r.getString("bundle_id"),r.getLong("revision"),r.getTimestamp("created_at").toInstant(),r.getTimestamp("conducted_at")==null?null:r.getTimestamp("conducted_at").toInstant(),r.getLong("number"));
+    private static final RowMapper<Summary> SUMMARY_MAPPER=(r,n)->new Summary(MAPPER.mapRow(r,n),r.getBoolean("has_student_notes"));
     private static final String SELECT="SELECT lesson.*,(SELECT count(*) FROM lesson o WHERE o.workspace_id=lesson.workspace_id AND o.student_id=lesson.student_id AND (o.local_date,o.local_time,o.created_at,o.id)<=(lesson.local_date,lesson.local_time,lesson.created_at,lesson.id)) AS number FROM lesson";
+    // The browser previously used String.trim(); keep the same whitespace set without transferring Markdown over JDBC.
+    private static final String TRIM_WHITESPACE="U&'\\0009\\000a\\000b\\000c\\000d\\0020\\00a0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200a\\2028\\2029\\202f\\205f\\3000\\feff'";
+    private static final String SUMMARY_SELECT="SELECT lesson.*,row_number() OVER (PARTITION BY workspace_id,student_id ORDER BY local_date,local_time,created_at,id) AS number,"
+        +"EXISTS (SELECT 1 FROM lesson_text t WHERE t.workspace_id=lesson.workspace_id AND t.lesson_id=lesson.id AND t.kind='studentNotes' AND btrim(t.markdown,"+TRIM_WHITESPACE+")<>'') AS has_student_notes FROM lesson";
     private static final String ORDER=" ORDER BY local_date DESC,local_time DESC,created_at DESC,id DESC";
     public Optional<Metadata> find(LessonRef ref){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=? AND id=?",MAPPER,ref.workspaceId(),ref.studentId(),ref.id()).stream().findFirst();}
-    public List<Metadata> list(String w,String student,int page,int size){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER+" LIMIT ? OFFSET ?",MAPPER,w,student,size,(long)page*size);}
-    public List<Metadata> allMetadata(String w,String student){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER,MAPPER,w,student);}
-    public List<Metadata> allMetadataForWorkspace(String w){return jdbc.query(SELECT+" WHERE workspace_id=?"+ORDER,MAPPER,w);}
+    public List<Summary> list(String w,String student,int page,int size){return jdbc.query(SUMMARY_SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER+" LIMIT ? OFFSET ?",SUMMARY_MAPPER,w,student,size,(long)page*size);}
+    public List<Summary> allSummaries(String w,String student){return jdbc.query(SUMMARY_SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER,SUMMARY_MAPPER,w,student);}
+    public List<Summary> allSummariesForStudents(String w,List<String> students){
+        if(students.isEmpty())return List.of();
+        List<Object> args=new ArrayList<>(List.of(w));args.addAll(students);
+        return jdbc.query(SUMMARY_SELECT+" WHERE workspace_id=? AND student_id IN ("+String.join(",",Collections.nCopies(students.size(),"?"))+")"+ORDER,SUMMARY_MAPPER,args.toArray());
+    }
     public long count(String w,String student){return jdbc.queryForObject("SELECT count(*) FROM lesson WHERE workspace_id=? AND student_id=?",Long.class,w,student);}
     public Metadata create(String w,String student,String title,String date,String time,int duration,Instant now){
         String id=UUID.randomUUID().toString();jdbc.update("INSERT INTO lesson(workspace_id,student_id,id,title,local_date,local_time,duration,created_at) VALUES (?,?,?,?,?,?,?,?)",w,student,id,title,date,time,duration,Timestamp.from(now));

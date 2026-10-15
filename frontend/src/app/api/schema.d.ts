@@ -321,7 +321,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** @description Exact workspace/profile membership required; ADMIN and foreign content return 404. Sort date, time, createdAt, id descending. STUDENT always receives public projection; audience=student narrows an owning TEACHER without changing Actor or permissions. */
+        /** @description Exact workspace/profile membership required; ADMIN and foreign content return 404. Sort date, time, createdAt, id descending. Returns summaries without lesson texts for all roles; audience=student preserves the same summary without changing Actor or permissions. */
         get: operations["listLessons"];
         put?: never;
         /** @description Owning TEACHER only. Short four-field form; planned status, null bundleId, empty texts, metadata revision 1 and each independent text revision 1 are server defaults. No historical studentReview or reviewNotes is copied into the new lesson. */
@@ -388,7 +388,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** @description Exact membership required; ADMIN/foreign profile return 404. Apply caller projection recursively to student and focus.lesson. Compute across all lessons, never one page. Convert Moscow local date/time to start instant and add duration to obtain end. Choose earliest start whose end >= now with date/time/createdAt/id ascending tie order; upcoming=true includes the current lesson and exact end boundary. Otherwise choose latest past lesson using descending equivalent order with upcoming=false. Empty profile has lessonCount=0 and focus=null. This does not certify whether a lesson was conducted. */
+        /** @description Exact membership required; ADMIN/foreign profile return 404. Apply caller projection to student; focus.lesson is a summary without texts for all roles. Compute across all lessons, never one page. Convert Moscow local date/time to start instant and add duration to obtain end. Choose earliest start whose end >= now with date/time/createdAt/id ascending tie order; upcoming=true includes the current lesson and exact end boundary. Otherwise choose latest past lesson using descending equivalent order with upcoming=false. Empty profile has lessonCount=0 and focus=null. This does not certify whether a lesson was conducted. */
         get: operations["getStudentDashboard"];
         put?: never;
         post?: never;
@@ -1242,19 +1242,49 @@ export interface components {
             studentNotes: components["schemas"]["LessonMarkdown"];
             reviewNotes: components["schemas"]["LessonMarkdown"];
         };
+        /** @description Metadata for lists and dashboard focus, without lesson texts. Identical for teacher and student projections. */
+        LessonSummary: {
+            id: string;
+            workspaceId: string;
+            studentId: string;
+            title: components["schemas"]["LessonTitle"];
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+            /** @constant */
+            timeZone: "Europe/Moscow";
+            duration: components["schemas"]["LessonDuration"];
+            /** @enum {string} */
+            status: "planned" | "prepared";
+            bundleId: string | null;
+            revision: components["schemas"]["LessonRevision"];
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: int64
+             * @description Position in the student's calendar (date, time, createdAt, id ascending), before pagination.
+             */
+            number: number;
+            /**
+             * Format: date-time
+             * @description When marked as held; omitted until then.
+             */
+            conductedAt?: string;
+            /** @description Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints. */
+            hasStudentNotes: boolean;
+        };
         LessonPage: {
-            items: components["schemas"]["LessonView"][];
+            items: components["schemas"]["LessonSummary"][];
             page: number;
             size: number;
             /** Format: int64 */
             total: number;
         };
         DashboardFocus: {
-            lesson: components["schemas"]["LessonView"];
+            lesson: components["schemas"]["LessonSummary"];
             /** @description True for next/current through exact end; false for latest past fallback. */
             upcoming: boolean;
         };
-        /** @description Caller projection applied recursively; public dashboard has neither student.notes nor focus.lesson.teacherNotes. */
+        /** @description Caller projection applied to student; lesson focus is a summary without texts for every role. */
         Dashboard: {
             student: components["schemas"]["StudentView"];
             /** Format: int64 */

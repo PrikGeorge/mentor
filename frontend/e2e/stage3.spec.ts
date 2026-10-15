@@ -39,6 +39,10 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
     const errors: string[] = [],
         writes: { method: string; path: string; body: unknown }[] = [];
     let lesson: Record<string, unknown> = { ...lessonBase };
+    const lessonSummary = () => {
+        const { teacherNotes, studentNotes, reviewNotes, ...summary } = lesson;
+        return { ...summary, hasStudentNotes: typeof studentNotes === 'string' && !!studentNotes.trim() };
+    };
     let submission: Record<string, unknown> = {
         id: 'h1',
         filename: 'Orders.java',
@@ -187,9 +191,9 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             },
             '/api/v1/workspaces/w1/students': page([own(student)]),
             [card]: own(student),
-            [card + '/dashboard']: { student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: false } },
-            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: false } }]),
-            [card + '/lessons']: page([own(lesson)]),
+            [card + '/dashboard']: { student: own(student), lessonCount: 1, focus: { lesson: lessonSummary(), upcoming: false } },
+            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: lessonSummary(), upcoming: false } }]),
+            [card + '/lessons']: page([lessonSummary()]),
             [card + '/lessons/l1']: own(lesson),
             [card + '/access']: { account: { userId: 'u1', login: 'anna-demo', disabled: false }, invitation: null },
             [card + '/lessons/l1/homework']: page([submission]),

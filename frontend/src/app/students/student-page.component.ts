@@ -2,7 +2,7 @@ import { Component, ElementRef, Injector, afterNextRender, computed, effect, inj
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { StudentsApi, StudentView } from './students-api.service';
-import { LessonsApi, LessonView } from '../lessons/lessons-api.service';
+import { LessonsApi, LessonSummary, LessonView } from '../lessons/lessons-api.service';
 import { StudentFormComponent } from './student-form.component';
 import { LessonFormComponent } from '../lessons/lesson-form.component';
 import { AccountAccessComponent } from './account-access.component';
@@ -445,7 +445,7 @@ export class StudentPageComponent extends DomainPage {
     private readonly lessonForm = viewChild<unknown, ElementRef<HTMLElement>>('lessonForm', { read: ElementRef });
     private readonly refresh = signal(0);
     readonly student = signal<StudentView | null>(null);
-    readonly lessons = signal<LessonView[]>([]);
+    readonly lessons = signal<LessonSummary[]>([]);
     readonly total = signal(0);
     readonly page = signal(0);
     readonly pages = computed(() => Math.max(1, Math.ceil(this.total() / 25)));
@@ -558,7 +558,7 @@ export class StudentPageComponent extends DomainPage {
             },
         });
     }
-    turnFor(lesson: LessonView): Turn | null {
+    turnFor(lesson: LessonSummary): Turn | null {
         const turn = this.turns()?.get(lesson.id);
         return turn ? turnOf(turn) : null;
     }
@@ -637,7 +637,7 @@ export class StudentPageComponent extends DomainPage {
         this.createLesson.set(false);
         void this.router.navigate([this.base() + '/lessons/' + view.id]);
     }
-    lessonLink(view: LessonView) {
+    lessonLink(view: LessonSummary) {
         return (
             this.base() +
             '/lessons/' +

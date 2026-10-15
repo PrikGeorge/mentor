@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, base, publicStudent, publicLesson, flushTurns } from '../students/domain-test-support';
+import { configure, open, page, base, publicStudent, publicLesson, lessonSummary, flushTurns } from '../students/domain-test-support';
 describe('Learner dashboard and navigation', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
-    for (const focus of [{ lesson: publicLesson, upcoming: true }, { lesson: publicLesson, upcoming: false }, null]) {
+    for (const focus of [{ lesson: lessonSummary, upcoming: true }, { lesson: lessonSummary, upcoming: false }, null]) {
         it(`renders server-selected ${focus === null ? 'empty' : focus.upcoming ? 'next/current' : 'latest past'} lesson and resolves own membership`, async () => {
             const { fixture, http, element } = await open('/learn', 'STUDENT');
             http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([publicStudent]));
@@ -37,7 +37,11 @@ describe('Learner dashboard and navigation', () => {
     });
     it('teacher home preview uses the public dashboard without account-access reads', async () => {
         const { fixture, http, element, session } = await open('/teacher/students/s1?preview=student');
-        http.expectOne(base + '/dashboard?audience=student').flush({ student: publicStudent, lessonCount: 1, focus: { lesson: publicLesson, upcoming: true } });
+        http.expectOne(base + '/dashboard?audience=student').flush({
+            student: publicStudent,
+            lessonCount: 1,
+            focus: { lesson: lessonSummary, upcoming: true },
+        });
         fixture.detectChanges();
         expect(session.actor()?.role).toBe('TEACHER');
         expect(element.querySelectorAll('.selected-student')).toHaveLength(0);
@@ -49,6 +53,26 @@ describe('Learner dashboard and navigation', () => {
         flushTurns(http);
         http.verify();
     });
+    for (const hasStudentNotes of [false, true]) {
+        it(`shows preparation from the summary flag ${hasStudentNotes} without downloading lesson texts`, async () => {
+            const { fixture, http, element } = await open('/learn', 'STUDENT');
+            http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([publicStudent]));
+            fixture.detectChanges();
+            http.expectOne(base + '/dashboard').flush({
+                student: publicStudent,
+                lessonCount: 1,
+                focus: { lesson: { ...lessonSummary, hasStudentNotes }, upcoming: true },
+            });
+            fixture.detectChanges();
+            expect(element.textContent).toContain(
+                hasStudentNotes ? 'Задания добавлены, материалы ещё готовятся.' : 'Текст заданий и материалы пока не добавлены.'
+            );
+            http.expectNone(base + '/lessons/l1');
+            expect(element.textContent).not.toContain(publicLesson.studentNotes);
+            flushTurns(http);
+            http.verify();
+        });
+    }
     it('legacy learner list root resolves to its own dashboard instead of a missing page', async () => {
         const { fixture, http, router, element } = await open('/learn/students', 'STUDENT');
         http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([publicStudent]));

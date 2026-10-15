@@ -819,8 +819,8 @@ paths:
     get:
       operationId: listLessons
       description: Exact workspace/profile membership required; ADMIN and foreign content return 404. Sort date,
-        time, createdAt, id descending. STUDENT always receives public projection; audience=student narrows an owning
-        TEACHER without changing Actor or permissions.
+        time, createdAt, id descending. Returns summaries without lesson texts for all roles; audience=student
+        preserves the same summary without changing Actor or permissions.
       parameters:
       - $ref: '#/components/parameters/Task3Audience'
       - $ref: '#/components/parameters/Task3Page'
@@ -1026,8 +1026,8 @@ paths:
     - $ref: '#/components/parameters/Task3StudentId'
     get:
       operationId: getStudentDashboard
-      description: Exact membership required; ADMIN/foreign profile return 404. Apply caller projection recursively
-        to student and focus.lesson. Compute across all lessons, never one page. Convert Moscow local date/time
+      description: Exact membership required; ADMIN/foreign profile return 404. Apply caller projection to student;
+        focus.lesson is a summary without texts for all roles. Compute across all lessons, never one page. Convert Moscow local date/time
         to start instant and add duration to obtain end. Choose earliest start whose end >= now with date/time/createdAt/id
         ascending tie order; upcoming=true includes the current lesson and exact end boundary. Otherwise choose
         latest past lesson using descending equivalent order with upcoming=false. Empty profile has lessonCount=0
@@ -3268,6 +3268,69 @@ components:
           $ref: '#/components/schemas/LessonMarkdown'
         reviewNotes:
           $ref: '#/components/schemas/LessonMarkdown'
+    LessonSummary:
+      type: object
+      additionalProperties: false
+      description: Metadata for lists and dashboard focus, without lesson texts. Identical for teacher and student projections.
+      required:
+      - id
+      - workspaceId
+      - studentId
+      - title
+      - date
+      - time
+      - timeZone
+      - duration
+      - status
+      - bundleId
+      - revision
+      - createdAt
+      - number
+      - hasStudentNotes
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        studentId:
+          type: string
+        title:
+          $ref: '#/components/schemas/LessonTitle'
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        timeZone:
+          type: string
+          const: Europe/Moscow
+        duration:
+          $ref: '#/components/schemas/LessonDuration'
+        status:
+          type: string
+          enum:
+          - planned
+          - prepared
+        bundleId:
+          type:
+          - string
+          - 'null'
+        revision:
+          $ref: '#/components/schemas/LessonRevision'
+        createdAt:
+          type: string
+          format: date-time
+        number:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Position in the student's calendar (date, time, createdAt, id ascending), before pagination.
+        conductedAt:
+          type: string
+          format: date-time
+          description: When marked as held; omitted until then.
+        hasStudentNotes:
+          type: boolean
+          description: Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints.
     LessonPage:
       type: object
       additionalProperties: false
@@ -3280,7 +3343,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/LessonView'
+            $ref: '#/components/schemas/LessonSummary'
         page:
           type: integer
           minimum: 0
@@ -3300,14 +3363,14 @@ components:
       - upcoming
       properties:
         lesson:
-          $ref: '#/components/schemas/LessonView'
+          $ref: '#/components/schemas/LessonSummary'
         upcoming:
           type: boolean
           description: True for next/current through exact end; false for latest past fallback.
     Dashboard:
       type: object
       additionalProperties: false
-      description: Caller projection applied recursively; public dashboard has neither student.notes nor focus.lesson.teacherNotes.
+      description: Caller projection applied to student; lesson focus is a summary without texts for every role.
       required:
       - student
       - lessonCount

@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, of, switchMap, throwError } from 'rxjs';
 import { Dashboard, StudentsApi } from '../students/students-api.service';
 import { DomainPage } from '../students/domain-page';
-import type { LessonView } from '../lessons/lessons-api.service';
+import type { LessonSummary } from '../lessons/lessons-api.service';
 import { IconComponent } from '../core/icon.component';
 import { HomeworkApi } from '../homework/homework-api.service';
 import { Turn, TurnClockComponent, turnHeadline, turnOf } from '../homework/turn-clock.component';
@@ -50,7 +50,7 @@ const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/M
                                 <dd>
                                     @if (focus.lesson.bundleId) {
                                         <mentor-icon name="check" />Подготовлено
-                                    } @else if (focus.lesson.studentNotes.trim()) {
+                                    } @else if (focus.lesson.hasStudentNotes) {
                                         Задания добавлены
                                     } @else {
                                         Готовятся
@@ -125,7 +125,7 @@ const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/M
                                     Что сделать сейчас<small>{{
                                         focus.lesson.bundleId
                                             ? 'Материалы готовы: открой задания и реши упражнения в тренажёре.'
-                                            : focus.lesson.studentNotes.trim()
+                                            : focus.lesson.hasStudentNotes
                                               ? 'Задания добавлены, материалы ещё готовятся.'
                                               : 'Текст заданий и материалы пока не добавлены.'
                                     }}</small>
@@ -254,7 +254,7 @@ export class DashboardComponent extends DomainPage {
     headline(turn: Turn) {
         return turnHeadline(turn, 'student');
     }
-    lessonStart(lesson: LessonView) {
+    lessonStart(lesson: LessonSummary) {
         return `${lesson.date}T${lesson.time}:00+03:00`;
     }
     // A pending answer from the mentor may belong to an earlier lesson than the focused one.
@@ -264,7 +264,7 @@ export class DashboardComponent extends DomainPage {
             ? this.studentBase() + '/lessons/' + turn.lessonId + '/student/review'
             : this.lessonLink('review');
     }
-    relative(lesson: LessonView) {
+    relative(lesson: LessonSummary) {
         const days = Math.round((Date.parse(lesson.date + 'T00:00:00Z') - Date.parse(moscowToday() + 'T00:00:00Z')) / 86400000);
         if (!Number.isFinite(days)) return '';
         return days === 0 ? 'сегодня' : days === 1 ? 'завтра' : days === -1 ? 'вчера' : days > 1 && days < 7 ? 'через ' + days + ' дн.' : '';

@@ -21,7 +21,7 @@ public class LessonService {
         var ref=requireReader(actor,workspaceId,studentId,lessonId);var m=metadata(ref);
         if((actor.role()==Actor.Role.STUDENT||studentProjection)&&(!m.status().equals("prepared")||expectedBundleId==null||!expectedBundleId.equals(m.bundleId())))throw WorkspaceAccess.missing();return ref;
     }
-    public Page<Map<String,Object>> list(Actor actor,String w,String student,int page,int size,String audience){new Page<>(List.of(),page,size,0);students.requireReader(actor,w,student);boolean publicView=publicView(actor,audience);return new Page<>(repository.list(w,student,page,size).stream().map(m->view(m,publicView)).toList(),page,size,repository.count(w,student));}
+    public Page<Map<String,Object>> list(Actor actor,String w,String student,int page,int size,String audience){new Page<>(List.of(),page,size,0);students.requireReader(actor,w,student);publicView(actor,audience);return new Page<>(repository.list(w,student,page,size).stream().map(LessonService::summaryView).toList(),page,size,repository.count(w,student));}
     public Map<String,Object> get(Actor actor,LessonRef ref,String audience){requireReader(actor,ref.workspaceId(),ref.studentId(),ref.id());return view(metadata(ref),publicView(actor,audience));}
     @Transactional public Map<String,Object> create(Actor actor,String w,String student,Map<String,Object> input){
         students.lockTeacherCard(actor,w,student);checkFields(input,FIELDS);if(!input.keySet().equals(FIELDS))throw new IllegalArgumentException("Short form required.");
@@ -56,25 +56,32 @@ public class LessonService {
         if(!repository.save(ref,kind,markdown,expectedRevision))throw conflict();return repository.text(ref,kind);
     }
     public Map<String,Object> dashboard(Actor actor,String w,String student,String audience){
-        boolean publicView=publicView(actor,audience);return summary(students.get(actor,w,student,audience),repository.allMetadata(w,student),publicView);
+        publicView(actor,audience);return summary(students.get(actor,w,student,audience),repository.allSummaries(w,student));
     }
     // The teacher's list in one request: a page of cards with lesson count and focus lesson, instead of one dashboard call per card.
     public Page<Map<String,Object>> dashboards(Actor actor,String w,int page,int size,String archived){
-        var cards=students.list(actor,w,page,size,null,archived);boolean publicView=actor.role()==Actor.Role.STUDENT;
-        Map<String,List<LessonRepository.Metadata>> byStudent=new HashMap<>();for(var m:repository.allMetadataForWorkspace(w))byStudent.computeIfAbsent(m.ref().studentId(),k->new ArrayList<>()).add(m);
-        List<Map<String,Object>> items=new ArrayList<>();for(var profile:cards.items())items.add(summary(profile,byStudent.getOrDefault((String)profile.get("id"),List.of()),publicView));
+        var cards=students.list(actor,w,page,size,null,archived);
+        var studentIds=cards.items().stream().map(profile->(String)profile.get("id")).toList();
+        Map<String,List<LessonRepository.Summary>> byStudent=new HashMap<>();for(var m:repository.allSummariesForStudents(w,studentIds))byStudent.computeIfAbsent(m.metadata().ref().studentId(),k->new ArrayList<>()).add(m);
+        List<Map<String,Object>> items=new ArrayList<>();for(var profile:cards.items())items.add(summary(profile,byStudent.getOrDefault((String)profile.get("id"),List.of())));
         return new Page<>(items,page,size,cards.total());
     }
-    private Map<String,Object> summary(Map<String,Object> profile,List<LessonRepository.Metadata> all,boolean publicView){
-        Comparator<LessonRepository.Metadata> ascending=Comparator.comparing(LessonService::start).thenComparing(LessonRepository.Metadata::createdAt).thenComparing(m->m.ref().id());
-        Instant now=clock.instant();var sorted=all.stream().sorted(ascending).toList();var next=sorted.stream().filter(m->!start(m).plusSeconds(m.duration()*60L).isBefore(now)).findFirst();
-        var focus=next.orElse(sorted.isEmpty()?null:sorted.getLast());Map<String,Object> result=new LinkedHashMap<>();result.put("student",profile);result.put("lessonCount",all.size());result.put("focus",focus==null?null:Map.of("lesson",view(focus,publicView),"upcoming",next.isPresent()));return result;
+    private Map<String,Object> summary(Map<String,Object> profile,List<LessonRepository.Summary> all){
+        Comparator<LessonRepository.Summary> ascending=Comparator.comparing((LessonRepository.Summary m)->start(m.metadata())).thenComparing(m->m.metadata().createdAt()).thenComparing(m->m.metadata().ref().id());
+        Instant now=clock.instant();var sorted=all.stream().sorted(ascending).toList();var next=sorted.stream().filter(m->!start(m.metadata()).plusSeconds(m.metadata().duration()*60L).isBefore(now)).findFirst();
+        var focus=next.orElse(sorted.isEmpty()?null:sorted.getLast());Map<String,Object> result=new LinkedHashMap<>();result.put("student",profile);result.put("lessonCount",all.size());result.put("focus",focus==null?null:Map.of("lesson",summaryView(focus),"upcoming",next.isPresent()));return result;
     }
     private static Instant start(LessonRepository.Metadata m){return LocalDate.parse(m.date()).atTime(LocalTime.parse(m.time())).atZone(ZONE).toInstant();}
     private void lockTeacher(Actor actor,LessonRef ref){students.lockTeacherCard(actor,ref.workspaceId(),ref.studentId());metadata(ref);}
     private LessonRepository.Metadata metadata(LessonRef ref){return repository.find(ref).orElseThrow(WorkspaceAccess::missing);}
+    private static Map<String,Object> metadataView(LessonRepository.Metadata m){
+        Map<String,Object> result=new LinkedHashMap<>();result.put("id",m.ref().id());result.put("workspaceId",m.ref().workspaceId());result.put("studentId",m.ref().studentId());result.put("title",m.title());result.put("date",m.date());result.put("time",m.time());result.put("timeZone",ZONE.getId());result.put("duration",m.duration());result.put("status",m.status());result.put("bundleId",m.bundleId());result.put("revision",m.revision());result.put("createdAt",m.createdAt().toString());result.put("number",m.number());if(m.conductedAt()!=null)result.put("conductedAt",m.conductedAt().toString());return result;
+    }
+    private static Map<String,Object> summaryView(LessonRepository.Summary summary){
+        var result=metadataView(summary.metadata());result.put("hasStudentNotes",summary.hasStudentNotes());return result;
+    }
     private Map<String,Object> view(LessonRepository.Metadata m,boolean publicView){
-        Map<String,Object> result=new LinkedHashMap<>();result.put("id",m.ref().id());result.put("workspaceId",m.ref().workspaceId());result.put("studentId",m.ref().studentId());result.put("title",m.title());result.put("date",m.date());result.put("time",m.time());result.put("timeZone",ZONE.getId());result.put("duration",m.duration());result.put("status",m.status());result.put("bundleId",m.bundleId());result.put("revision",m.revision());result.put("createdAt",m.createdAt().toString());result.put("number",m.number());if(m.conductedAt()!=null)result.put("conductedAt",m.conductedAt().toString());repository.texts(m.ref()).forEach((k,v)->{if(!publicView||k!=TextKind.teacherNotes)result.put(k.name(),v.markdown());});return result;
+        var result=metadataView(m);repository.texts(m.ref()).forEach((k,v)->{if(!publicView||k!=TextKind.teacherNotes)result.put(k.name(),v.markdown());});return result;
     }
     private static boolean publicView(Actor actor,String audience){if(audience!=null&&!audience.equals("student"))throw new IllegalArgumentException("Invalid audience.");return actor.role()==Actor.Role.STUDENT||audience!=null;}
     private static String title(Object value){if(!(value instanceof String s))throw new IllegalArgumentException("Title required.");String trimmed=s.replaceAll("^[\\s\\p{Zs}\\u2028\\u2029\\uFEFF]+|[\\s\\p{Zs}\\u2028\\u2029\\uFEFF]+$","");if(trimmed.isEmpty()||trimmed.length()>200)throw new IllegalArgumentException("Invalid title.");return trimmed;}

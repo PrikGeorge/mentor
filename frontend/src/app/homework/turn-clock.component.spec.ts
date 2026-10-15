@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { TurnClockComponent, turnHeadline, turnOf } from './turn-clock.component';
-import { configure, open, page, base, student, lesson, flushTurns, flushJournal } from '../students/domain-test-support';
+import { configure, open, page, base, student, lessonSummary, flushTurns, flushJournal } from '../students/domain-test-support';
 
 describe('Whose turn it is', () => {
     afterEach(() => {
@@ -66,7 +66,7 @@ describe('Turns on the teacher pages', () => {
         const { fixture, http, element } = await open('/teacher/students');
         // The list screen loads its cards and their summaries in one request.
         http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush(
-            page([{ student, lessonCount: 1, focus: { lesson, upcoming: true } }])
+            page([{ student, lessonCount: 1, focus: { lesson: lessonSummary, upcoming: true } }])
         );
         fixture.detectChanges();
         http.expectOne('/api/v1/workspaces/w1/homework/turns?page=0&size=100').flush(
@@ -96,7 +96,7 @@ describe('Turns on the teacher pages', () => {
     it('marks the lesson whose work waits for the teacher and offers its review first', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
-        http.expectOne(base + '/lessons?page=0&size=25').flush(page([lesson]));
+        http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary]));
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
         flushTurns(http, [{ lessonId: 'l1', submissionId: 'h1', filename: 'work.zip', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }]);
@@ -114,7 +114,7 @@ describe('Turns on the teacher pages', () => {
         const { fixture, http, element } = await open('/learn', 'STUDENT');
         http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([student]));
         fixture.detectChanges();
-        http.expectOne(base + '/dashboard').flush({ student, lessonCount: 1, focus: { lesson, upcoming: true } });
+        http.expectOne(base + '/dashboard').flush({ student, lessonCount: 1, focus: { lesson: lessonSummary, upcoming: true } });
         fixture.detectChanges();
         http.expectOne(base + '/homework/turns?page=0&size=1').flush(
             page([{ lessonId: 'l1', submissionId: 'h1', filename: 'work.zip', status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }])

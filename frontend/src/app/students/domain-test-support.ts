@@ -41,6 +41,10 @@ export const lesson: components['schemas']['TeacherLessonView'] = {
     reviewNotes: 'Отзыв этого занятия',
 };
 export const publicLesson: components['schemas']['PublicLessonView'] = (({ teacherNotes, ...rest }) => rest)(lesson);
+export const lessonSummary: components['schemas']['LessonSummary'] = (({ teacherNotes, studentNotes, reviewNotes, ...metadata }) => ({
+    ...metadata,
+    hasStudentNotes: studentNotes.trim().length > 0,
+}))(lesson);
 export const base = '/api/v1/workspaces/w1/students/s1';
 export function configure() {
     TestBed.configureTestingModule({

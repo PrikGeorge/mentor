@@ -42,6 +42,10 @@ function publicLesson(l: Lesson) {
     const { teacherNotes, ...view } = l;
     return view;
 }
+function lessonSummary(l: Lesson) {
+    const { teacherNotes, studentNotes, reviewNotes, ...summary } = l;
+    return { ...summary, hasStudentNotes: !!studentNotes.trim() };
+}
 async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-teacher') {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -83,7 +87,7 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
                 return {
                     student: publicView ? publicStudent(s) : s,
                     lessonCount: own.length,
-                    focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null,
+                    focus: own.length ? { lesson: lessonSummary(own[0]), upcoming: true } : null,
                 };
             };
             await route.fulfill({ json: { items: items.map(summary), page: 0, size: 25, total: items.length } });
@@ -131,14 +135,14 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
                 json: {
                     student: publicView ? publicStudent(s) : s,
                     lessonCount: own.length,
-                    focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null,
+                    focus: own.length ? { lesson: lessonSummary(own[0]), upcoming: true } : null,
                 },
             });
             return;
         }
         if (suffix === '/lessons' && method === 'GET') {
             const own = lessons.filter((l) => l.studentId === s.id);
-            await route.fulfill({ json: { items: own.map((l) => (publicView ? publicLesson(l) : l)), page: 0, size: 25, total: own.length } });
+            await route.fulfill({ json: { items: own.map(lessonSummary), page: 0, size: 25, total: own.length } });
             return;
         }
         if (suffix === '/lessons' && method === 'POST') {

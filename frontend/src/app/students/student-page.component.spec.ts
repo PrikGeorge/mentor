@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { configure, open, page, student, publicStudent, lesson, publicLesson, base, click, fill, flushTurns, flushJournal } from './domain-test-support';
+import { configure, open, page, student, publicStudent, lessonSummary, base, click, fill, flushTurns, flushJournal } from './domain-test-support';
 describe('Student workspace', () => {
     beforeEach(configure);
     afterEach(() => TestBed.resetTestingModule());
@@ -29,7 +29,7 @@ describe('Student workspace', () => {
     it('opens the selected pupil, separate account access, paged lessons and archive', async () => {
         const { fixture, http, element } = await open('/teacher/students/s1');
         http.expectOne(base).flush(student);
-        http.expectOne(base + '/lessons?page=0&size=25').flush(page([lesson], 26));
+        http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary], 26));
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: null, invitation: null });
         fixture.detectChanges();
@@ -46,7 +46,7 @@ describe('Student workspace', () => {
     it("shows whose turn it is in the learner's list of lessons", async () => {
         const { fixture, http, element } = await open('/learn/students/s1/lessons', 'STUDENT');
         http.expectOne(base).flush(publicStudent);
-        http.expectOne(base + '/lessons?page=0&size=25').flush(page([publicLesson]));
+        http.expectOne(base + '/lessons?page=0&size=25').flush(page([lessonSummary]));
         fixture.detectChanges();
         const turns = http.expectOne((request) => request.url.endsWith('/homework/turns'));
         turns.flush(

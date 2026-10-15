@@ -32,6 +32,10 @@ const lesson = {
     studentNotes: 'Задания занятия',
     reviewNotes: '',
 };
+const lessonSummary = () => {
+    const { teacherNotes, studentNotes, reviewNotes, ...summary } = lesson;
+    return { ...summary, hasStudentNotes: !!studentNotes.trim() };
+};
 const submission = {
     id: 'h1',
     filename: 'orders-grouping.zip',
@@ -57,9 +61,9 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             '/api/v1/auth/session': { account: { userId: role === 'TEACHER' ? 't1' : 'u1', workspaceId: 'w1', role, authVersion: 1 }, csrfToken: 'synthetic' },
             '/api/v1/workspaces/w1/students': page([own(student)]),
             '/api/v1/workspaces/w1/students/s1': own(student),
-            '/api/v1/workspaces/w1/students/s1/dashboard': { student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: true } },
-            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: true } }]),
-            '/api/v1/workspaces/w1/students/s1/lessons': page([own(lesson)]),
+            '/api/v1/workspaces/w1/students/s1/dashboard': { student: own(student), lessonCount: 1, focus: { lesson: lessonSummary(), upcoming: true } },
+            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: lessonSummary(), upcoming: true } }]),
+            '/api/v1/workspaces/w1/students/s1/lessons': page([lessonSummary()]),
             '/api/v1/workspaces/w1/students/s1/lessons/l1': own(lesson),
             '/api/v1/workspaces/w1/students/s1/access': { account: { userId: 'u1', login: 'anna', disabled: false }, invitation: null },
             '/api/v1/workspaces/w1/students/s1/lessons/l1/homework': page([submission]),
