@@ -48,7 +48,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "640kB",
+                  "maximumWarning": "600kB",
                   "maximumError": "800kB"
                 }
               ]
@@ -75,8 +75,22 @@
             "runner": "vitest",
             "buildTarget": "mentor:build:development"
           }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "src/**/*.ts",
+              "src/**/*.html"
+            ]
+          }
         }
       }
     }
+  },
+  "cli": {
+    "schematicCollections": [
+      "angular-eslint"
+    ]
   }
 }

@@ -1,0 +1,6 @@
+# Generated or vendored; formatting them only adds noise to diffs.
+src/app/api/schema.d.ts
+public/vendor/
+dist/
+node_modules/
+.angular/

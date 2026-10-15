@@ -57,12 +57,30 @@ public abstract class IdentityHttpTest extends PostgresTest {
     }
     protected JsonNode data(HttpResponse<String> r,int status){assertEquals(status,r.statusCode(),r.body());return r.body().isEmpty()?null:json.readTree(r.body());}
     protected JsonNode session(HttpClient c) throws Exception{return data(get(c,"/auth/session"),200);}
-    protected HttpResponse<String> write(HttpClient c,String method,String path,Object body) throws Exception {
+    protected HttpResponse<String> write(HttpClient c,String method,String path,Object body) throws Exception {return write(c,method,path,body,new String[0]);}
+    /** A JSON write with extra request headers given as name/value pairs, e.g. an Idempotency-Key. */
+    protected HttpResponse<String> write(HttpClient c,String method,String path,Object body,String... headers) throws Exception {
         JsonNode s=session(c);
         var b=HttpRequest.newBuilder(URI.create(origin+"/api/v1"+path)).header("Origin",origin).header("X-Mentor-Client","web").header("X-CSRF-TOKEN",s.get("csrfToken").asText());
         if(!Set.of("/auth/login","/auth/register","/auth/reset-password").contains(path)&&!s.get("account").isNull())b.header("X-Mentor-Account",s.get("account").get("userId").asText());
         if(body!=null)b.header("Content-Type","application/json");
+        for(int i=0;i<headers.length;i+=2)b.header(headers[i],headers[i+1]);
         return c.send(b.method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    /** A second browser of an existing account: the same login on a fresh cookie jar. */
+    protected HttpClient login(String login) throws Exception {HttpClient c=client();assertEquals(200,write(c,"POST","/auth/login",Map.of("login",login,"password",PASSWORD)).statusCode());return c;}
+    protected String lesson(User teacher,String student,String title,String date) throws Exception {
+        return data(write(teacher.client(),"POST",card(teacher,student)+"/lessons",Map.of("title",title,"date",date,"time","12:00","duration",60)),201).get("id").asText();
+    }
+    /** One homework file as the browser sends it: a multipart form with the file and an optional comment; needs an isolated blob runtime. */
+    protected HttpResponse<String> uploadHomework(User user,String homeworkPath,String filename,byte[] bytes,String comment) throws Exception {
+        String boundary="mentor-synthetic-upload-boundary";var session=session(user.client());var body=new java.io.ByteArrayOutputStream();
+        body.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\""+filename+"\"\r\nContent-Type: application/octet-stream\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(bytes);body.write("\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if(comment!=null)body.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"comment\"\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+comment+"\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(("--"+boundary+"--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var request=HttpRequest.newBuilder(URI.create(origin+"/api/v1"+homeworkPath)).timeout(Duration.ofSeconds(30)).header("Origin",origin).header("X-Mentor-Client","web").header("X-Mentor-Account",user.id()).header("X-CSRF-TOKEN",session.get("csrfToken").asText()).header("Content-Type","multipart/form-data; boundary="+boundary);
+        return user.client().send(request.POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),HttpResponse.BodyHandlers.ofString());
     }
     protected String token(JsonNode issue){return URI.create(issue.get("link").asText()).getRawQuery().substring("token=".length());}
     protected record User(HttpClient client,String id,String workspace){}

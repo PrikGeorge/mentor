@@ -1,0 +1,67 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { SessionStore } from '../core/session.store';
+import { sessionInterceptor } from '../core/session.interceptor';
+import { PracticeSessionStore } from './practice-session.store';
+import type { Attempt } from './practice-api.service';
+const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' }, root = '/api/v1/workspaces/w1/students/s1/lessons/l1/practice';
+const attempt: Attempt = { id: 'a1', exerciseId: 'e1', exerciseRevision: 1, environmentRevision: 'synthetic', mode: 'run', jobState: 'queued', files: { 'Task.java': 'source' }, result: null, createdAt: '2030-01-01T00:00:00Z' };
+describe('Practice session store', () => {
+    let selected = 'e1', valid = true;
+    beforeEach(() => {
+        selected = 'e1'; valid = true;
+        TestBed.configureTestingModule({ providers: [PracticeSessionStore, provideRouter([]), provideHttpClient(withInterceptors([sessionInterceptor])), provideHttpClientTesting()] });
+        TestBed.inject(SessionStore).load().subscribe();
+        TestBed.inject(HttpTestingController).expectOne('/api/v1/auth/session').flush({ account: { userId: 'u1', workspaceId: 'w1', role: 'STUDENT', authVersion: 1 }, csrfToken: 'synthetic' });
+        TestBed.inject(PracticeSessionStore).attach({ lesson: () => lesson, preview: () => false, selectedId: () => selected, key: () => 'k1', valid: (id = selected, key = 'k1') => valid && id === selected && key === 'k1' });
+    });
+    afterEach(() => { TestBed.inject(PracticeSessionStore).ngOnDestroy(); TestBed.inject(HttpTestingController).verify(); TestBed.resetTestingModule(); });
+    it('keeps one failure at a time and repeats the failed step when retried', () => {
+        const store = TestBed.inject(PracticeSessionStore);
+        let retried = 0;
+        store.fail('Первая', () => retried++);
+        store.fail('Вторая', () => { retried += 10; }, 'Обновить задания');
+        expect(store.failure()).toEqual({ message: 'Вторая', retry: expect.any(Function), retryLabel: 'Обновить задания' });
+        store.retryFailure();
+        expect(retried).toBe(10);
+        expect(store.failure()).toBeNull();
+        store.fail('Без повтора');
+        expect(store.failure()?.retry).toBeNull();
+        store.retryFailure();
+        expect(store.failure()).toBeNull();
+    });
+    it('accepts list pages only for the live selection and offers a retry that reloads the same page', () => {
+        const store = TestBed.inject(PracticeSessionStore), http = TestBed.inject(HttpTestingController);
+        store.loadAttempts(lesson, 'e1', false, 1);
+        http.expectOne(root + '/exercises/e1/attempts?page=1&size=25').error(new ProgressEvent('error'));
+        expect(store.failure()?.message).toBe('Не удалось загрузить историю попыток.');
+        store.retryFailure();
+        const retry = http.expectOne(root + '/exercises/e1/attempts?page=1&size=25');
+        selected = 'e2';
+        retry.flush({ items: [{ ...attempt, files: undefined }], page: 1, size: 25, total: 26 });
+        expect(store.attempts()).toEqual([]);
+        selected = 'e1';
+        store.loadArchives(lesson, 'e1', false, 0);
+        http.expectOne(root + '/draft-archives?exerciseId=e1&page=0&size=25').flush({ items: [], page: 0, size: 25, total: 3 });
+        expect(store.archiveTotal()).toBe(3);
+    });
+    it('records polled attempts into the first history page and clears everything on a new selection', () => {
+        const store = TestBed.inject(PracticeSessionStore), http = TestBed.inject(HttpTestingController);
+        store.watch('a1');
+        http.expectOne(root + '/exercises/e1/attempts/a1').flush(attempt);
+        expect(store.attempt()?.id).toBe('a1');
+        expect(store.attempts().map(row => row.id)).toEqual(['a1']);
+        expect(store.attemptTotal()).toBe(1);
+        expect('files' in store.attempts()[0]).toBe(false);
+        store.resetSelection();
+        expect(store.attempt()).toBeNull();
+        expect(store.attempts()).toEqual([]);
+        expect(store.attemptTotal()).toBe(1);
+        store.watch('a1');
+        const pending = http.expectOne(root + '/exercises/e1/attempts/a1');
+        store.cancelSelection();
+        expect(pending.cancelled).toBe(true);
+    });
+});

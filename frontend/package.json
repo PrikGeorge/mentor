@@ -13,7 +13,10 @@
     "e2e": "node tools/browser-fixture.mjs",
     "e2e:practice": "node tools/playwright.mjs --config playwright.practice.config.ts",
     "api:generate": "npm run generate --workspace @mentor/api-types",
-    "api:check": "npm run api:generate && git diff --exit-code -- src/app/api/schema.d.ts"
+    "api:check": "npm run api:generate && git diff --exit-code -- src/app/api/schema.d.ts",
+    "lint": "ng lint",
+    "format": "prettier --write \"src/**/*.{ts,scss,html}\" \"e2e/**/*.ts\" \"integration/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,scss,html}\" \"e2e/**/*.ts\" \"integration/**/*.ts\""
   },
   "engines": {
     "node": ">=24.15.0 <25"
@@ -36,10 +39,15 @@
     "@angular/build": "22.2.0",
     "@angular/cli": "22.2.0",
     "@angular/compiler-cli": "22.2.1",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
     "@types/markdown-it": "14.2.0",
+    "angular-eslint": "22.6.0",
+    "eslint": "^10.12.0",
     "jsdom": "30.1.1",
+    "prettier": "^3.6.2",
     "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
     "vitest": "5.0.3"
   }
 }

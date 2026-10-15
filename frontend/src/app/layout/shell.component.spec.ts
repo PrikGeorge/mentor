@@ -37,7 +37,7 @@ describe('Shell identity transitions', () => {
     session.load().subscribe(); http.expectOne('/api/v1/auth/session').flush({ account: { userId: 'synthetic', workspaceId: 'w1', role: 'TEACHER', authVersion: 1 }, csrfToken: 'synthetic' });
     const fixture = TestBed.createComponent(ShellComponent); fixture.detectChanges();
     await router.navigateByUrl('/teacher/students'); fixture.detectChanges();
-    http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush({items:[],page:0,size:25,total:0});fixture.detectChanges();
+    http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush({items:[],page:0,size:25,total:0});fixture.detectChanges();
     const element: HTMLElement = fixture.nativeElement;
     expect(element.querySelector('h1')?.closest('[hidden]')).toBeNull();
     session.invalidate(); fixture.detectChanges();
@@ -62,7 +62,7 @@ describe('Shell identity transitions', () => {
     expect(refresh.cancelled).toBe(false);
     refresh.flush({ account: session.actor(), csrfToken: 'synthetic-rotated' });
     await fixture.whenStable(); fixture.detectChanges();
-    http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush({items:[],page:0,size:25,total:0});fixture.detectChanges();
+    http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush({items:[],page:0,size:25,total:0});fixture.detectChanges();
     expect(router.url).toBe('/teacher/students');
     expect(element.textContent).toContain('Мои ученики');
   });

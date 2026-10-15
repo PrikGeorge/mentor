@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -8,26 +8,28 @@ import type { components } from '../api/schema';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
 import { IconComponent } from '../core/icon.component';
+import { PaginationComponent } from '../core/pagination.component';
+import { ErrorBannerComponent } from '../core/error-banner.component';
 type Teacher = components['schemas']['TeacherView'];
 type Invitation = components['schemas']['InvitationView'];
 type LinkIssue = components['schemas']['PasswordResetIssue'];
 
 @Component({
-  selector: 'mentor-teachers-page', imports: [ReactiveFormsModule, DatePipe, IconComponent],
+  selector: 'mentor-teachers-page', imports: [ReactiveFormsModule, DatePipe, IconComponent, PaginationComponent, ErrorBannerComponent],
   template: `
     <div class="page-head"><div><h1>Преподаватели</h1><p class="subtitle">Приглашения и доступ к кабинетам.</p></div>
       <button class="btn primary" data-action="invite" (click)="invite()" [disabled]="busy()"><mentor-icon name="plus"/>Пригласить преподавателя</button></div>
-    @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
+    @if (error()) { <mentor-error-banner [message]="error()"/> }
     @if (loading()) { <p class="loading" role="status">Загружаем…</p> }
     @if (issued()) {
-      <section class="issued-link section-block" aria-labelledby="issued-title"><h2 id="issued-title"><mentor-icon name="link"/> Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy, HH:mm':'+0300' }} МСК. Передайте её получателю лично.</p>
-        <label class="auth-field">Одноразовая ссылка<input name="issuedLink" [value]="issued()!.link" readonly (focus)="selectLink($event)"></label>
+      <section class="issued-link box section-block" aria-labelledby="issued-title"><h2 id="issued-title"><mentor-icon name="link"/> Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy, HH:mm':'+0300' }} МСК. Передайте её получателю лично.</p>
+        <label class="field">Одноразовая ссылка<input name="issuedLink" [value]="issued()!.link" readonly (focus)="selectLink($event)"></label>
         <div class="form-actions"><button class="btn sm" type="button" (click)="copy(issued()!.link)"><mentor-icon name="copy"/>{{ copied() ? 'Скопировано' : 'Скопировать' }}</button><button class="btn sm text" (click)="issued.set(null)">Скрыть ссылку</button></div></section>
     }
     @if (resetTeacher()) {
-      <section class="confirm-box section-block" aria-labelledby="reset-title"><h2 id="reset-title">Восстановить доступ: {{ resetTeacher()!.login }}</h2><p>Подтвердите действие своим текущим паролем.</p>
-        <form (submit)="issueReset($event)"><label class="auth-field">Ваш текущий пароль<input name="currentPassword" type="password" [formControl]="currentPassword" autocomplete="current-password" required></label>
-          <div class="form-actions"><button type="submit" class="btn primary" [disabled]="busy()"><mentor-icon name="key-round"/>Выдать ссылку восстановления</button><button type="button" class="btn" (click)="cancelReset()">Отмена</button></div>
+      <section class="confirm-box box section-block" aria-labelledby="reset-title"><h2 id="reset-title">Восстановить доступ: {{ resetTeacher()!.login }}</h2><p>Подтвердите действие своим текущим паролем.</p>
+        <form (submit)="issueReset($event)" novalidate><label class="field">Ваш текущий пароль<input name="currentPassword" type="password" [formControl]="currentPassword" autocomplete="current-password" required [attr.aria-invalid]="passwordMissing() || null" [attr.aria-describedby]="passwordMissing() ? 'current-password-error' : null">@if (passwordMissing()) {<small class="error" id="current-password-error">Введите текущий пароль.</small>}</label>
+          <div class="form-actions"><button type="submit" class="btn primary" [disabled]="busy()"><mentor-icon name="key-round"/>Выдать ссылку восстановления</button><button type="button" class="btn" (click)="cancelReset(true)">Отмена</button></div>
         </form></section>
     }
     <div class="admin-page">
@@ -39,15 +41,15 @@ type LinkIssue = components['schemas']['PasswordResetIssue'];
             <td><span class="tag" [class.on]="!teacher.accountDisabled"><mentor-icon [name]="teacher.accountDisabled ? 'circle-pause' : 'check'"/>Аккаунт {{ teacher.accountDisabled ? 'приостановлен' : 'активен' }}</span></td>
             <td><span class="tag" [class.quiet]="teacher.workspaceDisabled"><mentor-icon [name]="teacher.workspaceDisabled ? 'circle-pause' : 'check'"/>Пространство {{ teacher.workspaceDisabled ? 'приостановлено' : 'активно' }}</span></td>
             <td class="act"><div class="actions m-0">
-              @if(confirming()===teacher.userId+':account'){<span class="inline-confirm" role="group" aria-label="Подтверждение"><span class="small-muted">{{ teacher.accountDisabled ? 'Восстановить аккаунт?' : 'Блокировать аккаунт? Преподаватель потеряет вход.' }}</span><button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="confirming.set(null)" [disabled]="busy()">Отмена</button></span>}
-              @else{<button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access-ask" (click)="confirming.set(teacher.userId+':account')" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>}
-              @if(confirming()===teacher.userId+':workspace'){<span class="inline-confirm" role="group" aria-label="Подтверждение"><span class="small-muted">{{ teacher.workspaceDisabled ? 'Восстановить пространство?' : 'Блокировать пространство? Ученики этого преподавателя потеряют доступ.' }}</span><button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="confirming.set(null)" [disabled]="busy()">Отмена</button></span>}
-              @else{<button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access-ask" (click)="confirming.set(teacher.userId+':workspace')" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>}
-              <button class="btn sm" data-action="reset" (click)="startReset(teacher)" [disabled]="busy()"><mentor-icon name="key-round"/>Восстановить пароль</button>
+              @if(confirming()===teacher.userId+':account'){<span class="inline-confirm" role="group" aria-label="Подтверждение" tabindex="-1"><span class="small-muted">{{ teacher.accountDisabled ? 'Восстановить аккаунт?' : 'Блокировать аккаунт? Преподаватель потеряет вход.' }}</span><button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="cancelConfirm(teacher.userId+':account')" [disabled]="busy()">Отмена</button></span>}
+              @else{<button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access-ask" [attr.data-confirm]="teacher.userId+':account'" (click)="confirm(teacher.userId+':account')" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>}
+              @if(confirming()===teacher.userId+':workspace'){<span class="inline-confirm" role="group" aria-label="Подтверждение" tabindex="-1"><span class="small-muted">{{ teacher.workspaceDisabled ? 'Восстановить пространство?' : 'Блокировать пространство? Ученики этого преподавателя потеряют доступ.' }}</span><button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="cancelConfirm(teacher.userId+':workspace')" [disabled]="busy()">Отмена</button></span>}
+              @else{<button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access-ask" [attr.data-confirm]="teacher.userId+':workspace'" (click)="confirm(teacher.userId+':workspace')" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>}
+              <button class="btn sm" data-action="reset" [attr.data-reset]="teacher.userId" (click)="startReset(teacher)" [disabled]="busy()"><mentor-icon name="key-round"/>Восстановить пароль</button>
             </div></td></tr>
         }</tbody></table></div>
       } @else if (!loading()) { <div class="empty-state mt-16"><h3>Преподавателей пока нет</h3><p>Пригласите первого преподавателя — он получит своё пространство.</p></div> }
-      @if (teacherTotal() > 25) { <nav class="pagination" aria-label="Страницы преподавателей"><button class="btn" (click)="teacherPage.set(teacherPage()-1)" [disabled]="teacherPage() === 0 || loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{ teacherPage()+1 }}</span><button class="btn" (click)="teacherPage.set(teacherPage()+1)" [disabled]="(teacherPage()+1)*25 >= teacherTotal() || loading()">Далее<mentor-icon name="chevron-right"/></button></nav> }
+      <mentor-pagination [page]="teacherPage()" [total]="teacherTotal()" [disabled]="loading()" label="Страницы преподавателей" (pageChange)="teacherPage.set($event)"/>
     </section>
     <section aria-label="Приглашения" class="admin-list"><div class="sh"><div class="title-group"><h2>Приглашения</h2><span class="count">Всего: {{ invitationTotal() }}</span></div></div>
       @if (invitations().length) {
@@ -57,13 +59,15 @@ type LinkIssue = components['schemas']['PasswordResetIssue'];
             <td class="act">@if (invitation.state === 'pending') { <button class="btn sm danger" data-action="revoke" (click)="revoke(invitation.id)" [disabled]="busy()"><mentor-icon name="ban"/>Отозвать</button> }</td></tr>
         }</tbody></table></div>
       } @else if (!loading()) { <div class="empty-state mt-16"><h3>Приглашений пока нет</h3><p>Создайте приглашение кнопкой «Пригласить преподавателя».</p></div> }
-      @if (invitationTotal() > 25) { <nav class="pagination" aria-label="Страницы приглашений"><button class="btn" (click)="invitationPage.set(invitationPage()-1)" [disabled]="invitationPage() === 0 || loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{ invitationPage()+1 }}</span><button class="btn" (click)="invitationPage.set(invitationPage()+1)" [disabled]="(invitationPage()+1)*25 >= invitationTotal() || loading()">Далее<mentor-icon name="chevron-right"/></button></nav> }
+      <mentor-pagination [page]="invitationPage()" [total]="invitationTotal()" [disabled]="loading()" label="Страницы приглашений" (pageChange)="invitationPage.set($event)"/>
     </section></div>`,
 })
 export class TeachersPageComponent {
   private readonly api = inject(PlatformApi);
   private readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly refresh = signal(0);
   private ownerGeneration = -1;
   readonly teachers = signal<Teacher[]>([]);
@@ -79,6 +83,8 @@ export class TeachersPageComponent {
   readonly copied = signal(false);
   readonly resetTeacher = signal<Teacher | null>(null);
   readonly currentPassword = new FormControl('', { nonNullable: true, validators: [Validators.required] });
+  // Shown under the password field after a submit without a password.
+  readonly passwordMissing = signal(false);
   readonly invitationLabels = { pending: 'Ожидает регистрации', used: 'Использовано', revoked: 'Отозвано', expired: 'Истекло' };
   constructor() {
     effect(onCleanup => {
@@ -105,17 +111,23 @@ export class TeachersPageComponent {
   }
   invite(): void { this.mutate(this.api.post('/admin/teacher-invitations', {}), issue => this.showIssue(issue)); }
   revoke(id: string): void { this.mutate(this.api.delete('/admin/teacher-invitations/{id}', { pathParams: { id } })); }
-  // Blocking is a two-step action: the first click only opens the confirmation beside the button.
+  // Blocking is a two-step action: the first click only opens the confirmation beside the button, and keyboard focus moves onto it.
   readonly confirming = signal<string | null>(null);
+  confirm(key: string): void { this.confirming.set(key); this.focus('.inline-confirm'); }
+  cancelConfirm(key: string): void { this.confirming.set(null); this.focus(`[data-confirm="${CSS.escape(key)}"]`); }
   teacherAccess(teacher: Teacher): void { this.confirming.set(null); this.mutate(this.api.patch('/admin/teachers/{id}/access', { disabled: !teacher.accountDisabled }, { pathParams: { id: teacher.userId } })); }
   workspaceAccess(teacher: Teacher): void { this.confirming.set(null); this.mutate(this.api.patch('/admin/workspaces/{id}/access', { disabled: !teacher.workspaceDisabled }, { pathParams: { id: teacher.workspaceId } })); }
-  startReset(teacher: Teacher): void { this.currentPassword.reset(); this.resetTeacher.set(teacher); this.issued.set(null); }
-  cancelReset(): void { this.resetTeacher.set(null); this.currentPassword.reset(); }
+  startReset(teacher: Teacher): void { this.currentPassword.reset(); this.passwordMissing.set(false); this.resetTeacher.set(teacher); this.issued.set(null); this.focus('[name="currentPassword"]'); }
+  // byUser: the teacher closed the box, so focus returns to the button that opened it; the effect's reset passes nothing.
+  // The signal is read only on the user's path so the loading effect, which also calls this, does not start tracking it.
+  cancelReset(byUser = false): void { const teacher = byUser ? this.resetTeacher() : null; this.resetTeacher.set(null); this.currentPassword.reset(); this.passwordMissing.set(false); if (teacher) this.focus(`[data-reset="${CSS.escape(teacher.userId)}"]`); }
   issueReset(event: Event): void {
     event.preventDefault();
-    if (this.currentPassword.invalid || !this.resetTeacher()) { this.error.set('Подтвердите действие своим текущим паролем.'); return; }
+    if (this.currentPassword.invalid || !this.resetTeacher()) { this.passwordMissing.set(true); this.focus('[name="currentPassword"]'); return; }
+    this.passwordMissing.set(false);
     this.mutate(this.api.post('/admin/teachers/{id}/password-reset', { currentPassword: this.currentPassword.value }, { pathParams: { id: this.resetTeacher()!.userId } }), issue => { this.showIssue(issue); this.cancelReset(); }, false);
   }
+  private focus(selector: string): void { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
   selectLink(event: Event): void { (event.target as HTMLInputElement).select(); }
   copy(link: string): void { void navigator.clipboard?.writeText(link).then(() => this.copied.set(true), () => this.copied.set(false)); }
   private showIssue(issue: LinkIssue): void {

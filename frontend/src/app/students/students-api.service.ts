@@ -17,6 +17,8 @@ export class StudentsApi {
     private readonly session = inject(SessionStore);
     // archived: undefined lists active cards (the server default), 'true' only archived ones, 'all' both.
     list(workspaceId: string, page = 0, preview = false, archived?: 'true' | 'all'): Observable<StudentPage> { return this.session.scope(this.api.get(students, { pathParams: { workspaceId }, query: { page, size: 25, ...(preview ? { audience: 'student' } : {}), ...(archived ? { archived } : {}) } })); }
+    // The list screen's cards with lesson counts and focus lessons in one request (no per-card dashboard calls).
+    dashboards(workspaceId: string, page = 0, archived?: 'true' | 'all'): Observable<components['schemas']['DashboardPage']> { return this.session.scope(this.api.get('/workspaces/{workspaceId}/students/dashboards', { pathParams: { workspaceId }, query: { page, size: 25, ...(archived ? { archived } : {}) } })); }
     load(workspaceId: string, studentId: string, preview = false): Observable<StudentView> { return this.session.scope(this.api.get(student, { pathParams: { workspaceId, studentId }, query: preview ? { audience: 'student' } : {} })); }
     save(workspaceId: string, studentId: string | null, input: StudentInput | Omit<StudentUpdateInput, 'revision'>, revision?: number): Observable<StudentView> {
         if (this.session.actor()?.role !== 'TEACHER')

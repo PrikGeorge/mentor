@@ -79,10 +79,16 @@ class BlobLifecycleTest extends IdentityHttpTest {
         InputStream source=new InputStream(){public int read()throws IOException{reading.countDown();try{release.await();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("cancelled");}return -1;}public void close(){closed.set(true);release.countDown();}};
         try(var uploader=service(storage,policy);var pool=Executors.newVirtualThreadPerTaskExecutor()){
             var future=pool.submit(()->uploader.stage(actor,owner,source,10,null));assertTrue(reading.await(5,TimeUnit.SECONDS));
-            Instant original=jdbc.queryForObject("SELECT lease_until FROM blob_reservation",java.sql.Timestamp.class).toInstant();CLOCK.advance(Duration.ofSeconds(30));
-            long waitUntil=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);while(!jdbc.queryForObject("SELECT lease_until FROM blob_reservation",java.sql.Timestamp.class).toInstant().isAfter(original)&&System.nanoTime()<waitUntil)Thread.sleep(10);
-            assertTrue(jdbc.queryForObject("SELECT lease_until FROM blob_reservation",java.sql.Timestamp.class).toInstant().isAfter(original));assertEquals(0,uploader.cleanExpired(20));
-            CLOCK.advance(Duration.ofMinutes(6));assertThrows(ExecutionException.class,()->future.get(5,TimeUnit.SECONDS));assertTrue(closed.get());
+            var reserved=jdbc.query("SELECT * FROM blob_reservation",(r,n)->new String[]{r.getString("id"),r.getString("lease_token"),r.getTimestamp("lease_until").toInstant().toString()}).get(0);
+            Instant original=Instant.parse(reserved[2]);CLOCK.advance(Duration.ofSeconds(30));
+            // The renewal the writer's lease thread issues, driven here by the controlled clock instead of a wall-clock wait: it moves the lease, capped by the lifetime.
+            Instant now=CLOCK.instant();assertTrue(repository.renew(reserved[0],reserved[1],now,now.plus(policy.lease())));
+            Instant renewed=jdbc.queryForObject("SELECT lease_until FROM blob_reservation",java.sql.Timestamp.class).toInstant();
+            // PostgreSQL keeps microseconds (rounded), so the stored lease may differ from the computed one by less than a millisecond.
+            assertTrue(renewed.isAfter(original));assertTrue(Duration.between(now.plus(policy.lease()),renewed).abs().compareTo(Duration.ofMillis(1))<0);assertEquals(0,uploader.cleanExpired(20));
+            // Past the lifetime no renewal succeeds, and the blocked writer is stopped by its own lease thread.
+            CLOCK.advance(Duration.ofMinutes(6));Instant late=CLOCK.instant();assertFalse(repository.renew(reserved[0],reserved[1],late,late.plus(policy.lease())));
+            assertThrows(ExecutionException.class,()->future.get(5,TimeUnit.SECONDS));assertTrue(closed.get());
             assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM stored_blob",Integer.class));assertEquals(1,uploader.cleanExpired(20));
         }finally{release.countDown();}
     }

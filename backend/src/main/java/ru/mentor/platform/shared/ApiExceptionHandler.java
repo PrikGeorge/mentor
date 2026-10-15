@@ -28,7 +28,8 @@ public class ApiExceptionHandler {
     public void application(ApiFailure error, HttpServletRequest request, HttpServletResponse response) throws IOException {
         write(request,response,error);
     }
-    @ExceptionHandler({IllegalArgumentException.class,HttpMessageNotReadableException.class})
+    // A non-numeric page or size, or a missing required parameter, is the caller's input error, not a server failure.
+    @ExceptionHandler({IllegalArgumentException.class,HttpMessageNotReadableException.class,org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,org.springframework.web.bind.MissingServletRequestParameterException.class})
     public void validation(Exception ignored,HttpServletRequest request,HttpServletResponse response) throws IOException {
         write(request,response,new ApiFailure(400,"INVALID_INPUT","Invalid request fields."));
     }

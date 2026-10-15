@@ -6,14 +6,15 @@ import { MarkdownImport } from './markdown-import.service';
 import { MarkdownRenderer } from './markdown-renderer.service';
 import { transform, EditState } from './markdown-editing';
 import { IconComponent } from '../core/icon.component';
-@Component({ selector: 'mentor-markdown-editor', imports: [IconComponent], template: `
+import { ErrorBannerComponent } from '../core/error-banner.component';
+@Component({ selector: 'mentor-markdown-editor', imports: [IconComponent, ErrorBannerComponent], template: `
 <section class="lesson-md-editor" [hidden]="!active()" [attr.aria-busy]="busy()" aria-label="Редактор Markdown">
-  <div class="md-editor-intro"><div><h2>{{labels[kind()]}}</h2><p class="small-muted">@if(kind()==='teacherNotes'){<span class="vis private"><mentor-icon name="eye-off"/>Только для преподавателя</span>}@else{<span class="vis public"><mentor-icon name="eye"/>Ученик увидит текст в этом занятии</span>}</p></div></div>
+  <div class="md-editor-intro"><div><h2>{{labels[kind()]}}</h2><p class="small-muted">@if(kind()==='teacherNotes'){<span class="vis private"><mentor-icon name="eye-off"/>Только вам</span>}@else{<span class="vis public"><mentor-icon name="eye"/>Видно ученику</span>} {{kind()==='teacherNotes'?'Ученик этот текст не увидит.':'Текст появится у ученика в этом занятии.'}}</p></div></div>
   @if(pending();as file){<div class="callout"><p><b>{{file.name}}</b> · Как добавить файл?</p><div class="actions"><button class="btn sm" type="button" (click)="applyImport('replace')">Заменить текст</button><button class="btn sm" type="button" (click)="applyImport('append')">Добавить в конец</button><button class="btn sm text" type="button" (click)="pending.set(null)">Отмена импорта</button></div></div>}
-  @if(error()){<p class="auth-error" role="alert">{{error()}}</p>}
+  @if(error()){<mentor-error-banner [message]="error()"/>}
   @if(conflict()){<div class="warning-banner"><p>Скачайте введённый текст перед повторным открытием редактора. Затем сравните его с актуальной версией и объедините изменения.</p><button class="btn sm" type="button" (click)="downloadSource()"><mentor-icon name="download"/>Скачать введённый .md</button></div>}
   @if(reading()){<p class="loading" role="status">Читаем Markdown-файл…</p>}
-  <form class="mde" (submit)="save($event)">
+  <form class="mde" (submit)="save($event)" novalidate>
     <div class="md-editor-bar"><div role="group" aria-label="Форматирование текста">@for(tool of tools;track tool[0]){@if(tool[0]==='bullet'||tool[0]==='link'){<span class="md-sep" aria-hidden="true"></span>}<button class="md-tool" type="button" [attr.aria-label]="tool[2]" [title]="tool[2]" (click)="format(tool[0])" [disabled]="busy()"><mentor-icon [name]="tool[1]"/>@if(tool[0]==='code'){Java}</button>}<span class="md-sep" aria-hidden="true"></span><button class="md-tool" type="button" (click)="undo()" [disabled]="busy()||!canUndo()" aria-label="Отменить" title="Отменить"><mentor-icon name="undo"/></button><button class="md-tool" type="button" (click)="redo()" [disabled]="busy()||!canRedo()" aria-label="Повторить" title="Повторить"><mentor-icon name="redo"/></button></div>
       <div class="md-right"><div class="seg md-view-tools" role="group" aria-label="Вид редактора">@for(mode of modes;track mode[0]){<button type="button" (click)="view.set(mode[0])" [attr.aria-pressed]="view()===mode[0]">{{mode[1]}}</button>}</div><button class="btn sm" type="button" (click)="fileInput.click()" [disabled]="busy()"><mentor-icon name="upload"/>Загрузить .md</button><input #fileInput type="file" accept=".md,.markdown,text/markdown" hidden (change)="chooseFile($event)"></div></div>
     <div class="md-editor-panes" [attr.data-view]="view()"><div class="md-source-pane" [hidden]="view()==='preview'"><label class="md-pane-title" [for]="sourceId">Текст · Markdown</label><textarea #textarea [id]="sourceId" name="markdown" [value]="source()" (input)="edit($event)" (keydown)="shortcut($event)" maxlength="200000" rows="16" [readOnly]="busy()" aria-label="Текст занятия" spellcheck="true"></textarea></div><div class="md-preview-pane" [hidden]="view()==='source'" role="region" aria-label="Предварительный просмотр"><p class="md-pane-title">Предварительный просмотр</p><div class="markdown-body md-preview-scroll" tabindex="0" [innerHTML]="rendered()"></div></div></div>
@@ -26,7 +27,7 @@ export class MarkdownEditorComponent {
     readonly pending = signal<{ text: string; name: string; stamp: number } | null>(null);
     readonly view = signal<'source' | 'both' | 'preview'>(globalThis.innerWidth <= 700 ? 'source' : 'both');
     readonly modes = [['source', 'Текст'], ['both', 'Рядом'], ['preview', 'Просмотр']] as const;
-    readonly labels = { teacherNotes: 'Сценарий занятия', studentNotes: 'Задания ученика', reviewNotes: 'Ревью занятия' };
+    readonly labels = { teacherNotes: 'Сценарий преподавателя', studentNotes: 'Задания ученика', reviewNotes: 'Ревью занятия' };
     readonly tools = [['bold','bold','Жирный текст'],['italic','italic','Курсив'],['heading','heading','Заголовок второго уровня'],['bullet','list','Маркированный список'],['numbered','list-ordered','Нумерованный список'],['quote','quote','Цитата'],['link','link','Ссылка'],['table','table','Таблица'],['code','code','Блок кода Java']];
     private readonly session = inject(SessionStore); private readonly generation = this.session.generation();
     private readonly importer = inject(MarkdownImport); private readonly renderer = inject(MarkdownRenderer); private readonly api = inject(LessonTextApi);

@@ -30,7 +30,7 @@ describe('Scoped material reading', () => {
         const item = (id: string, audience: 'student' | 'teacher', kind: 'doc' | 'code' | 'download', contentKey: string | null, filename: string) => ({ ...metadata, id, audience, kind, contentKey, filename, title: filename });
         http.expectOne('/api/v1/workspaces/w1/students/s1/lessons/l1/materials?page=0&size=25').flush({ items: [item('guide', 'teacher', 'doc', 'guide', 'guide.md'), item('hw', 'student', 'doc', 'homework', 'homework.md'), item('tasks', 'student', 'doc', 'student', 'student.md'), item('code1', 'student', 'code', 'Task', 'Task.java'), item('dl1', 'student', 'download', null, 'Task.java'), item('zip', 'student', 'download', null, 'kit.zip')], page: 0, size: 25, total: 6 }); fixture.detectChanges();
         const groups = Array.from(element.querySelectorAll('.material-group'));
-        expect(groups.map(group => group.querySelector('h2')?.textContent)).toEqual(['Для ученика', 'Только для вас']);
+        expect(groups.map(group => group.querySelector('h2')?.textContent)).toEqual(['Видно ученику', 'Только вам']);
         expect(Array.from(groups[0].querySelectorAll('.material-text strong')).map(node => node.textContent)).toEqual(['student.md', 'homework.md', 'Task.java', 'kit.zip']);
         expect(groups[0].querySelector('a[download]')?.getAttribute('href')).toBe('/api/v1/workspaces/w1/materials/zip/file');
         expect(element.querySelector('nav.pagination')).toBeNull();
@@ -39,7 +39,7 @@ describe('Scoped material reading', () => {
         const { fixture, http, element } = view('code'); fixture.componentRef.setInput('detail', 'ListTask'); fixture.detectChanges();
         const list = http.match(request => request.url.endsWith('/lessons/l1/materials')); for (const request of list) if (!request.cancelled) request.flush({ items: [{ ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask' }], page: 0, size: 25, total: 1 });
         http.expectOne('/api/v1/workspaces/w1/materials/code1?audience=student').flush({ ...metadata, id: 'code1', kind: 'code', contentKey: 'ListTask', code: { text: '  class ListTask {}\n', teacher: false, materialId: 'download1', excerpt: { start: 0, end: 1 } } }); fixture.detectChanges();
-        expect(element.querySelector('pre code')?.textContent).toBe('  class ListTask {}\n'); expect(element.textContent).toContain('Только для чтения'); expect(element.querySelector('a[download]')?.getAttribute('href')).toBe('/api/v1/workspaces/w1/materials/download1/file?audience=student');
+        expect(element.querySelector('pre code')?.textContent).toBe('  class ListTask {}\n'); expect(element.textContent).toContain('только для чтения'); expect(element.querySelector('a[download]')?.getAttribute('href')).toBe('/api/v1/workspaces/w1/materials/download1/file?audience=student');
     });
     it('lets the owning teacher add and remove materials and reports each change', async () => {
         const { fixture, http, element } = view('materials', false); fixture.componentRef.setInput('editable', true); let changes = 0; fixture.componentInstance.changed.subscribe(() => changes++); fixture.detectChanges();

@@ -494,6 +494,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StudentInput'
+  /workspaces/{workspaceId}/students/dashboards:
+    get:
+      operationId: listStudentDashboards
+      description: The teacher's list screen in one request, the same page of cards as listStudents (same archived
+        filter, same ordering) with each card's lesson count and focus lesson, so the screen makes no per-card dashboard
+        calls. A student receives only their own card. Caller projection applies to student and lesson fields.
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: archived
+        in: query
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+          - all
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      responses:
+        '200':
+          description: Page of dashboards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/{studentId}:
     get:
       operationId: getStudent
@@ -3275,6 +3323,30 @@ components:
           oneOf:
           - $ref: '#/components/schemas/DashboardFocus'
           - type: 'null'
+    DashboardPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dashboard'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
     MaterialMetadata:
       type: object
       description: Common authorized metadata. Profile rows have both lessonId and bundleId null; lesson rows have

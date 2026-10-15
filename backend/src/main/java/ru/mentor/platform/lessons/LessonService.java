@@ -56,7 +56,16 @@ public class LessonService {
         if(!repository.save(ref,kind,markdown,expectedRevision))throw conflict();return repository.text(ref,kind);
     }
     public Map<String,Object> dashboard(Actor actor,String w,String student,String audience){
-        boolean publicView=publicView(actor,audience);var profile=students.get(actor,w,student,audience);var all=repository.allMetadata(w,student);
+        boolean publicView=publicView(actor,audience);return summary(students.get(actor,w,student,audience),repository.allMetadata(w,student),publicView);
+    }
+    // The teacher's list in one request: a page of cards with lesson count and focus lesson, instead of one dashboard call per card.
+    public Page<Map<String,Object>> dashboards(Actor actor,String w,int page,int size,String archived){
+        var cards=students.list(actor,w,page,size,null,archived);boolean publicView=actor.role()==Actor.Role.STUDENT;
+        Map<String,List<LessonRepository.Metadata>> byStudent=new HashMap<>();for(var m:repository.allMetadataForWorkspace(w))byStudent.computeIfAbsent(m.ref().studentId(),k->new ArrayList<>()).add(m);
+        List<Map<String,Object>> items=new ArrayList<>();for(var profile:cards.items())items.add(summary(profile,byStudent.getOrDefault((String)profile.get("id"),List.of()),publicView));
+        return new Page<>(items,page,size,cards.total());
+    }
+    private Map<String,Object> summary(Map<String,Object> profile,List<LessonRepository.Metadata> all,boolean publicView){
         Comparator<LessonRepository.Metadata> ascending=Comparator.comparing(LessonService::start).thenComparing(LessonRepository.Metadata::createdAt).thenComparing(m->m.ref().id());
         Instant now=clock.instant();var sorted=all.stream().sorted(ascending).toList();var next=sorted.stream().filter(m->!start(m).plusSeconds(m.duration()*60L).isBefore(now)).findFirst();
         var focus=next.orElse(sorted.isEmpty()?null:sorted.getLast());Map<String,Object> result=new LinkedHashMap<>();result.put("student",profile);result.put("lessonCount",all.size());result.put("focus",focus==null?null:Map.of("lesson",view(focus,publicView),"upcoming",next.isPresent()));return result;

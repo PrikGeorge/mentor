@@ -214,6 +214,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/students/dashboards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The teacher's list screen in one request, the same page of cards as listStudents (same archived filter, same ordering) with each card's lesson count and focus lesson, so the screen makes no per-card dashboard calls. A student receives only their own card. Caller projection applies to student and lesson fields. */
+        get: operations["listStudentDashboards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/students/{studentId}": {
         parameters: {
             query?: never;
@@ -1243,6 +1260,13 @@ export interface components {
             /** Format: int64 */
             lessonCount: number;
             focus: components["schemas"]["DashboardFocus"] | null;
+        };
+        DashboardPage: {
+            items: components["schemas"]["Dashboard"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
         };
         /** @description Common authorized metadata. Profile rows have both lessonId and bundleId null; lesson rows have both strings. contentKey is a logical legacy selector, never an object-store key. */
         MaterialMetadata: {
@@ -2412,6 +2436,36 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+        };
+    };
+    listStudentDashboards: {
+        parameters: {
+            query?: {
+                archived?: "false" | "true" | "all";
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of dashboards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPage"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
         };
     };
     getStudent: {

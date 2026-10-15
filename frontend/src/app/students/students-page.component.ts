@@ -1,14 +1,15 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
-import { catchError, forkJoin, of, switchMap } from 'rxjs';
+import { catchError, of, switchMap } from 'rxjs';
 import { SessionStore } from '../core/session.store';
 import { Dashboard, StudentsApi, StudentView } from './students-api.service';
 import { StudentFormComponent } from './student-form.component';
 import { IconComponent } from '../core/icon.component';
+import { PaginationComponent } from '../core/pagination.component';
 import { HomeworkApi, StudentTurn } from '../homework/homework-api.service';
 import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-clock.component';
-@Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent], template: `
+@Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent, PaginationComponent], template: `
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
   @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
@@ -26,7 +27,7 @@ import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-
       @if(clocks()[s.id];as turn){<mentor-turn-clock [turn]="turn" viewer="teacher" [name]="s.name" [mini]="true"/>}</a>}
     @empty{@if(!loading()){<div class="empty-state"><h2>Учеников пока нет</h2><p>Создайте отдельную карточку. Материалы других учеников сюда не переносятся.</p></div>}}
     <button class="student-card new-card" (click)="creating.set(true)"><span class="new-mark" aria-hidden="true"><mentor-icon name="plus"/></span><h2>Новый ученик</h2><p>Отдельная карточка, занятия и материалы</p></button></div>
-  @if(total()>25){<nav class="pagination" aria-label="Страницы учеников"><button class="btn" (click)="page.set(page()-1)" [disabled]="page()===0||loading()"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{page()+1}}</span><button class="btn" (click)="page.set(page()+1)" [disabled]="(page()+1)*25>=total()||loading()">Далее<mentor-icon name="chevron-right"/></button></nav>}` })
+  <mentor-pagination [page]="page()" [total]="total()" [disabled]="loading()" label="Страницы учеников" (pageChange)="page.set($event)"/>` })
 export class StudentsPageComponent {
     readonly session = inject(SessionStore);
     private readonly api = inject(StudentsApi);
@@ -47,7 +48,7 @@ export class StudentsPageComponent {
     // Archived cards live on a separate screen; the review queue belongs to the active ones only.
     readonly archive = signal(false);
     constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(), archive = this.archive(); this.refresh(); this.students.set([]); this.summaries.set({}); this.queue.set([]); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
-        return; this.loading.set(true); const sub = this.api.list(w, page, false, archive ? 'true' : undefined).pipe(switchMap(view => { this.students.set(view.items); this.total.set(view.total); return view.items.length ? forkJoin({ summaries: forkJoin(view.items.map(s => this.api.dashboard(w, s.id))), turns: this.homework.studentTurns(w).pipe(catchError(() => of(null))) }) : of({ summaries: [], turns: null }); })).subscribe({ next: ({ summaries, turns }) => { this.summaries.set(Object.fromEntries(summaries.map(s => [s.student.id, s]))); this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
+        return; this.loading.set(true); const sub = this.api.dashboards(w, page, archive ? 'true' : undefined).pipe(switchMap(view => { this.students.set(view.items.map(item => item.student)); this.total.set(view.total); this.summaries.set(Object.fromEntries(view.items.map(item => [item.student.id, item]))); return view.items.length ? this.homework.studentTurns(w).pipe(catchError(() => of(null))) : of(null); })).subscribe({ next: turns => { this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
     reload() { this.refresh.update(v => v + 1); }
     initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }
     direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }

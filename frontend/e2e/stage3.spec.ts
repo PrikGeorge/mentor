@@ -37,6 +37,7 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             '/api/v1/workspaces/w1/students': page([own(student)]),
             [card]: own(student),
             [card + '/dashboard']: { student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: false } },
+            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: false } }]),
             [card + '/lessons']: page([own(lesson)]),
             [card + '/lessons/l1']: own(lesson),
             [card + '/access']: { account: { userId: 'u1', login: 'anna-demo', disabled: false }, invitation: null },
@@ -93,7 +94,7 @@ for (const width of [1280, 390]) {
         await page.screenshot({ path: test.info().outputPath(`code-review-${width}.png`), fullPage: true });
 
         const review = page.locator('.homework-review-form');
-        await review.getByLabel('Обратная связь к этой работе').fill('Хорошее решение, поправь тип поля.');
+        await review.getByLabel('Ревью этой работы').fill('Хорошее решение, поправь тип поля.');
         await review.getByText('отлично').click();
         await review.getByRole('button', { name: 'Сохранить ревью' }).click();
         await expect(page.locator('.submission-feedback .ev')).toContainText('отлично');

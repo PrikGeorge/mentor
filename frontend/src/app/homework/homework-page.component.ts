@@ -9,34 +9,37 @@ import { IconComponent } from '../core/icon.component';
 import { TurnClockComponent, turnOf } from './turn-clock.component';
 import { GradeComponent } from './grade.component';
 import { CodeReviewComponent } from '../comments/code-review.component';
-@Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent], template: `
+import { PaginationComponent } from '../core/pagination.component';
+import { FileSizePipe } from '../core/file-size.pipe';
+import { ErrorBannerComponent } from '../core/error-banner.component';
+@Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent, PaginationComponent, FileSizePipe, ErrorBannerComponent], template: `
 <section class="homework-page" [class.single]="!canSubmit()" [hidden]="!active()">
 @if(canSubmit()){
-<section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или отдельный файл. Обратная связь появится под отправленной работой.</p>
-<form (submit)="upload($event)" [attr.aria-busy]="busy()">
-<label>Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
-<label>Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="setRepositoryUrl($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
-<label>Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="setComment($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
+<section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или отдельный файл. Ревью наставника появится под отправленной работой.</p>
+<form (submit)="upload($event)" novalidate [attr.aria-busy]="busy()">
+<label class="field">Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
+<label class="field">Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="setRepositoryUrl($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
+<label class="field">Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="setComment($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
 @if(busy()){<div class="upload-progress" role="status" aria-live="polite">{{progress()===null?'Передаём файл…':progress()===100?'Файл передан. Ожидаем подтверждение сохранения…':'Передаём файл: '+progress()+'%'}}@if(progress()!==null){<progress max="100" [value]="progress()" aria-label="Передача файла"></progress>}</div>}
 <div class="form-actions"><button class="btn primary" type="submit" [disabled]="busy()||loading()">@if(busy()){<mentor-icon class="spin" name="loader"/>}@else{<mentor-icon name="send"/>}{{unknown()?'Повторить отправку':'Отправить на ревью'}}</button></div>
 </form>
 @if(succeeded()){<p class="success-banner mt-20" role="status">Работа отправлена на ревью.</p>}
-@if(error()){<p class="auth-error mt-20" role="alert">{{error()}}</p>}
+@if(error()){<mentor-error-banner class="mt-20" [message]="error()"/>}
 @if(unknown()){<div class="warning-banner mt-20"><p>Результат отправки неизвестен. Ответ сервера не дошёл. Повторить безопасно: сервер узнает ту же работу и не создаст дубликат. Можно и сначала обновить историю.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
 </section>
-}@else if(preview()){<p class="callout">Предпросмотр ученика · Только для чтения. Работу отправляет ученик из своего кабинета.</p>}
+}@else if(preview()){<p class="callout">Предпросмотр кабинета ученика · только для чтения. Работу отправляет ученик из своего кабинета.</p>}
 <section class="homework-history" aria-labelledby="homework-history-title">@if(latest()!==undefined){<mentor-turn-clock class="mb-16" [turn]="turn()" [viewer]="canReview()?'teacher':'student'" [name]="studentName()" [mini]="true"/>}<div class="sh"><h2 id="homework-history-title">{{mode()==='review'?'Ревью сданных работ':'Отправленные работы'}}</h2>@if(!unknown()){<button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()||busy()"><mentor-icon name="refresh"/>Обновить историю</button>}</div>
-<p class="small-muted mt-6">Отзыв к файлу относится только к этой работе. Общий отзыв занятия показан отдельно.</p>
-@if(listError()){<p class="auth-error" role="alert">{{listError()}}</p><button class="btn sm" type="button" (click)="refreshHistory()"><mentor-icon name="refresh"/>Повторить загрузку</button>}
+<p class="small-muted mt-6">Ревью к файлу относится только к этой работе. Общее ревью занятия показано отдельно.</p>
+@if(listError()){<mentor-error-banner class="mt-16" [message]="listError()" retryLabel="Повторить загрузку" [busy]="loading()" (retry)="refreshHistory()"/>}
 @if(loading()){<p class="loading" role="status">Загружаем историю работ…</p>}@else if(!submissions().length&&!listError()){<div class="empty-state mt-16"><h3>Работ пока нет</h3><p>По этому занятию ещё нет сданных работ.</p></div>}
-<ol class="works">@for(submission of submissions();track submission.id;let i=$index){<li class="homework-submission"><span class="n">{{total()-page()*25-i}}</span><div><header><h3>{{submission.filename}}</h3><span class="small-muted">{{date(submission.createdAt)}} · {{bytes(submission.size)}}</span><span class="pill" [class.on]="submission.status==='reviewed'" [class.danger]="submission.status==='needs_revision'"><mentor-icon [name]="submission.status==='reviewed'?'check-check':submission.status==='needs_revision'?'rotate-ccw':'clock'"/>{{labels[submission.status]}}</span></header>
+<ol class="works">@for(submission of submissions();track submission.id;let i=$index){<li class="homework-submission"><span class="n">{{total()-page()*25-i}}</span><div><header><h3>{{submission.filename}}</h3><span class="small-muted">{{date(submission.createdAt)}} · {{submission.size|fileSize}}</span><span class="tag" [class.on]="submission.status==='reviewed'" [class.danger]="submission.status==='needs_revision'"><mentor-icon [name]="submission.status==='reviewed'?'check-check':submission.status==='needs_revision'?'rotate-ccw':'clock'"/>{{labels[submission.status]}}</span></header>
 @if(submission.comment){<p class="prewrap">«{{submission.comment}}»</p>}<div class="actions"><button class="btn sm text" type="button" (click)="download(submission)"><mentor-icon name="download"/>Скачать файл</button>@if(repositoryLink(submission.repositoryUrl);as url){<a class="btn sm text" [href]="url" target="_blank" rel="noopener noreferrer">Репозиторий ↗</a>}@if(isText(submission)){<button class="btn sm text" type="button" (click)="toggleCode(submission)" [attr.aria-expanded]="openCode()===submission.id"><mentor-icon name="code"/>{{openCode()===submission.id?'Скрыть код':canReview()?'Открыть код и прокомментировать':'Открыть код'}}</button>}</div>
-@if(openCode()===submission.id){<div class="submission-code">@if(code();as c){<mentor-code-review [lesson]="lesson()" targetKind="homework" [targetId]="submission.id" [files]="c" [editable]="canReview()" [preview]="preview()"/>}@else if(codeError()){<p class="auth-error" role="alert">{{codeError()}}</p>}@else{<p class="loading" role="status">Загружаем код…</p>}</div>}
-@if(downloadErrors()[submission.id]){<p class="auth-error" role="alert">{{downloadErrors()[submission.id]}}</p>}
-@if(submission.feedback||submission.grade){<div class="submission-feedback"><h4>Обратная связь к работе@if(submission.reviewedAt){ · {{date(submission.reviewedAt)}}}</h4>@if(submission.grade){<p class="grade-line"><mentor-grade [grade]="submission.grade"/></p>}@if(submission.feedback){<p class="prewrap">{{submission.feedback}}</p>}</div>}
+@if(openCode()===submission.id){<div class="submission-code">@if(code();as c){<mentor-code-review [lesson]="lesson()" targetKind="homework" [targetId]="submission.id" [files]="c" [editable]="canReview()" [preview]="preview()"/>}@else if(codeError()){<mentor-error-banner [message]="codeError()" retryLabel="Повторить загрузку" (retry)="loadCode(submission)"/>}@else{<p class="loading" role="status">Загружаем код…</p>}</div>}
+@if(downloadErrors()[submission.id]){<mentor-error-banner class="mt-16" [message]="downloadErrors()[submission.id]" retryLabel="Повторить скачивание" icon="download" (retry)="download(submission)"/>}
+@if(submission.feedback||submission.grade){<div class="submission-feedback"><h4>Ревью работы@if(submission.reviewedAt){ · {{date(submission.reviewedAt)}}}</h4>@if(submission.grade){<p class="grade-line"><mentor-grade [grade]="submission.grade"/></p>}@if(submission.feedback){<p class="prewrap">{{submission.feedback}}</p>}</div>}
 @if(canReview()){<mentor-lesson-review [lesson]="lesson()" [submission]="submission" [preview]="preview()" (reviewed)="updatedReview($event)"/>}
 </div></li>}</ol>
-@if(total()>25){<nav class="pagination" aria-label="Страницы работ"><button class="btn" type="button" [disabled]="loading()||page()===0" (click)="setPage(page()-1)"><mentor-icon name="chevron-left"/>Назад</button><span>Страница {{page()+1}}</span><button class="btn" type="button" [disabled]="loading()||(page()+1)*25>=total()" (click)="setPage(page()+1)">Далее<mentor-icon name="chevron-right"/></button></nav>}
+<mentor-pagination [page]="page()" [total]="total()" [disabled]="loading()||busy()" label="Страницы работ" (pageChange)="setPage($event)"/>
 </section></section>` })
 export class HomeworkPageComponent {
     readonly lesson = input.required<LessonRef>(); readonly preview = input(false); readonly mode = input<'homework'|'review'>('homework'); readonly studentName = input('');
@@ -90,15 +93,17 @@ export class HomeworkPageComponent {
     toggleCode(submission: Submission) {
         this.codeRequest?.unsubscribe(); this.code.set(null); this.codeError.set('');
         if (this.openCode() === submission.id) { this.openCode.set(null); return; }
-        this.openCode.set(submission.id); const stamp = this.sequence;
+        this.openCode.set(submission.id); this.loadCode(submission);
+    }
+    loadCode(submission: Submission) {
+        this.codeRequest?.unsubscribe(); this.code.set(null); this.codeError.set(''); const stamp = this.sequence;
         this.codeRequest = this.api.text(this.lesson(), submission.id).subscribe({ next: text => { if (this.active() && stamp === this.sequence) this.code.set({ [text.filename]: text.text }); }, error: error => { if (this.active() && stamp === this.sequence) this.codeError.set(error.status === 415 ? 'Этот файл нельзя показать как текст. Скачайте его.' : 'Не удалось загрузить код работы.'); } });
     }
     download(submission: Submission) {
-        if (!this.active()) return; const stamp = this.sequence;
+        if (!this.active()) return; const stamp = this.sequence; this.downloadErrors.update(errors => Object.fromEntries(Object.entries(errors).filter(([id]) => id !== submission.id)));
         const request = this.api.download(this.lesson(), submission.id).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: error.error?.message ?? 'Не удалось скачать работу.' })); } }); this.downloads.push(request);
     }
     date(value: string) { return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
-    bytes(value: number) { return value >= 1048576 ? (value/1048576).toFixed(1)+' МиБ' : value >= 1024 ? (value/1024).toFixed(1)+' КиБ' : value+' байт'; }
     repositoryLink(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null; } catch { return null; } }
 }
 

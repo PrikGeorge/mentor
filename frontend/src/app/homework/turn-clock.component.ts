@@ -21,7 +21,7 @@ export function turnHeadline(turn: Turn, viewer: 'student' | 'teacher'): { title
         : { title: 'Ход у ученика', text: turn.state === 'none' ? 'Ученик ещё не сдавал работ.' : `Вы ответили ${moscow(turn.reviewedAt, false)}.` };
     if (mentorsTurn(turn)) return { title: 'Ход у наставника', text: `${sentPhrase(turn, true)} ${moscow(turn.submittedAt, true)}. Можно спокойно заниматься другим.` };
     if (turn.state === 'needs_revision') return { title: 'Твой ход', text: 'Наставник просит доработать работу — открой ревью и отправь новую версию.' };
-    if (turn.state === 'reviewed') return { title: 'Твой ход', text: `Наставник ответил ${moscow(turn.reviewedAt, false)}. Посмотри отзыв и переходи к следующим заданиям.` };
+    if (turn.state === 'reviewed') return { title: 'Твой ход', text: `Наставник ответил ${moscow(turn.reviewedAt, false)}. Посмотри ревью и переходи к следующим заданиям.` };
     return { title: 'Твой ход', text: 'Открой задания к занятию и сдай домашнюю работу, когда будет готово.' };
 }
 type Face = { title: string; note: string; value?: string; caption?: string };

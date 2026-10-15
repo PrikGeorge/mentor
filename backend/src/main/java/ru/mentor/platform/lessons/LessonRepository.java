@@ -18,6 +18,7 @@ public class LessonRepository {
     public Optional<Metadata> find(LessonRef ref){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=? AND id=?",MAPPER,ref.workspaceId(),ref.studentId(),ref.id()).stream().findFirst();}
     public List<Metadata> list(String w,String student,int page,int size){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER+" LIMIT ? OFFSET ?",MAPPER,w,student,size,(long)page*size);}
     public List<Metadata> allMetadata(String w,String student){return jdbc.query(SELECT+" WHERE workspace_id=? AND student_id=?"+ORDER,MAPPER,w,student);}
+    public List<Metadata> allMetadataForWorkspace(String w){return jdbc.query(SELECT+" WHERE workspace_id=?"+ORDER,MAPPER,w);}
     public long count(String w,String student){return jdbc.queryForObject("SELECT count(*) FROM lesson WHERE workspace_id=? AND student_id=?",Long.class,w,student);}
     public Metadata create(String w,String student,String title,String date,String time,int duration,Instant now){
         String id=UUID.randomUUID().toString();jdbc.update("INSERT INTO lesson(workspace_id,student_id,id,title,local_date,local_time,duration,created_at) VALUES (?,?,?,?,?,?,?,?)",w,student,id,title,date,time,duration,Timestamp.from(now));

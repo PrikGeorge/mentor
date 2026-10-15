@@ -84,9 +84,9 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await expect(page.getByText('Материалов пока нет. Добавьте первый документ или файл выше.', { exact: true })).toBeVisible();
     const doc = await addMaterial(page, lesson, 'student', 'student-materials', '# Материалы занятия\n\n## Списки\n\nArrayList хранит элементы по порядку.\n\n## Отображения\n\nHashMap связывает ключ и значение.');
     expect(doc.contentKey).toBe('student-materials');
-    await expect(page.locator('.material-group', { hasText: 'Для ученика' }).locator('.material-row strong', { hasText: 'Материалы занятия' })).toBeVisible();
+    await expect(page.locator('.material-group', { hasText: 'Видно ученику' }).locator('.material-row strong', { hasText: 'Материалы занятия' })).toBeVisible();
     await addMaterial(page, lesson, 'teacher', 'guide', '# Методичка\n\nPRIVATE_STAGE3_GUIDE: вопросы для разбора.');
-    await expect(page.locator('.material-group.private', { hasText: 'Только для вас' }).locator('.material-row strong', { hasText: 'Методичка' })).toBeVisible();
+    await expect(page.locator('.material-group.private', { hasText: 'Только вам' }).locator('.material-row strong', { hasText: 'Методичка' })).toBeVisible();
     // A second document with the same role is refused by the server and explained in the form.
     const form = page.locator('mentor-material-form');
     await form.locator('select[name=audience]').selectOption('teacher'); await form.locator('select[name=contentKey]').selectOption('guide'); await form.locator('textarea[name=markdown]').fill('# Повтор');

@@ -1,0 +1,89 @@
+@if (checking()) {
+  <p class="loading" role="status">Проверяем сессию перед возвратом к коду…</p>
+}
+@if (sessionError()) {
+  <mentor-practice-error [message]="sessionError()" retryLabel="Повторить проверку сессии" (retry)="revalidate()"/>
+}
+<div class="trainer" [class.theme-dark]="dark()">
+  <section class="practice-page" [hidden]="!owned()">
+    <div class="practice-heading">
+      <div>
+        <h2>Тренажёр занятия</h2>
+        <p class="subtitle">Java · код сохраняется отдельно для каждого упражнения.</p>
+      </div>
+      <div class="actions">
+        <button class="btn sm theme-toggle" type="button" (click)="toggleTheme()" [attr.aria-pressed]="dark()"><mentor-icon [name]="dark() ? 'sun' : 'moon'"/>{{ dark() ? 'Светлая тема' : 'Тёмная тема' }}</button>
+        <button class="btn sm" (click)="refreshCatalog()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить задания</button>
+      </div>
+    </div>
+    @if (store.failure(); as failure) {
+      <mentor-practice-error [message]="failure.message" [retryLabel]="failure.retryLabel" [canRetry]="!!failure.retry" (retry)="store.retryFailure()"/>
+    }
+    @if (loading()) {
+      <p class="loading" role="status">Загружаем упражнения…</p>
+    }
+    @if (view(); as practice) {
+      @if (teacher()) {
+        <mentor-teacher-practice [lesson]="lesson()" [view]="practice" (saved)="assignmentsSaved($event)"/>
+      }
+      @if (!practice.exercises.length && !history().length) {
+        <div class="empty-state">
+          <h3>Упражнения пока не назначены</h3>
+          <p>{{ teacher() ? 'Выберите упражнения в каталоге выше — они появятся у ученика.' : 'Наставник добавит упражнения к занятию. Загляни позже или открой задания.' }}</p>
+        </div>
+      }
+    }
+    @if (selectedId()) {
+      <div class="trainer-grid">
+        <aside class="trainer-side" aria-label="Упражнения и условие">
+          <mentor-exercise-list [rows]="view()?.exercises ?? []" [removed]="removed()" [selectedId]="selectedId()" (chosen)="choose($event)"/>
+          @if (displayExercise(); as exercise) {
+            <mentor-exercise-statement [exercise]="exercise" [statementHtml]="statementHtml()" [notesHtml]="notesHtml()" [references]="references()"/>
+          }
+        </aside>
+        @if (displayExercise()) {
+          <mentor-editor-panel
+            [files]="draft.files()" [file]="file()" [editorContext]="editorContext()"
+            [writable]="writable()" [exportable]="sourceOwner()" [readonly]="editorReadonly()" [dark]="dark()"
+            [busy]="draft.busy()" [dirty]="draft.dirty()" [compatible]="draft.compatible()" [conflict]="draft.conflict()" [draftError]="draft.error()"
+            [sending]="store.sending()" [runnable]="runnable()"
+            (fileChosen)="file.set($event)" (edited)="draft.edit($event.name, $event.text)" (saveRequested)="draft.save()"
+            (exportRequested)="exportFiles()" (runRequested)="run($event)" (resetChosen)="chooseReset($event)"/>
+        } @else {
+          <section class="practice-editor history-only">
+            <h3>История упражнения {{ selectedId() }}</h3>
+            <p class="callout">Упражнение снято с назначения или недоступно. Сохранённый код и попытки доступны только для чтения.</p>
+            @for (name of historicalNames(); track name) {
+              <h4>{{ name }}</h4>
+              <pre class="code-view"><code>{{ store.historicalFiles()[name] }}</code></pre>
+            }
+          </section>
+        }
+        <section class="trainer-result" aria-label="Результат проверки">
+          @if (sourceOwner() && draft.pending() && !store.attempt()) {
+            <button class="btn" (click)="recoverAttempt()" [disabled]="store.sending()"><mentor-icon name="history"/>Восстановить отправленную попытку</button>
+          }
+          @if (store.resetChoice(); as choice) {
+            <section class="reset-confirm" role="region" aria-label="Подтверждение перехода">
+              <h3>Перейти на новую ревизию?</h3>
+              <p>{{ choice === 'template' ? 'Новые заготовки заменят код только после подтверждённого сохранения.' : 'Твои файлы будут сохранены в новой ревизии, если их имена соответствуют объявленным файлам.' }}</p>
+              <div class="actions">
+                <button class="btn sm" (click)="exportFiles()"><mentor-icon name="download"/>Сначала экспортировать код</button>
+                <button class="btn sm primary" [disabled]="store.resetting()" (click)="reset()">Подтвердить переход</button>
+                <button class="btn sm text" [disabled]="store.resetting()" (click)="chooseReset(null)">Отмена</button>
+              </div>
+            </section>
+          }
+          @if (store.attempt(); as result) {
+            <mentor-attempt-result [attempt]="result" [lesson]="lesson()" [worker]="store.worker()" [teacher]="teacher()" [preview]="preview()" [noted]="store.noted()" (notedChanged)="store.noted.set($event)"/>
+          }
+          <mentor-attempt-history
+            [attempts]="store.attempts()" [attemptPage]="store.attemptPage()" [attemptTotal]="store.attemptTotal()"
+            [archives]="store.archives()" [archivePage]="store.archivePage()" [archiveTotal]="store.archiveTotal()" [archive]="store.archive()"
+            (attemptChosen)="showAttempt($event)" (archiveChosen)="showArchive($event)"
+            (attemptPageChanged)="store.attemptPage.set($event)" (archivePageChanged)="store.archivePage.set($event)"/>
+        </section>
+      </div>
+    }
+  </section>
+</div>

@@ -43,9 +43,9 @@ describe('Turns on the teacher pages', () => {
     afterEach(() => TestBed.resetTestingModule());
     it('queues works awaiting review before the cards and links straight to the lesson review', async () => {
         const { fixture, http, element } = await open('/teacher/students');
-        http.expectOne('/api/v1/workspaces/w1/students?page=0&size=25').flush(page([student]));
+        // The list screen loads its cards and their summaries in one request.
+        http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=0&size=25').flush(page([{ student, lessonCount: 1, focus: { lesson, upcoming: true } }]));
         fixture.detectChanges();
-        http.expectOne(base + '/dashboard').flush({ student, lessonCount: 1, focus: { lesson, upcoming: true } });
         http.expectOne('/api/v1/workspaces/w1/homework/turns?page=0&size=100').flush(page([{ studentId: 's1', studentName: student.name, lessonId: 'l1', lessonTitle: 'Коллекции', lessonDate: '2026-10-02', submissionId: 'h1', filename: 'work.zip', comment: 'Проверьте порядок', status: 'submitted', createdAt: '2026-10-13T18:40:00Z', awaitingReview: 2 }]));
         fixture.detectChanges();
         expect(element.querySelector('#queue-title')?.textContent).toBe('Ход за вами');

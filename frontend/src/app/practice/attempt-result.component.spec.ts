@@ -1,0 +1,71 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { flushJournal } from '../students/domain-test-support';
+import { AttemptResultComponent } from './attempt-result.component';
+import type { Attempt } from './practice-api.service';
+const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' };
+const queued: Attempt = { id: 'a1', exerciseId: 'e1', exerciseRevision: 1, mode: 'submit', environmentRevision: 'synthetic', jobState: 'queued', files: { 'Task.java': 'class Task {}' }, result: null, createdAt: '2030-01-01T09:00:00Z' };
+const wrong: Attempt = { ...queued, id: 'a2', mode: 'run', environmentRevision: null, jobState: 'completed', result: { status: 'wrong_answer', passed: 1, total: 2, elapsedMs: 12, diagnostics: 'Task.java:3: expected', tests: [{ name: 'sum', status: 'accepted' }, { name: 'max', status: 'wrong_answer', expected: 3, actual: null, message: 'see max()', stdout: 'debug line' }] } };
+describe('Attempt result pane', () => {
+    beforeEach(() => TestBed.configureTestingModule({ imports: [AttemptResultComponent], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] }));
+    afterEach(() => { const http = TestBed.inject(HttpTestingController); flushJournal(http); http.verify(); TestBed.resetTestingModule(); });
+    function setup(attempt: Attempt, inputs: Record<string, unknown> = {}) {
+        const fixture = TestBed.createComponent(AttemptResultComponent);
+        fixture.componentRef.setInput('attempt', attempt);
+        fixture.componentRef.setInput('lesson', lesson);
+        for (const [name, value] of Object.entries(inputs)) fixture.componentRef.setInput(name, value);
+        fixture.detectChanges();
+        return { fixture, element: fixture.nativeElement as HTMLElement, component: fixture.componentInstance };
+    }
+    it('names the state, warns about a silent executor only while queued and keeps the code closed for the student', () => {
+        const { fixture, element } = setup(queued, { worker: { available: false, lastSeenAt: '2030-01-01T08:30:00Z' } });
+        expect(element.querySelector('.attempt-result h3')?.textContent?.trim()).toBe('В очереди');
+        expect(element.textContent).toContain('Все проверки');
+        expect(element.querySelector('.warning-banner')?.textContent).toContain('последний отклик 01.01, 11:30');
+        expect(element.querySelector<HTMLDetailsElement>('details.attempt-code')?.open).toBe(false);
+        fixture.componentRef.setInput('attempt', { ...queued, jobState: 'running' });
+        fixture.detectChanges();
+        expect(element.querySelector('.warning-banner')).toBeNull();
+        expect(element.querySelector('.attempt-result h3')?.textContent?.trim()).toBe('Выполняется');
+        fixture.destroy();
+    });
+    it('lists each test with its verdict, values and output and reports mentor comment counts', () => {
+        const { fixture, element, component } = setup(wrong, { noted: 2 });
+        const heading = element.querySelector('.attempt-result h3')!;
+        expect(heading.textContent?.trim()).toBe('Есть неверный ответ');
+        expect(heading.classList.contains('bad')).toBe(true);
+        expect(element.textContent).toContain('Версия окружения не сохранена');
+        expect(element.querySelector('.check-summary')?.textContent).toBe('Тесты: 1 из 2 пройдены · 12 мс');
+        expect(element.querySelector('.test-cells')?.getAttribute('aria-label')).toBe('Пройдено 1 из 2');
+        expect(element.querySelector('.diagnostics')?.textContent).toBe('Task.java:3: expected');
+        const items = Array.from(element.querySelectorAll('.test-list li'));
+        expect(items).toHaveLength(2);
+        expect(items[1].classList.contains('fail')).toBe(true);
+        expect(items[1].textContent).toContain('2. max · не пройден');
+        expect(items[1].textContent).toContain('Ожидалось: 3');
+        expect(items[1].textContent).toContain('Получено: null');
+        expect(items[1].textContent).toContain('see max()');
+        expect(items[1].textContent).toContain('debug line');
+        const details = element.querySelector<HTMLDetailsElement>('details.attempt-code')!;
+        expect(details.open).toBe(true);
+        expect(details.querySelector('summary')?.textContent).toContain('комментарии наставника: 2');
+        let noted = 0;
+        component.notedChanged.subscribe(count => noted = count);
+        http().match(request => request.url.endsWith('/code-comments')).forEach(request => request.flush({ items: [{ id: 'c1', targetKind: 'attempt', targetId: 'a2', file: 'Task.java', line: 1, body: 'Проверь max', variant: 'note', createdAt: '2030-01-01T10:00:00Z' }] }));
+        expect(noted).toBe(1);
+        fixture.destroy();
+    });
+    it('opens the code for the teacher with the review wording', () => {
+        const { fixture, element } = setup({ ...wrong, result: { ...wrong.result!, status: 'accepted', passed: 2 } }, { teacher: true });
+        const heading = element.querySelector('.attempt-result h3')!;
+        expect(heading.textContent?.trim()).toBe('Все проверки пройдены');
+        expect(heading.classList.contains('ok')).toBe(true);
+        const details = element.querySelector<HTMLDetailsElement>('details.attempt-code')!;
+        expect(details.open).toBe(true);
+        expect(details.querySelector('summary')?.textContent).toBe('Код этой попытки · комментарии по строкам');
+        fixture.destroy();
+    });
+    const http = () => TestBed.inject(HttpTestingController);
+});

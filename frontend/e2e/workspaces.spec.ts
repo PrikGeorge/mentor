@@ -32,6 +32,13 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             await route.fulfill({ json: { items: items.map(s => publicView ? publicStudent(s) : s), page: 0, size: 25, total: items.length } });
             return;
         }
+        // The list screen's single request: cards with lesson counts and focus lessons.
+        if (path === prefix + '/dashboards' && method === 'GET') {
+            const items = actor.role === 'STUDENT' ? students.filter(s => s.id === (kind === 'anna' ? 's1' : 's2')) : students;
+            const summary = (s: typeof anna) => { const own = lessons.filter(l => l.studentId === s.id); return { student: publicView ? publicStudent(s) : s, lessonCount: own.length, focus: own.length ? { lesson: publicView ? publicLesson(own[0]) : own[0], upcoming: true } : null }; };
+            await route.fulfill({ json: { items: items.map(summary), page: 0, size: 25, total: items.length } });
+            return;
+        }
         if (path === prefix && method === 'POST') {
             const input = request.postDataJSON();
             expect(input).not.toHaveProperty('revision');

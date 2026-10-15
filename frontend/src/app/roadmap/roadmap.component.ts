@@ -2,21 +2,22 @@ import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed,
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SessionStore } from '../core/session.store';
 import { IconComponent } from '../core/icon.component';
+import { ErrorBannerComponent } from '../core/error-banner.component';
 import { Roadmap, RoadmapApi, RoadmapStage, RoadmapStageInput, stageProgress } from './roadmap-api.service';
 
 type State = RoadmapStage['state'];
-@Component({ selector: 'mentor-roadmap', imports: [IconComponent], template: `
+@Component({ selector: 'mentor-roadmap', imports: [IconComponent, ErrorBannerComponent], template: `
 <section class="roadmap" aria-labelledby="roadmap-title">
   <div class="sh"><div class="title-group"><h2 id="roadmap-title">Этапы маршрута</h2>@if(progress();as p){<span class="count">этап {{p.position}} из {{p.total}}</span>}</div>
     @if(canEdit()&&!draft()&&view()){<button class="btn sm edit-stages" type="button" (click)="edit()"><mentor-icon name="pencil"/>{{view()!.stages.length?'Изменить этапы':'Наметить этапы'}}</button>}</div>
-  @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p>@if(stale()){<button class="btn sm" type="button" (click)="reload()"><mentor-icon name="refresh"/>Загрузить актуальный маршрут</button>}</div>}
+  @if(error()){<mentor-error-banner [message]="error()" [retryLabel]="stale()?'Загрузить актуальный маршрут':draft()?'':'Повторить загрузку'" (retry)="reload()"/>}
   @if(draft();as rows){
-    <form class="stage-editor" (submit)="save($event)" [attr.aria-busy]="busy()">
+    <form class="stage-editor" (submit)="save($event)" novalidate [attr.aria-busy]="busy()">
       <ol>@for(row of rows;track $index;let i=$index){<li>
         <span class="n" aria-hidden="true">{{i+1}}</span>
-        <label class="auth-field">Этап {{i+1}}<input [value]="row.title" (input)="set(i,'title',$event)" maxlength="200" required></label>
-        <label class="auth-field">Пометка<input [value]="row.note??''" (input)="set(i,'note',$event)" maxlength="120" placeholder="Например: март 2027"></label>
-        <label class="auth-field">Статус<select [value]="row.state" (change)="set(i,'state',$event)"><option value="done">Пройден</option><option value="current">Сейчас</option><option value="ahead">Впереди</option></select></label>
+        <label class="field">Этап {{i+1}}<input [value]="row.title" (input)="set(i,'title',$event)" maxlength="200" required [attr.aria-invalid]="missingTitle(row)?true:null" [attr.aria-describedby]="missingTitle(row)?'stage-title-error-'+i:null">@if(missingTitle(row)){<small class="error" [id]="'stage-title-error-'+i">Введите название этапа.</small>}</label>
+        <label class="field">Пометка<input [value]="row.note??''" (input)="set(i,'note',$event)" maxlength="120" placeholder="Например: март 2027"></label>
+        <label class="field">Статус<select [value]="row.state" (change)="set(i,'state',$event)"><option value="done">Пройден</option><option value="current">Сейчас</option><option value="ahead">Впереди</option></select></label>
         <div class="row-tools"><button class="btn sm icon-only" type="button" (click)="move(i,-1)" [disabled]="i===0||busy()" [attr.aria-label]="'Поднять этап '+(i+1)"><mentor-icon name="chevron-up"/></button><button class="btn sm icon-only" type="button" (click)="move(i,1)" [disabled]="i===rows.length-1||busy()" [attr.aria-label]="'Опустить этап '+(i+1)"><mentor-icon name="chevron-down"/></button><button class="btn sm icon-only danger" type="button" (click)="remove(i)" [disabled]="busy()" [attr.aria-label]="'Убрать этап '+(i+1)"><mentor-icon name="x"/></button></div>
       </li>}</ol>
       <div class="form-actions"><button class="btn sm" type="button" (click)="add()" [disabled]="rows.length>=30||busy()"><mentor-icon name="plus"/>Добавить этап</button><span class="spacer"></span><button class="btn" type="button" (click)="cancel()" [disabled]="busy()">Отмена</button><button class="btn primary" type="submit" [disabled]="busy()"><mentor-icon [name]="busy()?'loader':'save'" [class.spin]="busy()"/>Сохранить маршрут</button></div>
@@ -43,6 +44,9 @@ export class RoadmapComponent {
     readonly error = signal('');
     readonly stale = signal(false);
     readonly busy = signal(false);
+    // Field errors appear after the first save attempt; a stage with a title clears its own error at once.
+    readonly submitted = signal(false);
+    missingTitle(row: RoadmapStageInput) { return this.submitted() && !row.title.trim(); }
     readonly progress = computed(() => stageProgress(this.view()?.stages ?? []));
     readonly canEdit = computed(() => this.editable() && !this.preview() && this.owner === this.session.generation() && this.session.actor()?.role === 'TEACHER');
     constructor() {
@@ -55,8 +59,8 @@ export class RoadmapComponent {
     }
     label(stage: RoadmapStage) { const word = stage.state === 'done' ? 'пройдено' : stage.state === 'current' ? 'сейчас' : ''; return [word, stage.note].filter(Boolean).join(', ') || 'впереди'; }
     reload() { this.refresh.update(v => v + 1); }
-    edit() { if (!this.canEdit()) return; this.draft.set((this.view()?.stages ?? []).map(stage => ({ ...stage }))); this.focus('.stage-editor input, .stage-editor button'); }
-    cancel() { this.draft.set(null); this.error.set(''); this.focus('.edit-stages'); }
+    edit() { if (!this.canEdit()) return; this.submitted.set(false); this.draft.set((this.view()?.stages ?? []).map(stage => ({ ...stage }))); this.focus('.stage-editor input, .stage-editor button'); }
+    cancel() { this.draft.set(null); this.submitted.set(false); this.error.set(''); this.focus('.edit-stages'); }
     // A closed form must not drop keyboard focus onto the page body.
     private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
     add() { this.draft.update(rows => rows && rows.length < 30 ? [...rows, { title: '', note: '', state: 'ahead' }] : rows); }
@@ -70,10 +74,11 @@ export class RoadmapComponent {
     save(event: Event) {
         event.preventDefault(); const rows = this.draft(), view = this.view();
         if (!rows || !view || !this.canEdit() || this.busy()) return;
-        if (rows.some(row => !row.title.trim())) { this.error.set('У каждого этапа должно быть название.'); return; }
+        this.submitted.set(true);
+        if (rows.some(row => !row.title.trim())) { this.focus('.stage-editor [aria-invalid="true"]'); return; }
         this.busy.set(true); this.error.set(''); this.stale.set(false);
         this.api.replace(this.workspaceId(), this.studentId(), rows.map(row => ({ title: row.title.trim(), note: (row.note ?? '').trim(), state: row.state })), view.revision).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: saved => { this.busy.set(false); this.view.set(saved); this.draft.set(null); this.focus('.edit-stages'); },
+            next: saved => { this.busy.set(false); this.view.set(saved); this.draft.set(null); this.submitted.set(false); this.focus('.edit-stages'); },
             error: e => { this.busy.set(false); this.stale.set(e.status === 409); this.error.set(e.status === 409 ? 'Маршрут уже изменили в другой вкладке. Ваши правки остались в форме — загрузите актуальный маршрут и повторите.' : e.error?.message ?? 'Не удалось сохранить маршрут.'); },
         });
     }

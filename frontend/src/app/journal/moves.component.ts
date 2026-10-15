@@ -5,6 +5,7 @@ import type { components } from '../api/schema';
 import { PlatformApi } from '../core/platform-api.service';
 import { SessionStore } from '../core/session.store';
 import { GradeComponent } from '../homework/grade.component';
+import { ErrorBannerComponent } from '../core/error-banner.component';
 
 export type Move = components['schemas']['Move'];
 @Injectable({ providedIn: 'root' })
@@ -20,17 +21,17 @@ const ATTEMPT: Record<string, string> = { accepted: 'все проверки п�
 export function moveAction(move: Move): string {
     switch (move.kind) {
         case 'homework': return (move.ordinal ?? 1) > 1 ? 'сдана версия ' + move.ordinal : 'сдана работа';
-        case 'review': return move.status === 'needs_revision' ? 'нужна доработка' : move.status === 'reviewed' ? 'работа принята' : 'отзыв';
+        case 'review': return move.status === 'needs_revision' ? 'нужна доработка' : move.status === 'reviewed' ? 'работа принята' : 'ревью';
         case 'attempt': return (move.detail === 'run' ? 'примеры в тренажёре' : 'проверка в тренажёре') + (move.total ? ' · тесты ' + move.passed + ' из ' + move.total : move.status ? ' · ' + (ATTEMPT[move.status] ?? move.status) : '');
         default: return 'занятие проведено';
     }
 }
 
 let next = 0;
-@Component({ selector: 'mentor-moves', imports: [DatePipe, RouterLink, GradeComponent], template: `
+@Component({ selector: 'mentor-moves', imports: [DatePipe, RouterLink, GradeComponent, ErrorBannerComponent], template: `
 <section class="moves-block" [attr.aria-labelledby]="id">
   <div class="sh"><div class="title-group"><h2 [id]="id">{{heading()}}</h2>@if(total()){<span class="count">{{countLabel()}}</span>}</div></div>
-  @if(error()){<p class="auth-error" role="alert">{{error()}}</p>}
+  @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()"/>}
   @if(items().length){<ol class="moves">@for(move of items();track move.kind+move.refId+move.at){<li [class.teacher]="move.side==='teacher'">
     <span class="piece" aria-hidden="true"></span>
     <time [attr.datetime]="move.at">{{move.at|date:'dd.MM.yyyy, HH:mm':'+0300'}}</time>
@@ -40,7 +41,7 @@ let next = 0;
       @if(!lessonId()){<a class="text-link" [routerLink]="link(move)" [queryParams]="preview()?{preview:'student'}:{}">{{move.lessonTitle}}</a>}</div>
   </li>}</ol>
   @if(hasMore()){<button class="btn sm mt-16" type="button" (click)="more()">Показать ещё</button>}}
-  @else if(loaded()&&!error()){<p class="small-muted m-0">{{learner()?'Ходов пока нет: здесь появятся сданные работы, попытки в тренажёре и отзывы наставника.':'Ходов пока нет: здесь появятся работы ученика, попытки в тренажёре и ваши отзывы.'}}</p>}
+  @else if(loaded()&&!error()){<p class="small-muted m-0">{{learner()?'Ходов пока нет: здесь появятся сданные работы, попытки в тренажёре и ревью наставника.':'Ходов пока нет: здесь появятся работы ученика, попытки в тренажёре и ваши ревью.'}}</p>}
   @else if(!error()){<p class="loading" role="status">Загружаем ходы…</p>}
 </section>` })
 export class MovesComponent {
@@ -57,6 +58,8 @@ export class MovesComponent {
     private readonly api = inject(MovesApi);
     private readonly session = inject(SessionStore);
     private readonly extra = signal(0);
+    private readonly refresh = signal(0);
+    reload() { this.refresh.update(value => value + 1); }
     readonly limit = computed(() => Math.min(100, this.size() + this.extra()));
     readonly items = signal<Move[]>([]);
     readonly total = signal(0);
@@ -67,7 +70,7 @@ export class MovesComponent {
     readonly countLabel = computed(() => this.items().length < this.total() ? 'последние ' + this.items().length + ' из ' + this.total() : 'всего ' + this.total());
     constructor() {
         effect(onCleanup => {
-            this.session.generation(); const w = this.workspaceId(), s = this.studentId(), lesson = this.lessonId(), preview = this.preview(), size = this.limit();
+            this.session.generation(); const w = this.workspaceId(), s = this.studentId(), lesson = this.lessonId(), preview = this.preview(), size = this.limit(); this.refresh();
             this.error.set('');
             const sub = this.api.list(w, s, size, lesson, preview).subscribe({ next: page => { this.items.set(page.items); this.total.set(page.total); this.loaded.set(true); }, error: () => { this.loaded.set(true); this.error.set('Не удалось загрузить ходы.'); } });
             onCleanup(() => sub.unsubscribe());

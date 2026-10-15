@@ -10,9 +10,10 @@ import { PracticeExit } from '../core/practice-exit.service';
 import { PracticeExitDialog } from '../core/practice-exit-dialog.component';
 import { IconComponent } from '../core/icon.component';
 import { lessonStatus } from '../lessons/lesson-status';
+import { ErrorBannerComponent } from '../core/error-banner.component';
 type NavItem = { label: string; link: string; query: Record<string, string>; active: boolean };
 
-@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, DatePipe, StudentNavigationComponent, PracticeExitDialog, IconComponent], host: { '(document:click)': 'outside($event)', '(document:keydown.escape)': 'escape()' }, template: `
+@Component({ selector: 'mentor-shell', imports: [RouterOutlet, RouterLink, DatePipe, StudentNavigationComponent, PracticeExitDialog, IconComponent, ErrorBannerComponent], host: { '(document:click)': 'outside($event)', '(document:keydown.escape)': 'escape()' }, template: `
   <mentor-practice-exit/><a class="skip" href="#main">К содержимому</a>
   <div class="workspace" [class.auth-screen]="!session.actor()">
   @if (session.actor(); as actor) {
@@ -27,7 +28,7 @@ type NavItem = { label: string; link: string; query: Record<string, string>; act
         </nav>
         <div class="profile" #profile>
           @if (preview()) {
-            <span class="profile-button" aria-label="Кабинет ученика: только чтение"><span class="profile-name">{{ identity().name }}</span><mentor-icon name="lock"/></span>
+            <span class="profile-button" aria-label="Кабинет ученика · только чтение"><span class="profile-name">{{ identity().name }}</span><mentor-icon name="lock"/></span>
           } @else {
             <button class="profile-button" type="button" (click)="profileOpen.set(!profileOpen())" [attr.aria-expanded]="profileOpen()" aria-controls="profile-menu" aria-haspopup="true"><span class="profile-avatar"><mentor-icon name="user"/></span><span class="profile-name">{{ identity().name }}</span><mentor-icon name="chevron-down"/></button>
             @if (profileOpen()) {
@@ -48,7 +49,7 @@ type NavItem = { label: string; link: string; query: Record<string, string>; act
     </header>
   }
   <main id="main" tabindex="-1">
-    @if (error()) { <div class="shell-error"><p class="auth-error" role="alert">{{ error() }}</p><button class="btn" (click)="signOut()" [disabled]="signingOut()">Повторить выход</button></div> }
+    @if (error()) { <mentor-error-banner [message]="error()" retryLabel="Повторить выход" icon="log-out" [busy]="signingOut()" (retry)="signOut()"/> }
     @if (session.actor() && selection.current(); as context) { @if (context.lesson; as lesson) {
       <div class="context-head">
         <nav class="crumbs" aria-label="Путь">@if (context.learner) { <a [routerLink]="context.base + '/lessons'" [queryParams]="learnerQuery()">Мои занятия</a> } @else { <a routerLink="/teacher/students">Мои ученики</a><span aria-hidden="true">›</span><a [routerLink]="context.base">{{ context.student.name }}</a> }<span aria-hidden="true">›</span><span>Занятие {{ lesson.number }}</span></nav>
@@ -63,7 +64,7 @@ type NavItem = { label: string; link: string; query: Record<string, string>; act
     <!-- Destroy the routed view at account changes before private state can persist. -->
     <div [hidden]="!publicRoute() && !session.actor()">@for (view of views(); track view.id) { <router-outlet /> }</div>
   </main>
-  @if (session.actor()) { <footer class="site-footer"><div><span>{{ learnerContext() ? 'Кабинет ученика' : session.actor()?.role === 'ADMIN' ? 'Администрирование' : 'Кабинет наставника' }}</span><span>Свои занятия и материалы.</span></div></footer> }
+  @if (session.actor()) { <footer class="site-footer"><div><span>Наставник · {{ learnerContext() ? 'Кабинет ученика' : session.actor()?.role === 'ADMIN' ? 'Администрирование' : 'Кабинет наставника' }}</span><span>Все даты и время — по Москве (МСК).</span></div></footer> }
   </div>`,
 })
 export class ShellComponent {

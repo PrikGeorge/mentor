@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -8,10 +8,12 @@ import { SessionStore } from '../core/session.store';
 import { safeReturnUrl } from '../core/session.interceptor';
 import { passwordValidator } from '../core/password.validator';
 import { IconComponent } from '../core/icon.component';
+import { ErrorBannerComponent } from '../core/error-banner.component';
 import { NgTemplateOutlet } from '@angular/common';
+type Field = 'login' | 'password' | 'currentPassword' | 'confirmation';
 
 @Component({
-  selector: 'mentor-auth-page', imports: [ReactiveFormsModule, RouterLink, IconComponent, NgTemplateOutlet],
+  selector: 'mentor-auth-page', imports: [ReactiveFormsModule, RouterLink, IconComponent, ErrorBannerComponent, NgTemplateOutlet],
   template: `
     @if (session.actor() && mode === 'password') {
       <div class="page-head"><div><h1 id="auth-title">{{ heading }}</h1><p class="subtitle">{{ description }}</p></div></div>
@@ -25,21 +27,22 @@ import { NgTemplateOutlet } from '@angular/common';
       </div>
     }
     <ng-template #body>
-      @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
+      @if (error()) { <mentor-error-banner [message]="error()"/> }
       @if (message()) { <p class="success-banner" role="status">{{ message() }}</p> }
-      <form [formGroup]="form" (ngSubmit)="submit()">
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         @if (mode === 'login' || mode === 'register') {
-          <label class="auth-field">Логин<input name="login" formControlName="login" autocomplete="username" required maxlength="200" spellcheck="false" autocapitalize="none"></label>
+          <label class="field">Логин<input name="login" formControlName="login" autocomplete="username" required maxlength="200" spellcheck="false" autocapitalize="none" [attr.aria-invalid]="fieldError('login') ? true : null" [attr.aria-describedby]="fieldError('login') ? 'login-error' : null">@if (fieldError('login'); as text) {<small class="error" id="login-error">{{ text }}</small>}</label>
         }
         @if (mode === 'password') {
-          <label class="auth-field">Текущий пароль<input name="currentPassword" type="password" formControlName="currentPassword" autocomplete="current-password" required></label>
+          <label class="field">Текущий пароль<input name="currentPassword" type="password" formControlName="currentPassword" autocomplete="current-password" required [attr.aria-invalid]="fieldError('currentPassword') ? true : null" [attr.aria-describedby]="fieldError('currentPassword') ? 'current-password-error' : null">@if (fieldError('currentPassword'); as text) {<small class="error" id="current-password-error">{{ text }}</small>}</label>
         }
-        <label class="auth-field">{{ mode === 'login' ? 'Пароль' : 'Новый пароль' }}
-          <input name="password" type="password" formControlName="password" [attr.autocomplete]="mode === 'login' ? 'current-password' : 'new-password'" required [attr.aria-describedby]="mode === 'login' ? null : 'password-hint'">
+        <label class="field">{{ mode === 'login' ? 'Пароль' : 'Новый пароль' }}
+          <input name="password" type="password" formControlName="password" [attr.autocomplete]="mode === 'login' ? 'current-password' : 'new-password'" required [attr.aria-invalid]="fieldError('password') ? true : null" [attr.aria-describedby]="describedBy('password', mode === 'login' ? null : 'password-hint')">
           @if (mode !== 'login') { <small id="password-hint">От 8 до 128 символов. Пробелы сохраняются.</small> }
+          @if (fieldError('password'); as text) {<small class="error" id="password-error">{{ text }}</small>}
         </label>
         @if (mode !== 'login') {
-          <label class="auth-field">Повторите пароль<input name="confirmation" type="password" formControlName="confirmation" autocomplete="new-password" required></label>
+          <label class="field">Повторите пароль<input name="confirmation" type="password" formControlName="confirmation" autocomplete="new-password" required [attr.aria-invalid]="fieldError('confirmation') ? true : null" [attr.aria-describedby]="fieldError('confirmation') ? 'confirmation-error' : null">@if (fieldError('confirmation'); as text) {<small class="error" id="confirmation-error">{{ text }}</small>}</label>
         }
         @if (mode === 'password') { <p class="warning-banner m-0"><span>Остальные сессии будут завершены.</span></p> }
         <button class="btn primary" type="submit" [disabled]="busy()">@if (busy()) {<mentor-icon class="spin" name="loader"/>Сохраняем…} @else {<mentor-icon [name]="mode === 'login' ? 'log-in' : mode === 'register' ? 'user-check' : 'save'"/>{{ submitLabel }}}</button>
@@ -53,6 +56,8 @@ export class AuthPageComponent {
   private readonly router = inject(Router);
   readonly session = inject(SessionStore);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   readonly mode = this.route.snapshot.data['mode'] as 'register' | 'reset' | 'password' | undefined ?? 'login';
   readonly heading = { login: 'Вход', register: 'Приглашение', reset: 'Восстановление пароля', password: 'Смена пароля' }[this.mode];
   readonly description = { login: 'Войдите, чтобы открыть свои занятия и материалы.', register: 'Создайте аккаунт по приглашению. Роль назначит пригласивший.', reset: 'Задайте новый пароль по одноразовой ссылке.', password: 'Подтвердите текущий пароль. Остальные сессии будут завершены.' }[this.mode];
@@ -60,18 +65,32 @@ export class AuthPageComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  // Field errors appear after the first submit attempt and stay until the field becomes valid.
+  readonly submitted = signal(false);
   readonly form = new FormGroup({
     login: new FormControl('', { nonNullable: true, validators: this.mode === 'login' || this.mode === 'register' ? [Validators.required] : [] }),
     password: new FormControl('', { nonNullable: true, validators: this.mode === 'login' ? [Validators.required] : [passwordValidator] }),
     currentPassword: new FormControl('', { nonNullable: true, validators: this.mode === 'password' ? [Validators.required] : [] }),
     confirmation: new FormControl('', { nonNullable: true, validators: this.mode !== 'login' ? [Validators.required] : [] }),
   });
+  fieldError(field: Field): string {
+    if (!this.submitted()) return '';
+    const control = this.form.controls[field];
+    if (control.hasError('required')) return field === 'login' ? 'Введите логин.' : field === 'confirmation' ? 'Повторите пароль.' : field === 'currentPassword' ? 'Введите текущий пароль.' : 'Введите пароль.';
+    if (control.hasError('password')) return 'Пароль — от 8 до 128 символов.';
+    if (field === 'confirmation' && this.mode !== 'login' && control.value !== this.form.controls.password.value) return 'Пароли не совпадают.';
+    return '';
+  }
+  describedBy(field: Field, hint: string | null): string | null { return [hint, this.fieldError(field) ? field + '-error' : null].filter(Boolean).join(' ') || null; }
   submit(): void {
     if (this.busy()) return;
     this.error.set(''); this.message.set('');
     const value = this.form.getRawValue();
+    this.submitted.set(true);
     if (this.form.invalid || (this.mode !== 'login' && value.password !== value.confirmation)) {
-      this.form.markAllAsTouched(); this.error.set('Заполните поля и проверьте совпадение паролей.'); return;
+      this.form.markAllAsTouched();
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), { injector: this.injector });
+      return;
     }
     const token = this.route.snapshot.queryParamMap.get('token');
     if ((this.mode === 'register' || this.mode === 'reset') && !token) { this.error.set('Откройте полную ссылку приглашения или восстановления.'); return; }
@@ -82,7 +101,7 @@ export class AuthPageComponent {
       : this.session.changePassword(value.currentPassword, value.password);
     action.pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.busy.set(false))).subscribe({
       next: () => {
-        this.form.reset();
+        this.form.reset(); this.submitted.set(false);
         // Remove one-use tokens from history after successful redemption.
         if (this.mode === 'reset') { void this.router.navigate(['/login'], { replaceUrl: true }); return; }
         if (this.mode === 'password') { this.message.set('Пароль изменён.'); return; }
@@ -90,7 +109,7 @@ export class AuthPageComponent {
         const home = this.session.actor()?.role === 'ADMIN' ? '/admin/teachers' : this.session.actor()?.role === 'TEACHER' ? '/teacher/students' : '/learn';
         void this.router.navigateByUrl(returnUrl && !/^\/(login|register|reset-password)(?:[/?#]|$)/.test(returnUrl) ? returnUrl : home, { replaceUrl: true });
       },
-      error: (failure: HttpErrorResponse) => { this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(failure.error?.message ?? 'Не удалось выполнить действие. Попробуйте ещё раз.'); },
+      error: (failure: HttpErrorResponse) => { this.submitted.set(false); this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(failure.error?.message ?? 'Не удалось выполнить действие. Попробуйте ещё раз.'); },
     });
   }
 }

@@ -17,6 +17,7 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             '/api/v1/workspaces/w1/students': page([own(student)]),
             '/api/v1/workspaces/w1/students/s1': own(student),
             '/api/v1/workspaces/w1/students/s1/dashboard': { student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: true } },
+            '/api/v1/workspaces/w1/students/dashboards': page([{ student: own(student), lessonCount: 1, focus: { lesson: own(lesson), upcoming: true } }]),
             '/api/v1/workspaces/w1/students/s1/lessons': page([own(lesson)]),
             '/api/v1/workspaces/w1/students/s1/lessons/l1': own(lesson),
             '/api/v1/workspaces/w1/students/s1/access': { account: { userId: 'u1', login: 'anna', disabled: false }, invitation: null },

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EMPTY, forkJoin, map, of, switchMap } from 'rxjs';
 import type { components } from '../api/schema';
@@ -8,8 +8,10 @@ import { DocumentNavigationComponent } from './document-navigation.component';
 import { LegacyHtmlComponent } from './legacy-blocks.component';
 import { MaterialFormComponent } from './material-form.component';
 import { IconComponent } from '../core/icon.component';
-@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, MaterialFormComponent, IconComponent], template: `
-@if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" type="button" (click)="refresh.update(increment)"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
+import { ErrorBannerComponent } from '../core/error-banner.component';
+import { FileSizePipe } from '../core/file-size.pipe';
+@Component({ selector: 'mentor-material-view', imports: [RouterLink, DocumentNavigationComponent, LegacyHtmlComponent, MaterialFormComponent, IconComponent, ErrorBannerComponent, FileSizePipe], template: `
+@if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="refresh.update(increment)"/>}
 @if(loading()){<p class="loading" role="status">Загружаем материалы…</p>}
 @if(selected();as material){
   <section class="material-document"><p class="eyebrow">@if(material.audience==='teacher'){<span class="vis private"><mentor-icon name="eye-off"/>Только вам</span>}@else{Учебный материал}</p><h2>{{displayTitle(material)}}</h2>
@@ -22,8 +24,8 @@ import { IconComponent } from '../core/icon.component';
       @if(!publicView()&&profileFacts()){<section class="profile-facts"><h3>Наблюдения наставника</h3><mentor-legacy-html [html]="profileFacts()" [base]="base()" [targets]="targets()"/></section>}
       <details class="raw-material-source"><summary>Исходный Markdown · только для чтения</summary><pre><code>{{material.document.raw}}</code></pre></details>
       </div><mentor-document-navigation [sections]="material.document.sections"/></div>}
-    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · Только для чтения. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download><mentor-icon name="download"/>Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
-    @case('download'){<p>Файл <code>{{material.filename}}</code> · {{material.blob.size}} байт</p><a class="btn" [href]="api.file(workspaceId(),material.id,preview())" download><mentor-icon name="download"/>Скачать комплект</a>}
+    @case('code'){@if(!publicView()||!material.code.teacher){<p class="callout">Исходная заготовка · только для чтения. Сохранённое решение открывается в тренажёре.</p><pre class="code-view"><code>{{material.code.text}}</code></pre><a class="btn" [href]="api.file(workspaceId(),material.code.materialId,preview())" download><mentor-icon name="download"/>Скачать {{material.filename}}</a>}@else{<p>Исходная заготовка недоступна.</p>}}
+    @case('download'){<p>Файл <code>{{material.filename}}</code> · {{material.blob.size|fileSize}}</p><a class="btn" [href]="api.file(workspaceId(),material.id,preview())" download><mentor-icon name="download"/>Скачать комплект</a>}
     @case('view'){
       @if(material.viewData.goalHtml){<section>@if(displayTitle(material)!=='Цель обучения'){<h3>Цель обучения</h3>}<mentor-legacy-html [html]="material.viewData.goalHtml||''" [base]="base()" [preview]="preview()" [targets]="targets()"/></section>}
             @if(!publicView()){
@@ -40,10 +42,10 @@ import { IconComponent } from '../core/icon.component';
   </section>
 }@else if(!loading()&&!error()){
   @if(section()==='materials'&&!detail()&&editable()){@defer (on immediate) {<mentor-material-form class="mb-16" [workspaceId]="workspaceId()" [studentId]="studentId()" [lessonId]="lessonId()" (saved)="changedMaterials()"/>} @placeholder {<p class="loading" role="status">Загружаем форму материалов…</p>}}
-  @if(removeError()){<p class="auth-error" role="alert">{{removeError()}}</p>}
-  @if(section()==='materials'&&!detail()&&groups().length){<div class="material-groups">@for(group of groups();track group.audience){<section class="material-group" [class.private]="group.audience==='teacher'" [attr.aria-label]="group.title"><header><h2>{{group.title}}</h2><p class="small-muted">{{group.hint}}</p></header>
+  @if(removeError()){<mentor-error-banner [message]="removeError()"/>}
+  @if(section()==='materials'&&!detail()&&groups().length){<div class="material-groups">@for(group of groups();track group.audience){<section class="material-group" [class.private]="group.audience==='teacher'" [attr.aria-label]="group.title"><header class="sh"><h2>{{group.title}}</h2><p class="small-muted">{{group.hint}}</p></header>
     @for(part of group.parts;track part.title){<h3 class="material-part">{{part.title}}</h3><ul class="material-list">@for(item of part.items;track item.id){<li class="material-item">@if(item.kind==='download'){<a class="material-row" [href]="api.file(workspaceId(),item.id,preview())" download><span class="material-kind">ZIP</span><span class="material-text"><strong>{{displayTitle(item)}}</strong><small>{{item.filename}}</small></span><span class="material-go" aria-hidden="true"><mentor-icon name="download"/></span></a>}@else{<a class="material-row" [routerLink]="routeFor(item)" [queryParams]="preview()?{preview:'student'}:{}"><span class="material-kind">{{kindLabel(item)}}</span><span class="material-text"><strong>{{displayTitle(item)}}</strong>@if(roleLabel(item);as role){<small>{{role}}</small>}@else if(item.kind==='code'&&item.title!==item.filename){<small>{{item.filename}}</small>}</span><span class="material-go" aria-hidden="true"><mentor-icon name="chevron-right"/></span></a>}
-      @if(editable()){@if(pendingRemoval()===item.id){<span class="material-confirm" role="group" aria-label="Подтверждение удаления"><span class="small-muted">Удалить?</span><button class="btn sm danger" type="button" (click)="remove(item)" [disabled]="removing()">Удалить</button><button class="btn sm text" type="button" (click)="pendingRemoval.set(null)" [disabled]="removing()">Отмена</button></span>}@else{<button class="btn sm text material-remove" type="button" (click)="pendingRemoval.set(item.id)" [attr.aria-label]="'Удалить '+displayTitle(item)" [disabled]="removing()"><mentor-icon name="trash-2"/></button>}}</li>}</ul>}
+      @if(editable()){@if(pendingRemoval()===item.id){<span class="material-confirm" role="group" aria-label="Подтверждение удаления" tabindex="-1"><span class="small-muted">Удалить?</span><button class="btn sm danger" type="button" (click)="remove(item)" [disabled]="removing()">Удалить</button><button class="btn sm text" type="button" (click)="cancelRemoval(item)" [disabled]="removing()">Отмена</button></span>}@else{<button class="btn sm text material-remove" type="button" [attr.data-remove]="item.id" (click)="askRemoval(item)" [attr.aria-label]="'Удалить '+displayTitle(item)" [disabled]="removing()"><mentor-icon name="trash-2"/></button>}}</li>}</ul>}
   </section>}</div>}
   @else if(!(section()==='materials'&&!detail()&&editable())){<div class="empty-state"><h3>Материалы пока не добавлены</h3><p>Здесь появятся документы, код и файлы к занятиям.</p></div>}
   @else{<p class="small-muted">Материалов пока нет. Добавьте первый документ или файл выше.</p>}
@@ -177,10 +179,16 @@ export class MaterialViewComponent {
                 { title: 'Код', items: own.filter(item => item.kind === 'code').sort((a, b) => a.filename.localeCompare(b.filename)) },
                 { title: 'Архивы и файлы', items: own.filter(item => item.kind === 'download' && !code.has(item.filename)) }
             ].filter(part => part.items.length);
-            return { audience, title: audience === 'student' ? 'Для ученика' : 'Только для вас', hint: audience === 'student' ? 'То, что ученик видит в своём кабинете.' : 'Сценарий, методичка и эталонные решения. Ученику не видны.', parts };
+            return { audience, title: audience === 'student' ? 'Видно ученику' : 'Только вам', hint: audience === 'student' ? 'То, что ученик видит в своём кабинете.' : 'Сценарий преподавателя и эталоны. Ученику не видны.', parts };
         }).filter(group => group.parts.length);
     });
     changedMaterials() { this.pendingRemoval.set(null); this.removeError.set(''); this.refresh.update(this.increment); this.changed.emit(); }
+    // Removing is a two-step action; keyboard focus moves onto the confirmation and back to the trash button on cancel.
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+    private readonly injector = inject(Injector);
+    askRemoval(item: MaterialSummary) { this.pendingRemoval.set(item.id); this.focus('.material-confirm'); }
+    cancelRemoval(item: MaterialSummary) { this.pendingRemoval.set(null); this.focus(`[data-remove="${CSS.escape(item.id)}"]`); }
+    private focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
     remove(item: MaterialSummary) {
         if (!this.editable() || this.removing() || this.owner !== this.session.generation()) return; this.removing.set(true); this.removeError.set('');
         this.api.remove(this.workspaceId(), item.id).subscribe({ next: () => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.changedMaterials(); }, error: error => { if (!this.alive || this.owner !== this.session.generation()) return; this.removing.set(false); this.removeError.set(error.error?.message ?? 'Не удалось удалить материал.'); } });
@@ -189,6 +197,6 @@ export class MaterialViewComponent {
     roleLabel(item: MaterialSummary) { return item.contentKey ? ROLES[item.contentKey] ?? '' : ''; }
     routeFor(item: MaterialSummary) { return this.lessonId() ? `${this.base()}/${this.learner() ? 'student' : 'teacher'}/materials/${encodeURIComponent(item.id)}` : `${this.base()}/materials/${encodeURIComponent(item.id)}`; }
 }
-const ROLES: Record<string, string> = { student: 'Задания на занятие', homework: 'Домашняя работа', 'student-materials': 'Материалы урока', review: 'Ревью ДЗ', 'student-review': 'Ревью ДЗ', 'student-roadmap': 'Маршрут обучения', lesson: 'Сценарий занятия', guide: 'Методичка', source: 'Описание комплекта', roadmap: 'Маршрут обучения', profile: 'Профиль ученика' };
+const ROLES: Record<string, string> = { student: 'Задания на занятие', homework: 'Домашняя работа', 'student-materials': 'Материалы занятия', review: 'Ревью домашней работы', 'student-review': 'Ревью домашней работы', 'student-roadmap': 'Маршрут обучения', lesson: 'Сценарий преподавателя', guide: 'Подробный сценарий', source: 'Описание комплекта', roadmap: 'Маршрут обучения', profile: 'Профиль ученика' };
 const ORDER = ['student', 'homework', 'student-materials', 'review', 'student-review', 'student-roadmap', 'lesson', 'guide', 'source', 'roadmap', 'profile'];
 function rank(item: MaterialSummary) { const index = item.contentKey ? ORDER.indexOf(item.contentKey) : -1; return index < 0 ? ORDER.length : index; }
