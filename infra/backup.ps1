@@ -44,17 +44,18 @@ try {
     $objects = Join-Path $stage 'objects'
     New-Item -ItemType Directory -Path $objects | Out-Null
     Invoke-MentorDocker @('cp',($backend + ':/var/lib/mentor/objects/.'),(ConvertTo-MentorDockerPath $objects)) | Out-Null
+    Assert-MentorBackupFence $fence
+    $snapshotCreatedAt = [DateTime]::UtcNow.ToString('o')
+    Close-MentorBackupFence $fence; $fence=$null
+    # Both copies are complete. Resume before walking/hashing the independent local snapshot.
+    if ($resume) { Invoke-MentorCompose $context @('start','backend') | Out-Null; $resume=$false }
     $objectManifest = Get-MentorObjectManifest $objects
     $manifest = [ordered]@{
-        format=1; createdAt=[DateTime]::UtcNow.ToString('o'); project=$ProjectName
+        format=1; createdAt=$snapshotCreatedAt; project=$ProjectName
         databaseSha256=(Get-FileHash -LiteralPath (Join-Path $stage 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
         counts=$counts; objects=$objectManifest
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8NoBOM
-    Assert-MentorBackupFence $fence
-    Close-MentorBackupFence $fence; $fence=$null
-    # Resume promptly; archive/encryption runs on the closed local snapshot.
-    if ($resume) { Invoke-MentorCompose $context @('start','backend') | Out-Null; $resume=$false }
     $archive = Join-Path $stage 'snapshot.tar'
     & tar -cf $archive -C $stage manifest.json database.dump objects
     if ($LASTEXITCODE -ne 0) { throw 'Backup archive creation failed.' }
