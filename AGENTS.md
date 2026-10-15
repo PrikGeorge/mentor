@@ -83,7 +83,7 @@ Java-пакеты расположены внутри [backend/src/main/java/ru/
 
 ## Команды и проверки
 
-Команды ниже выполняются **из корня репозитория**. Для сборки нужны JDK 21 и Node.js `>=24.15.0 <25`; для инфраструктуры — PowerShell 7.2+ и Docker. На Windows используется Linux engine Docker Desktop с доступом из WSL Ubuntu. Backend-тесты с PostgreSQL используют Testcontainers и также требуют Docker.
+Команды ниже выполняются **из корня репозитория**. Для сборки нужны JDK 21 и Node.js `>=24.15.0 <25`; для инфраструктуры — PowerShell 7.2+ и Docker. На Windows используется Linux engine Docker Desktop с доступом из WSL default или дистрибутива `MENTOR_WSL_DISTRIBUTION`. Общий selector и преобразование путей через его `wslpath` — `infra/platform-common.ps1`; Windows mock-проверки — `infra/tests/platform-common.ps1`. Для Task Scheduler selector задаётся в окружении учётной записи задачи (см. эксплуатационную инструкцию). Backend-тесты с PostgreSQL используют Testcontainers и также требуют Docker.
 
 ```powershell
 ./mvnw.cmd -pl backend verify

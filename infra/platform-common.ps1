@@ -22,18 +22,29 @@ function New-MentorPrivateDirectory([string]$Path) {
     }
 }
 
+function Get-MentorWslArguments {
+    $distribution = $env:MENTOR_WSL_DISTRIBUTION
+    if ([string]::IsNullOrEmpty($distribution)) { return @('--exec') }
+    if ([string]::IsNullOrWhiteSpace($distribution) -or $distribution -match '[\x00-\x1f\x7f]') { throw 'Invalid MENTOR_WSL_DISTRIBUTION.' }
+    return @('--distribution',$distribution,'--exec')
+}
+
 function ConvertTo-MentorDockerPath([string]$Path) {
+    if ($Path -match '[\r\n\x00]') { throw 'Invalid Docker file path.' }
     $absolute = [IO.Path]::GetFullPath($Path)
     if ($IsWindows) {
         if ($absolute -notmatch '^[A-Za-z]:\\') { throw 'Use a local absolute drive path for Docker files.' }
-        return '/mnt/' + $absolute.Substring(0,1).ToLowerInvariant() + '/' + $absolute.Substring(3).Replace('\','/')
+        $wslArguments = @(Get-MentorWslArguments)
+        $converted = @(& wsl @wslArguments wslpath -a -u $absolute 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $converted.Count -ne 1 -or $converted[0] -notmatch '^/' -or $converted[0] -match '[\r\n\x00]') { throw 'Cannot convert the Docker file path with the selected WSL distribution.' }
+        return [string]$converted[0]
     }
     return $absolute
 }
 
 function Invoke-MentorDocker {
     param([Parameter(Mandatory)][string[]]$DockerArguments)
-    if ($IsWindows) { $output = & wsl -d Ubuntu -- docker @DockerArguments }
+    if ($IsWindows) { $wslArguments = @(Get-MentorWslArguments); $output = & wsl @wslArguments docker @DockerArguments }
     else { $output = & docker @DockerArguments }
     if ($LASTEXITCODE -ne 0) { throw "Docker operation failed ($($DockerArguments[0])); exit $LASTEXITCODE." }
     return $output
@@ -104,14 +115,19 @@ function Close-MentorBackupFence($Fence) {
     } finally { $Fence.Process.Dispose() }
 }
 
-function New-MentorBackupFence([string]$PostgresId) {
-    if ($PostgresId -notmatch '^[a-f0-9]{64}$') { throw 'Invalid maintenance database container.' }
+function New-MentorDockerProcessStartInfo([string[]]$DockerArguments) {
     $start=[Diagnostics.ProcessStartInfo]::new()
     $start.FileName=if($IsWindows){'wsl.exe'}else{'docker'}
     $start.UseShellExecute=$false; $start.CreateNoWindow=$true
     $start.RedirectStandardInput=$true; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
-    $arguments=if($IsWindows){@('-d','Ubuntu','--','docker')}else{@()}
-    foreach($argument in ($arguments+@('exec','-i',$PostgresId,'psql','-X','-qAt','-U','mentor','-d','mentor','-v','ON_ERROR_STOP=1'))) { $start.ArgumentList.Add($argument) }
+    $arguments=@(if($IsWindows){@(Get-MentorWslArguments)+@('docker')})
+    foreach($argument in ($arguments+$DockerArguments)) { $start.ArgumentList.Add($argument) }
+    return $start
+}
+
+function New-MentorBackupFence([string]$PostgresId) {
+    if ($PostgresId -notmatch '^[a-f0-9]{64}$') { throw 'Invalid maintenance database container.' }
+    $start=New-MentorDockerProcessStartInfo @('exec','-i',$PostgresId,'psql','-X','-qAt','-U','mentor','-d','mentor','-v','ON_ERROR_STOP=1')
     $process=[Diagnostics.Process]::Start($start)
     $fence=[pscustomobject]@{Process=$process;Errors=$process.StandardError.ReadToEndAsync();Postgres=$PostgresId;Pid=0;Name=('mentor-backup-fence-'+[Guid]::NewGuid().ToString('N'));Snapshot=$null}
     try {
@@ -154,7 +170,7 @@ function Invoke-MentorGpg([string]$Mode,[string]$PassphraseFile,[string]$InputFi
     Test-MentorPassphraseFile $PassphraseFile
     $script = Join-Path $PSScriptRoot 'gpg-file.sh'
     $arguments = @((ConvertTo-MentorDockerPath $script),$Mode,(ConvertTo-MentorDockerPath $PassphraseFile),(ConvertTo-MentorDockerPath $InputFile),(ConvertTo-MentorDockerPath $OutputFile))
-    if ($IsWindows) { & wsl -d Ubuntu -- sh @arguments }
+    if ($IsWindows) { $wslArguments = @(Get-MentorWslArguments); & wsl @wslArguments sh @arguments }
     else { & sh @arguments }
     if ($LASTEXITCODE -ne 0) { throw 'GnuPG operation failed; verify GnuPG 2 and the private passphrase file.' }
 }
@@ -188,7 +204,15 @@ function Remove-MentorExpiredBackups([string]$Directory) {
 
 function ConvertFrom-MentorDockerPath([string]$Path) {
     # Inverse of ConvertTo-MentorDockerPath for values read back from `docker compose config`.
-    if ($IsWindows -and $Path -match '^/mnt/([a-z])/(.*)$') { return $Matches[1].ToUpperInvariant() + ':\' + $Matches[2].Replace('/','\') }
+    if ($IsWindows) {
+        if ($Path -match '[\r\n\x00]') { throw 'Invalid Docker file path.' }
+        if ($Path -match '^[A-Za-z]:[\\/]') { return [IO.Path]::GetFullPath($Path) }
+        if ($Path -notmatch '^/') { throw 'Use an absolute Docker file path.' }
+        $wslArguments = @(Get-MentorWslArguments)
+        $converted = @(& wsl @wslArguments wslpath -a -w $Path 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $converted.Count -ne 1 -or $converted[0] -notmatch '^[A-Za-z]:\\' -or $converted[0] -match '[\r\n\x00]') { throw 'Cannot convert the Docker file path to a local Windows drive with the selected WSL distribution.' }
+        return [string]$converted[0]
+    }
     return $Path
 }
 

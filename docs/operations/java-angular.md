@@ -4,7 +4,11 @@
 
 ## Требования
 
-Для запуска собранного сайта нужны Docker Engine с Compose v2 и PowerShell 7.2 или новее. На Windows административные скрипты используют `wsl -d Ubuntu -- docker`; Docker Desktop должен предоставлять Linux engine этой WSL-системе. Windows PowerShell 5.1 не подходит. Для резервирования нужен GnuPG 2 (`gpg`, `gpgconf`) и `tar`; на Windows GnuPG вызывается внутри Ubuntu. Node.js и Python не нужны во время работы сайта.
+Для запуска собранного сайта нужны Docker Engine с Compose v2 и PowerShell 7.2 или новее. На Windows административные скрипты используют дистрибутив WSL по умолчанию (`wsl --exec docker`) либо указанный в `MENTOR_WSL_DISTRIBUTION`; Docker Desktop должен предоставлять Linux engine выбранному дистрибутиву. Windows PowerShell 5.1 не подходит. Для резервирования нужен GnuPG 2 (`gpg`, `gpgconf`) и `tar`; на Windows GnuPG вызывается в том же выбранном дистрибутиве WSL. Node.js и Python не нужны во время работы сайта.
+
+Для явного выбора на время текущей PowerShell-сессии задайте `$env:MENTOR_WSL_DISTRIBUTION = 'имя из wsl --list --quiet'`. Пустое/отсутствующее значение использует WSL default; неверное имя завершает команду ошибкой без перехода в другой дистрибутив. Docker, GnuPG, соединение backup fence и преобразование путей через `wslpath` используют один выбор. Поддерживаются локальные абсолютные Windows-пути; корень automount берётся из выбранного WSL, `/mnt/<drive>` не предполагается. Linux-скрипты вызывают Docker/GnuPG напрямую.
+
+Смена дистрибутива или его automount может изменить Linux-пути в ранее созданном `compose.env`: проверьте настройки при таком переносе отдельно. Скрипты не переписывают существующую конфигурацию автоматически.
 
 Для сборки нужны JDK 21, Maven Wrapper (Maven 3.9.11), Node.js 24.15.x и npm. Linux wrapper требует `unzip`: нельзя обходить проверку SHA256, подменяя ZIP архивом tar.gz. Версии зависимостей закреплены в `pom.xml` и `frontend/package-lock.json`. На Windows команды сборки выполняются из корня проекта:
 
@@ -46,7 +50,7 @@ docker build -f infra/frontend/Dockerfile -t mentor-platform-web:release-1 .
 docker build -f infra/runner-service/Dockerfile -t mentor-platform-runner:release-1 .
 ```
 
-На Windows используйте эти команды внутри Ubuntu с Linux-путём проекта. Образы копируют только executable JAR или собранные публичные Angular-файлы. Старые `dist`, `data`, `private`, снимки и исходники заданий не должны становиться корнем публичной статики.
+На Windows используйте эти команды внутри выбранного дистрибутива WSL с его Linux-путём проекта. Образы копируют только executable JAR или собранные публичные Angular-файлы. Старые `dist`, `data`, `private`, снимки и исходники заданий не должны становиться корнем публичной статики.
 
 ## Первый запуск нового контура
 
@@ -254,7 +258,9 @@ Scheduled-режим требует явный `-OffsiteDirectory`: подклю
   -PassphraseFile C:/MentorPrivate/platform/backup-passphrase -StartTime 03:15 -DryRun
 ```
 
-`-DryRun` (или стандартный `-WhatIf`) печатает полный план — имя задачи, время, учётную запись, путь `pwsh`, аргументы, каталог журналов — и ничего не регистрирует; без него задача регистрируется (`-Force`, повторный запуск обновляет её). Параметры: `-TaskName` (по умолчанию `MentorPlatformBackup`), `-StartTime HH:mm` (по умолчанию 03:15 локального времени, как в systemd-таймере), `-LogDirectory` (по умолчанию `<Destination>/task-logs`), `-ProjectName`, `-LogonType Interactive|S4U`. Режим `Interactive` выбран по умолчанию: `wsl -d Ubuntu -- docker` и Docker Desktop доступны в сеансе вошедшего пользователя; `S4U` не хранит пароль, но требует проверить, что WSL и Docker Desktop доступны без интерактивного сеанса. Задача запускается при пропуске времени (`StartWhenAvailable`), не дублируется (`IgnoreNew`) и ограничена 2 часами. `-Unregister -TaskName <имя>` удаляет задание, не трогая копии и журналы.
+`-DryRun` (или стандартный `-WhatIf`) печатает полный план — имя задачи, время, учётную запись, путь `pwsh`, аргументы, каталог журналов — и ничего не регистрирует; без него задача регистрируется (`-Force`, повторный запуск обновляет её). Параметры: `-TaskName` (по умолчанию `MentorPlatformBackup`), `-StartTime HH:mm` (по умолчанию 03:15 локального времени, как в systemd-таймере), `-LogDirectory` (по умолчанию `<Destination>/task-logs`), `-ProjectName`, `-LogonType Interactive|S4U`. Режим `Interactive` выбран по умолчанию: выбранный WSL и Docker Desktop доступны в сеансе вошедшего пользователя; `S4U` не хранит пароль, но требует проверить, что WSL и Docker Desktop доступны без интерактивного сеанса. Задача запускается при пропуске времени (`StartWhenAvailable`), не дублируется (`IgnoreNew`) и ограничена 2 часами. `-Unregister -TaskName <имя>` удаляет задание, не трогая копии и журналы.
+
+Для задач Task Scheduler выбор `MENTOR_WSL_DISTRIBUTION` должен быть доступен в окружении учётной записи задачи, либо настройте WSL default этого пользователя. Значение `$env:` из открытой консоли не переносится автоматически в будущие запуски планировщика; wrapper работает с `-NoProfile`, поэтому PowerShell profile также не задаёт ему выбор. После устойчивой настройки окружения пользователя проверьте запуск из нового сеанса под тем же principal. Регистрация задачи не меняет WSL default и не сохраняет selector в аргументах.
 
 Результат каждого запуска обёртка пишет в `<LogDirectory>/backup-<utc>.log` (все потоки `backup.ps1`) и `<LogDirectory>/last-run.json` (`ok`, `reason`, `backup`, `failedMarkers`, `log`). Запуск считается успешным, только если `backup.ps1` завершился без ошибки и за это время появился ровно один `receipt.json` с `completed`, `offsiteVerified` и `restoreVerified` = true, а `failed.json` не создавался. Иначе создаётся файл-маркер `<LogDirectory>/ALERT-<utc>.json` (маркеры не удаляются автоматически) и запись в журнал Windows «Application» от источника `MentorPlatformBackup`, событие 1001, уровень Error; успешный запуск пишет событие Information. Создание источника событий требует один раз запустить регистрацию из PowerShell с правами администратора; без этого запись идёт через `eventcreate.exe`, а маркер пишется всегда. Код возврата обёртки 1 при сбое, поэтому `Get-ScheduledTaskInfo -TaskName MentorPlatformBackup` показывает `LastTaskResult` ≠ 0.
 
@@ -280,7 +286,7 @@ Scheduled-режим требует явный `-OffsiteDirectory`: подклю
 Как проверить, что пароль восстановим — именно из внешнего хранилища, а не из рабочего файла:
 
 1. Создайте новый закрытый временный файл и запишите в него пароль из менеджера одной строкой без завершающего перевода строки (например, `[IO.File]::WriteAllText($path,$secret,[Text.UTF8Encoding]::new($false))`).
-2. На хосте платформы выполните `restore-platform.ps1` в режиме dry-run с этим файлом: он расшифровывает `snapshot.tar.gpg`, сверяет манифест, дамп и объекты, ничего не меняя. Вне хоста (где нет контейнеров платформы) используйте напрямую `sh infra/gpg-file.sh decrypt <файл-пароля> <snapshot.tar.gpg> <новый.tar>` (на Windows — внутри `wsl -d Ubuntu`), затем `tar -tf <новый.tar>` должен показать `manifest.json`, `database.dump`, `objects/`.
+2. На хосте платформы выполните `restore-platform.ps1` в режиме dry-run с этим файлом: он расшифровывает `snapshot.tar.gpg`, сверяет манифест, дамп и объекты, ничего не меняя. Вне хоста (где нет контейнеров платформы) используйте напрямую `sh infra/gpg-file.sh decrypt <файл-пароля> <snapshot.tar.gpg> <новый.tar>` (на Windows — внутри выбранного дистрибутива WSL), затем `tar -tf <новый.tar>` должен показать `manifest.json`, `database.dump`, `objects/`.
 3. Удалите временный файл пароля и расшифрованный архив. Отметьте дату проверки в записи менеджера паролей.
 
 Повторяйте проверку после каждой ротации и не реже раза в квартал; удобно совмещать с проверкой `restore-report.json` последней копии.

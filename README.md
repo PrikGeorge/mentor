@@ -4,7 +4,7 @@
 
 ## Запуск
 
-После подготовки конфигурации и готовых образов откройте `Start-Mentor.cmd`. Повторный запуск открывает тот же кабинет. На Windows нужны PowerShell 7.2+, Docker Desktop с Linux engine и доступом из WSL Ubuntu. Node.js и Python для запуска собранной платформы не нужны.
+После подготовки конфигурации и готовых образов откройте `Start-Mentor.cmd`. Повторный запуск открывает тот же кабинет. На Windows нужны PowerShell 7.2+, Docker Desktop с Linux engine и доступом из WSL default или дистрибутива `MENTOR_WSL_DISTRIBUTION`. Node.js и Python для запуска собранной платформы не нужны.
 
 Ярлык находит PowerShell в `PATH`, `C:\Program Files\PowerShell\7` или `%LOCALAPPDATA%\Programs\PowerShell\7`. Последний вариант позволяет запускать кабинет из Проводника без изменения `PATH` и без открытого Codex.
 

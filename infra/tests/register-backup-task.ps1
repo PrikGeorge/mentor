@@ -10,7 +10,13 @@ foreach($cmdlet in @('Register-ScheduledTask','Unregister-ScheduledTask','New-Sc
     Set-Item -Path ('function:global:'+$cmdlet) -Value ([scriptblock]::Create("throw 'Task Scheduler must not be touched by this test ($cmdlet).'"))
 }
 # backup.ps1 reaches Docker through wsl.exe; the double fails before any container is addressed.
-function wsl {throw 'Synthetic Docker unavailable.'}
+function wsl {
+    if($args -contains 'wslpath'){
+        $global:LASTEXITCODE=0;$path=$args[-1];Require ($path -match '^[A-Za-z]:\\') 'Expected a Windows drive path.'
+        return '/test-drives/'+$path.Substring(0,1).ToLowerInvariant()+'/'+$path.Substring(3).Replace('\','/')
+    }
+    throw 'Synthetic Docker unavailable.'
+}
 function docker {throw 'Synthetic Docker unavailable.'}
 $root=Join-Path ([IO.Path]::GetTempPath()) ('mentor-task-proof-'+[Guid]::NewGuid().ToString('N'))
 New-MentorPrivateDirectory $root

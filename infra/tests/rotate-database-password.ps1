@@ -70,7 +70,17 @@ function docker {
     }
     throw ('Unexpected Docker call in rotation test: '+($a -join '|'))
 }
-function wsl {$a=@($args);Require ($a[0] -eq '-d' -and $a[1] -eq 'Ubuntu' -and $a[2] -eq 'docker') 'Unexpected WSL invocation.';$forward=@($a[3..($a.Count-1)]);$input | docker @forward}
+function wsl {
+    $a=@($args);$toolIndex=[Array]::IndexOf($a,'--exec')+1;Require ($toolIndex -gt 0) 'Unexpected WSL invocation.'
+    $tool=$a[$toolIndex];$forward=@($a[($toolIndex+1)..($a.Count-1)])
+    if($tool -eq 'wslpath'){
+        $global:LASTEXITCODE=0;$path=$forward[2]
+        if($forward[1] -eq '-w'){Require ($path -match '^/test-drives/([a-z])/(.*)$') 'Unexpected synthetic Linux path.';return $Matches[1].ToUpperInvariant()+':\'+$Matches[2].Replace('/','\')}
+        Require ($path -match '^[A-Za-z]:\\') 'Expected a Windows drive path.'
+        return '/test-drives/'+$path.Substring(0,1).ToLowerInvariant()+'/'+$path.Substring(3).Replace('\','/')
+    }
+    Require ($tool -eq 'docker') 'Unexpected WSL tool.';$input | docker @forward
+}
 try {
     $platform=Join-Path $root 'platform';New-Item -ItemType Directory -Path $platform | Out-Null
     $envPath=Join-Path $platform 'compose.env';[IO.File]::WriteAllText($envPath,"MENTOR_RELEASE=synthetic`n")

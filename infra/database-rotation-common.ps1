@@ -42,7 +42,7 @@ function Read-MentorPasswordFile([string]$Path) {
 function Invoke-MentorDockerStdin {
     # Like Invoke-MentorDocker, but feeds $InputText through stdin (never through the argument list).
     param([Parameter(Mandatory)][string]$InputText,[Parameter(Mandatory)][string[]]$DockerArguments)
-    if ($IsWindows) { $output = $InputText | & wsl -d Ubuntu -- docker @DockerArguments 2>$null }
+    if ($IsWindows) { $wslArguments = @(Get-MentorWslArguments); $output = $InputText | & wsl @wslArguments docker @DockerArguments 2>$null }
     else { $output = $InputText | & docker @DockerArguments 2>$null }
     # stderr is dropped on purpose: a failing statement is echoed back by psql together with its input.
     if ($LASTEXITCODE -ne 0) { throw "Docker operation failed ($($DockerArguments[0]) with stdin); exit $LASTEXITCODE." }

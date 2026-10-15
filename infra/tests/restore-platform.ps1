@@ -5,7 +5,7 @@ $ErrorActionPreference='Stop'
 function Require([bool]$Condition,[string]$Message){if(-not $Condition){throw $Message}}
 function Reject([scriptblock]$Action,[string]$Expected,[string]$Message){$caught=$null;try{& $Action | Out-Null}catch{$caught=$_.Exception.Message};Require ($caught -and $caught -like "*$Expected*") ($Message+' Actual: '+$caught)}
 function FromDockerPath([string]$Path){
-    if($IsWindows){ if($Path -match '^/mnt/([a-z])/(.*)$'){return ($Matches[1].ToUpperInvariant()+':\'+$Matches[2].Replace('/','\'))}; throw ('Unexpected Docker path in test: '+$Path) }
+    if($IsWindows){ if($Path -match '^/test-drives/([a-z])/(.*)$'){return ($Matches[1].ToUpperInvariant()+':\'+$Matches[2].Replace('/','\'))}; throw ('Unexpected Docker path in test: '+$Path) }
     return $Path
 }
 $global:calls=[Collections.Generic.List[string]]::new()
@@ -46,8 +46,17 @@ function sh {
     Require ($a[0] -like '*gpg-file.sh' -and $a[1] -eq 'decrypt') 'Only decryption through gpg-file.sh is expected.'
     Copy-Item -LiteralPath (FromDockerPath $a[3]) -Destination (FromDockerPath $a[4]);$global:LASTEXITCODE=0
 }
-# PowerShell strips the "--" end-of-options token, so the tool name follows "-d Ubuntu" directly.
-function wsl {$a=@($args);Require ($a[0] -eq '-d' -and $a[1] -eq 'Ubuntu') 'Unexpected WSL invocation.';$tool=$a[2];$forward=@($a[3..($a.Count-1)]);if($tool -eq 'docker'){return docker @forward};if($tool -eq 'sh'){return sh @forward};throw ('Unexpected WSL tool: '+$tool)}
+function wsl {
+    $a=@($args);$toolIndex=[Array]::IndexOf($a,'--exec')+1;Require ($toolIndex -gt 0) 'Unexpected WSL invocation.'
+    $tool=$a[$toolIndex];$forward=@($a[($toolIndex+1)..($a.Count-1)])
+    if($tool -eq 'wslpath'){
+        $global:LASTEXITCODE=0
+        if($forward[1] -eq '-w'){return FromDockerPath $forward[2]}
+        $path=$forward[2];Require ($path -match '^[A-Za-z]:\\') 'Expected a Windows drive path.'
+        return '/test-drives/'+$path.Substring(0,1).ToLowerInvariant()+'/'+$path.Substring(3).Replace('\','/')
+    }
+    if($tool -eq 'docker'){return docker @forward};if($tool -eq 'sh'){return sh @forward};throw ('Unexpected WSL tool: '+$tool)
+}
 $root=Join-Path ([IO.Path]::GetTempPath()) ('mentor-restore-proof-'+[Guid]::NewGuid().ToString('N'))
 New-MentorPrivateDirectory $root
 function NewBackup([string]$Name,[string[]]$ExtraArchiveEntries){

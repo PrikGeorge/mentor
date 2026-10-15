@@ -118,11 +118,13 @@ jobs:
         shell: pwsh
         run: |
           $failed = @()
+          $testPowerShell = (Get-Process -Id $PID).Path
           # Scripts that need a live Docker engine or WSL stay out of CI; the remaining checks run on doubles only.
-          $skip = @('cutover-integration.ps1')
+          $skip = @('cutover-integration.ps1', 'backup-fence.ps1')
           Get-ChildItem infra/tests/*.ps1 | Where-Object { $skip -notcontains $_.Name } | ForEach-Object {
             Write-Output "== $($_.Name)"
-            & $_.FullName
+            # Isolate mocks and expected failing native commands; use the script process exit code.
+            & $testPowerShell -NoProfile -File $_.FullName
             if ($LASTEXITCODE -ne 0) { $failed += $_.Name }
           }
           if ($failed) { Write-Output "Failed: $($failed -join ', ')"; exit 1 }

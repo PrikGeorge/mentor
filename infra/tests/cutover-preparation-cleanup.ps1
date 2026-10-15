@@ -21,7 +21,14 @@ try {
         if($a[0] -eq 'volume' -and $a[1] -eq 'rm'){throw 'Synthetic cleanup Docker unavailable.'}
         throw ('Unexpected Docker boundary in preparation test: '+($a -join '|'))
     }
-    function wsl {$a=@($args);$start=[Array]::IndexOf($a,'docker')+1;$forward=$a[$start..($a.Count-1)];docker @forward}
+    function wsl {
+        $a=@($args)
+        if($a -contains 'wslpath'){
+            $global:LASTEXITCODE=0;$path=$a[-1];Require ($path -match '^[A-Za-z]:\\') 'Expected a Windows drive path.'
+            return '/test-drives/'+$path.Substring(0,1).ToLowerInvariant()+'/'+$path.Substring(3).Replace('\','/')
+        }
+        $start=[Array]::IndexOf($a,'docker')+1;Require ($start -gt 0) 'Unexpected WSL tool.';$forward=$a[$start..($a.Count-1)];docker @forward
+    }
     $report=Join-Path $root 'report';$caught=$null
     try {
         & (Join-Path $PSScriptRoot '../cutover.ps1') -Snapshot $snapshot -ImportId synthetic-cleanup -TargetWorkspace synthetic-space -TeacherAccount synthetic-teacher -EnvironmentManifest $manifest -EnvironmentManifestSha256 (Get-MentorCutoverHash $manifest) -EnvironmentProfilesSha256 (Get-MentorCutoverHash (Join-Path $snapshot 'training/environments.json')) -BackendImage synthetic-image -ReportDirectory $report | Out-Null
