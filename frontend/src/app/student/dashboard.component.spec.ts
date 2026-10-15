@@ -20,6 +20,9 @@ describe('Learner dashboard and navigation', () => {
             expect(element.textContent).not.toContain('Заметки наставника');
             expect(element.querySelector('a[href*="/learn/students/s1/goal"]')).toBeTruthy();
             if (focus) expect(element.querySelector('a[href*="/learn/students/s1/lessons/l1/student/tasks"]')).toBeTruthy();
+            // T16: a past lesson without the mark reads neutrally; the missing mark is never mentioned to the student.
+            if (focus && !focus.upcoming) expect(element.querySelector('.callout')?.textContent?.trim()).toBe('Занятие по расписанию уже прошло. Новое появится, когда наставник назначит дату.');
+            expect(element.textContent).not.toContain('не отмечен');
             flushTurns(http);
             http.verify();
         });

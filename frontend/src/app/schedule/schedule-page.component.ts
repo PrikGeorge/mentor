@@ -2,6 +2,10 @@ import { Component, computed, DestroyRef, effect, inject, signal, untracked } fr
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
+import { createBoundScope } from '../core/bound-scope';
+import { LessonsApi } from '../lessons/lessons-api.service';
+import { REMINDER_LIMIT, reminderWindow, unmarkedLessons } from './reminder';
 import { SessionStore } from '../core/session.store';
 import { readResource } from '../core/read-resource';
 import { IconComponent } from '../core/icon.component';
@@ -36,6 +40,49 @@ import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mon
                 </nav>
             }
         </div>
+        @if (view() === 'today' && unmarked().length) {
+            <section class="warning-banner conducted-reminder" aria-labelledby="conducted-reminder-title">
+                <h2 id="conducted-reminder-title">Отметьте проведённые занятия</h2>
+                <p>Занятия последних двух недель, которые закончились без отметки «Проведено».</p>
+                <ul class="reminder-list">
+                    @for (item of unmarked().slice(0, limit); track item.lesson.id) {
+                        <li>
+                            <span
+                                ><b>{{ item.studentName }}</b> · №&nbsp;{{ item.lesson.number }} · {{ shortDate(item.lesson.date) }},
+                                {{ item.lesson.time }}</span
+                            >
+                            <button
+                                class="btn sm primary"
+                                type="button"
+                                (click)="markConducted(item)"
+                                [disabled]="marking() !== null"
+                                [attr.aria-label]="'Отметить проведённым: ' + item.studentName + ', занятие ' + item.lesson.number"
+                            >
+                                @if (marking() === item.lesson.id) {
+                                    <mentor-icon class="spin" name="loader" />
+                                } @else {
+                                    <mentor-icon name="check-check" />
+                                }
+                                Проведено
+                            </button>
+                            <a class="text-link" [routerLink]="lessonLink(item)">Открыть</a>
+                        </li>
+                    }
+                </ul>
+                @if (unmarked().length > limit) {
+                    <p>
+                        Ещё {{ unmarked().length - limit }} за две недели.
+                        <button class="btn sm text" type="button" (click)="openWeek(-7)">Открыть прошлую неделю →</button>
+                    </p>
+                }
+            </section>
+        }
+        @if (notice()) {
+            <p class="success-banner" role="status">{{ notice() }}</p>
+        }
+        @if (markError()) {
+            <mentor-error-banner [message]="markError()" />
+        }
         @if (error()) {
             <mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()" />
         }
@@ -155,6 +202,15 @@ export class SchedulePageComponent {
     constructor() {
         const timer = setInterval(() => this.now.set(Date.now()), 60000);
         inject(DestroyRef).onDestroy(() => clearInterval(timer));
+        // A new account never inherits the previous one's pending mark or its messages.
+        effect(() => {
+            this.session.generation();
+            untracked(() => {
+                this.marking.set(null);
+                this.notice.set('');
+                this.markError.set('');
+            });
+        });
         effect(() => {
             const state = this.scheduleResource.state();
             untracked(() => {
@@ -164,7 +220,56 @@ export class SchedulePageComponent {
             });
         });
     }
+    // T16: ended lessons of the last 14 days still waiting for the «Проведено» mark, shown above «Сегодня».
+    readonly limit = REMINDER_LIMIT;
+    private readonly lessons = inject(LessonsApi);
+    private readonly writes = createBoundScope();
+    private readonly reminderResource = readResource({
+        params: () => {
+            const actor = this.session.actor();
+            if (actor?.role !== 'TEACHER' || !actor.workspaceId || this.view() !== 'today') return undefined;
+            return { workspace: actor.workspaceId, ...reminderWindow(this.today()), refresh: this.refresh() };
+        },
+        load: ({ workspace, from, to }) => this.api.get(workspace, from, to).pipe(catchError(() => of(null))),
+    });
+    readonly unmarked = computed(() => {
+        const state = this.reminderResource.state();
+        return state.status === 'resolved' && state.value ? unmarkedLessons(state.value.items, this.now()) : [];
+    });
+    readonly marking = signal<string | null>(null);
+    readonly notice = signal('');
+    readonly markError = signal('');
+    // The same revision-guarded PATCH as the lesson page; a stale revision asks for a fresh schedule instead of guessing.
+    markConducted(item: ScheduleItem) {
+        const actor = this.session.actor();
+        if (actor?.role !== 'TEACHER' || actor.workspaceId !== item.lesson.workspaceId || this.marking() !== null) return;
+        this.marking.set(item.lesson.id);
+        this.notice.set('');
+        this.markError.set('');
+        this.writes
+            .track(this.lessons.save(item.lesson.workspaceId, item.lesson.studentId, item.lesson.id, { revision: item.lesson.revision, conducted: true }))
+            .subscribe({
+                next: () => {
+                    this.marking.set(null);
+                    this.notice.set(`Занятие № ${item.lesson.number} · ${item.studentName} отмечено проведённым.`);
+                    this.reload();
+                },
+                error: (error: { status?: number }) => {
+                    this.marking.set(null);
+                    this.markError.set(error?.status === 409 ? 'Занятие изменилось. Обновите расписание.' : 'Не удалось отметить занятие. Попробуйте ещё раз.');
+                },
+            });
+    }
+    openWeek(days: number) {
+        void this.router.navigate([], { relativeTo: this.route, queryParams: { view: 'week', from: addDays(this.today(), days) } });
+    }
+    // «14.10».
+    shortDate(date: string) {
+        return date.slice(8, 10) + '.' + date.slice(5, 7);
+    }
     show(view: 'today' | 'week') {
+        this.notice.set('');
+        this.markError.set('');
         void this.router.navigate([], { relativeTo: this.route, queryParams: view === 'week' ? { view } : {} });
     }
     shiftWeek(days: number) {

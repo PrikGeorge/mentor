@@ -786,6 +786,14 @@ mentor-monaco-editor .small-muted { margin: 8px 16px; }
 .schedule-list .who b { display: block; font: 600 16px/22px var(--font-sans); overflow-wrap: anywhere; }
 .schedule-list .who a { overflow-wrap: anywhere; }
 .schedule-list .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* T16: the «Проведено» reminder on the schedule and its one-line digest on the student list. */
+.conducted-reminder { margin: 20px 0 0; }
+.conducted-reminder h2 { margin: 0; font: 600 18px/24px var(--font-sans); }
+.conducted-reminder p { margin: 0; }
+.reminder-list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.reminder-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 0; border-top: 1px solid var(--rule); }
+.reminder-list li > span { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+p.callout.reminder-line { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 @media (max-width: 640px) {
   .schedule-week-nav .count { order: -1; flex-basis: 100%; margin-left: 0; }
   .schedule-list > li { grid-template-columns: 44px minmax(0, 1fr); }

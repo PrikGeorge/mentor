@@ -10,11 +10,15 @@ import { PaginationComponent } from '../core/pagination.component';
 import { HomeworkApi, StudentTurn } from '../homework/homework-api.service';
 import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-clock.component';
 import { readResource } from '../core/read-resource';
+import { ScheduleApi } from '../schedule/schedule-api.service';
+import { reminderWindow, unmarkedLabel, unmarkedLessons } from '../schedule/reminder';
+import { moscowDate } from '../schedule/schedule-dates';
 @Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent, PaginationComponent], template: `
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
   @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
   @if(loading()){<p class="loading" role="status">Загружаем учеников…</p>}
+  @if(!archive()&&unmarked()){<p class="callout reminder-line"><mentor-icon name="calendar"/><span>{{unmarkedLabel(unmarked())}}.</span><a class="text-link" routerLink="/teacher/schedule">Отметить →</a></p>}
   @if(waiting().length){<section aria-labelledby="queue-title"><div class="sh"><div class="title-group"><h2 id="queue-title">Ход за вами</h2><span class="count">{{waitingLabel()}}, первой — та, что отправлена раньше</span></div></div>
     <ol class="queue">@for(row of waiting();track row.studentId){<li><span class="avatar" aria-hidden="true">{{initial(row.studentName)}}</span><div><h3>{{row.studentName}}</h3><p>{{direction(row.studentId)}}@if(row.awaitingReview>1){ · ещё работ на ревью: {{row.awaitingReview-1}}}</p></div>
       <div class="work"><b>{{row.lessonTitle}}</b><p>Занятие {{row.lessonDate|date:'dd.MM.yyyy'}} · {{row.filename}}</p>@if(row.comment){<q>{{row.comment}}</q>}</div>
@@ -68,6 +72,18 @@ export class StudentsPageComponent {
         },
         load: ({ workspace }) => this.homework.studentTurns(workspace).pipe(catchError(() => of(null))),
     });
+    // T16: past lessons of the last 14 days still waiting for the «Проведено» mark; a failed read just hides the line.
+    private readonly schedule = inject(ScheduleApi);
+    private readonly reminderResource = readResource({
+        params: () => {
+            const primary = this.studentsResource.state();
+            return primary.status === 'resolved' && !primary.params.archive && primary.value.items.length
+                ? { workspace: primary.params.workspace, refresh: primary.params.refresh, ...reminderWindow(moscowDate(Date.now())) } : undefined;
+        },
+        load: ({ workspace, from, to }) => this.schedule.get(workspace, from, to).pipe(catchError(() => of(null))),
+    });
+    readonly unmarked = computed(() => { const state = this.reminderResource.state(); return state.status === 'resolved' && state.value ? unmarkedLessons(state.value.items, Date.now()).length : 0; });
+    readonly unmarkedLabel = unmarkedLabel;
     constructor() {
         effect(() => { this.session.generation(); this.studentsParams(); this.creating.set(false); });
         effect(() => {

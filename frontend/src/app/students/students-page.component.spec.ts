@@ -6,7 +6,7 @@ import { SessionStore } from '../core/session.store';
 import { sessionInterceptor } from '../core/session.interceptor';
 import { StudentsPageComponent } from './students-page.component';
 import type { StudentView } from './students-api.service';
-import { renderResources, student } from './domain-test-support';
+import { lessonSummary, renderResources, student } from './domain-test-support';
 
 const root = '/api/v1/workspaces/w1/students';
 const turns = '/api/v1/workspaces/w1/homework/turns?page=0&size=100';
@@ -27,6 +27,8 @@ describe('Teacher student list', () => {
         });
     });
     afterEach(() => {
+        // The T16 reminder reads the schedule beside the list; tests that do not check it answer it empty.
+        for (const request of http.match((candidate) => candidate.url.startsWith('/api/v1/workspaces/w1/schedule'))) if (!request.cancelled) request.flush({ from: '', to: '', items: [] });
         http.verify();
         TestBed.resetTestingModule();
     });
@@ -133,5 +135,45 @@ describe('Teacher student list', () => {
         await renderResources();
         expect(element.querySelector('mentor-student-form')).toBeNull();
         expect(navigate).toHaveBeenCalledWith(['/teacher/students', 'new-student']);
+    });
+
+    it('reminds of ended unmarked lessons of the last 14 days and links to the schedule', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-15T12:30:00Z'));
+        try {
+            const { fixture, element } = mount();
+            await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student]);
+            const summary = (id: string, date: string, time: string, conductedAt?: string) => ({
+                studentName: student.name,
+                lesson: { ...lessonSummary, id, date, time, duration: 60, ...(conductedAt ? { conductedAt } : {}) },
+            });
+            http.expectOne('/api/v1/workspaces/w1/schedule?from=2026-10-02&to=2026-10-15').flush({
+                from: '2026-10-02',
+                to: '2026-10-15',
+                items: [summary('a', '2026-10-08', '12:00'), summary('b', '2026-10-14', '12:00'), summary('c', '2026-10-13', '12:00', '2026-10-13T10:00:00Z'), summary('d', '2026-10-15', '18:00')],
+            });
+            await renderResources();
+            fixture.detectChanges();
+            const line = element.querySelector('.reminder-line');
+            expect(line?.textContent).toContain('2 прошедших занятия не отмечены проведёнными.');
+            expect(line?.querySelector('a')?.getAttribute('href')).toBe('/teacher/schedule');
+
+            button(element, 'Архив').click();
+            fixture.detectChanges();
+            await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25&archived=true'), [student]);
+            http.expectNone((request) => request.url.includes('/schedule'));
+            expect(element.querySelector('.reminder-line')).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('hides the reminder when the schedule cannot be read', async () => {
+        const { element } = mount();
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student]);
+        http.expectOne((request) => request.url.startsWith('/api/v1/workspaces/w1/schedule')).flush({}, { status: 503, statusText: 'Unavailable' });
+        await renderResources();
+        expect(element.querySelector('.reminder-line')).toBeNull();
+        expect(element.querySelector('[role="alert"]')).toBeNull();
     });
 });

@@ -10,6 +10,8 @@ import { SchedulePageComponent } from './schedule-page.component';
 import type { ScheduleItem } from './schedule-api.service';
 
 const root = '/api/v1/workspaces/w1/schedule';
+// The T16 reminder reads the last 14 days next to «Сегодня».
+const reminder = root + '?from=2026-10-02&to=2026-10-15';
 const item = (id: string, studentName: string, date: string, time: string, extra: Partial<ScheduleItem['lesson']> = {}): ScheduleItem => ({
     studentName,
     lesson: {
@@ -43,6 +45,7 @@ describe('Teacher schedule', () => {
         http = TestBed.inject(HttpTestingController);
     });
     afterEach(() => {
+        for (const request of http.match(reminder)) if (!request.cancelled) request.flush({ from: '2026-10-02', to: '2026-10-15', items: [] });
         try {
             http.verify();
         } finally {
@@ -166,5 +169,64 @@ describe('Teacher schedule', () => {
         harness.detectChanges();
         expect(pending.cancelled).toBe(true);
         expect(element.querySelector('.schedule-list')).toBeNull();
+    });
+
+    it('reminds of the newest unmarked lessons of two weeks and marks one with its revision', async () => {
+        signIn();
+        const { harness, element } = await open('/teacher/schedule');
+        await flush('2026-10-15', '2026-10-15', [], harness);
+        const past = ['2026-10-14', '2026-10-13', '2026-10-12', '2026-10-09', '2026-10-08', '2026-10-03'].map((date, index) =>
+            item('p' + index, 'Ученик ' + index, date, '12:00', { revision: 3, number: index + 1 })
+        );
+        http.expectOne(reminder).flush({
+            from: '2026-10-02',
+            to: '2026-10-15',
+            items: [...past, item('held', 'Готово', '2026-10-10', '12:00', { conductedAt: '2026-10-10T10:00:00Z' })],
+        });
+        await renderResources();
+        harness.detectChanges();
+        const block = element.querySelector('.conducted-reminder')!;
+        expect(block.querySelector('h2')?.textContent).toBe('Отметьте проведённые занятия');
+        const rows = block.querySelectorAll('.reminder-list li');
+        expect(rows).toHaveLength(5);
+        expect(rows[0].textContent).toContain('Ученик 0 · № 1 · 14.10, 12:00');
+        expect(block.textContent).toContain('Ещё 1 за две недели.');
+        expect(block.textContent).not.toContain('Готово');
+
+        (rows[0].querySelector('button') as HTMLButtonElement).click();
+        harness.detectChanges();
+        const patch = http.expectOne('/api/v1/workspaces/w1/students/s-p0/lessons/p0');
+        expect(patch.request.method).toBe('PATCH');
+        expect(patch.request.body).toEqual({ revision: 3, conducted: true });
+        expect((rows[1].querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+        patch.flush({ ...past[0].lesson, revision: 4, conductedAt: '2026-10-15T12:30:00Z' });
+        await renderResources();
+        harness.detectChanges();
+        expect(element.querySelector('.success-banner')?.textContent).toBe('Занятие № 1 · Ученик 0 отмечено проведённым.');
+        await flush('2026-10-15', '2026-10-15', [], harness);
+        http.expectOne(reminder).flush({ from: '2026-10-02', to: '2026-10-15', items: past.slice(1) });
+        await renderResources();
+        harness.detectChanges();
+        expect(element.querySelectorAll('.conducted-reminder .reminder-list li')).toHaveLength(5);
+        expect(element.querySelector('.conducted-reminder')?.textContent).not.toContain('Ещё');
+    });
+
+    it('asks for a fresh schedule after a revision conflict and hides the reminder in the week view', async () => {
+        signIn();
+        const { harness, element } = await open('/teacher/schedule');
+        await flush('2026-10-15', '2026-10-15', [], harness);
+        http.expectOne(reminder).flush({ from: '2026-10-02', to: '2026-10-15', items: [item('p', 'Анна', '2026-10-14', '12:00')] });
+        await renderResources();
+        harness.detectChanges();
+        (element.querySelector('.reminder-list button') as HTMLButtonElement).click();
+        http.expectOne('/api/v1/workspaces/w1/students/s-p/lessons/p').flush({ message: 'Lesson changed.' }, { status: 409, statusText: 'Conflict' });
+        harness.detectChanges();
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain('Занятие изменилось. Обновите расписание.');
+        expect((element.querySelector('.reminder-list button') as HTMLButtonElement).disabled).toBe(false);
+        button(element, 'Неделя').click();
+        await settle(harness);
+        await flush('2026-10-12', '2026-10-18', [], harness);
+        expect(element.querySelector('.conducted-reminder')).toBeNull();
+        expect(element.querySelector('[role="alert"]')).toBeNull();
     });
 });

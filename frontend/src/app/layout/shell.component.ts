@@ -54,7 +54,7 @@ type NavItem = { label: string; link: string; query: Record<string, string>; act
       <div class="context-head">
         <nav class="crumbs" aria-label="Путь">@if (context.learner) { <a [routerLink]="context.base + '/lessons'" [queryParams]="learnerQuery()">Мои занятия</a> } @else { <a routerLink="/teacher/students">Мои ученики</a><span aria-hidden="true">›</span><a [routerLink]="context.base">{{ context.student.name }}</a> }<span aria-hidden="true">›</span><span>Занятие {{ lesson.number }}</span></nav>
         <div class="context-title"><div>
-          <p class="kick"><a class="backlink" [routerLink]="context.learner ? context.base + '/lessons' : context.base" [queryParams]="learnerQuery()"><mentor-icon name="arrow-left"/>Все занятия</a><span aria-hidden="true">·</span><span>Занятие {{ lesson.number }}</span>@if (status(lesson); as tag) {<span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"><mentor-icon [name]="tag.icon"/>{{ tag.label }}</span>}</p>
+          <p class="kick"><a class="backlink" [routerLink]="context.learner ? context.base + '/lessons' : context.base" [queryParams]="learnerQuery()"><mentor-icon name="arrow-left"/>Все занятия</a><span aria-hidden="true">·</span><span>Занятие {{ lesson.number }}</span>@if (status(lesson, context.learner ? 'student' : 'teacher'); as tag) {<span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"><mentor-icon [name]="tag.icon"/>{{ tag.label }}</span>}</p>
           <h1>{{ lesson.title }}</h1>
           <p class="meta">@if (!context.learner) { <b>{{ context.student.name }}</b> · }{{ lesson.date | date:'dd.MM.yyyy' }} · {{ lesson.time }} МСК · {{ lesson.duration }} мин</p>
         </div></div>

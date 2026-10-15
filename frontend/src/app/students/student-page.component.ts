@@ -254,7 +254,7 @@ import { readResource } from '../core/read-resource';
                                                             {{ l.date | date: 'dd.MM.yyyy' }}<small>{{ l.time }} МСК · {{ l.duration }} мин</small>
                                                         </td>
                                                         <td>
-                                                            @if (status(l); as tag) {
+                                                            @if (status(l, learner() ? 'student' : 'teacher'); as tag) {
                                                                 <span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"
                                                                     ><mentor-icon [name]="tag.icon" />{{ tag.label }}</span
                                                                 >

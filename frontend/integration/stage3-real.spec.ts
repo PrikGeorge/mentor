@@ -293,3 +293,31 @@ test('real stage 3 learner screens fit a 390px phone', async ({ page }) => {
     await capture(page, 'real-stage3-review-390.png');
     expect(errors).toEqual([]);
 });
+// T16: a lesson that ended yesterday without the mark — the student reads a neutral «Прошло», the teacher is reminded on the list and marks it from the schedule.
+test('real conducted reminder: neutral tag for the student, one-click mark for the teacher', async ({ page }) => {
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() - 86400000));
+    const past = await write<Lesson>(teacher.client, 'POST', card() + '/lessons', { title: 'Вчерашнее занятие', date: yesterday, time: '12:00', duration: 60 }, 201);
+    await login(page, learner);
+    await page.goto(`/learn/students/${student.id}/lessons`);
+    await expect(page.getByRole('row', { name: /Вчерашнее занятие/ }).getByText('Прошло', { exact: true })).toBeVisible();
+    await expect(page.getByText('не отмечен', { exact: false })).toHaveCount(0);
+    await logout(page);
+    await login(page, teacher);
+    const line = page.locator('.reminder-line');
+    await expect(line).toContainText('1 прошедшее занятие не отмечено проведённым.');
+    await line.getByRole('link', { name: 'Отметить →', exact: true }).click();
+    await expect(page).toHaveURL('/teacher/schedule');
+    const reminder = page.getByRole('region', { name: 'Отметьте проведённые занятия', exact: true });
+    const marked = page.waitForResponse(response => response.request().method() === 'PATCH' && response.url().endsWith(lessonPath(past)));
+    await reminder.getByRole('button', { name: /^Отметить проведённым: Синтетическая Вера/ }).click();
+    expect((await marked).status()).toBe(200);
+    await expect(page.getByRole('status').filter({ hasText: 'отмечено проведённым' })).toContainText(`Занятие № ${past.number} · Синтетическая Вера отмечено проведённым.`);
+    await expect(reminder).toHaveCount(0);
+    expect((await get<Lesson>(teacher.client, lessonPath(past))).conductedAt).toBeTruthy();
+    await page.goto('/teacher/students');
+    await expect(page.getByRole('heading', { name: 'Мои ученики', level: 1 })).toBeVisible();
+    await expect(page.locator('.reminder-line')).toHaveCount(0);
+    await logout(page);
+    expect(errors).toEqual([]);
+});

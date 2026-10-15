@@ -38,7 +38,11 @@ describe('Page resource ownership and optional reads', () => {
         session = TestBed.inject(SessionStore);
         loadSession('TEACHER');
     });
-    afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+    afterEach(() => {
+        // The student list also reads the schedule for the T16 reminder; these tests do not look at it.
+        for (const request of http.match(candidate => candidate.url.includes('/schedule'))) if (!request.cancelled) request.flush({ from: '', to: '', items: [] });
+        try { http.verify(); } finally { TestBed.resetTestingModule(); }
+    });
 
     function loadSession(role: 'TEACHER' | 'ADMIN', userId = 'owner') {
         session.load().subscribe();

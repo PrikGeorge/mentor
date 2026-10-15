@@ -13,10 +13,11 @@ import { HomeworkPageComponent } from '../homework/homework-page.component';
 import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { readResource } from '../core/read-resource';
+import { lessonEnded } from './lesson-status';
 @Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent, IconComponent, ErrorBannerComponent], template: `
   @if(error()){<mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()"/>}
   @if(lesson();as l){
-    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button><a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>
+    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button>@if(!l.conductedAt&&ended(l)){<span class="small-muted conducted-hint">Занятие прошло — отметьте, если оно состоялось.</span>}<a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>
       @if(deleting()){<span class="inline-confirm" role="group" aria-label="Подтверждение удаления занятия" tabindex="-1"><span class="small-muted">Удалить занятие «{{l.title}}»? Только без работ и материалов.</span><button class="btn sm danger" type="button" (click)="deleteLesson()" [disabled]="busy()">Удалить</button><button class="btn sm text" type="button" (click)="deleting.set(false);focus('.delete-lesson')" [disabled]="busy()">Отмена</button></span>}@else{<button class="btn sm text delete-lesson" type="button" (click)="deleting.set(true);focus('.inline-confirm')" [disabled]="busy()"><mentor-icon name="trash-2"/>Удалить занятие</button>}</div>}
     @if(editable()&&editingMetadata()){<div class="section-block"><mentor-lesson-form [workspaceId]="workspaceId()!" [studentId]="studentId()!" [lesson]="l" (saved)="savedMetadata($event)" (cancel)="editingMetadata.set(false)"/></div>}
     @if(editable()&&editingText();as text){<section class="section-block"><mentor-markdown-editor [lesson]="l" [kind]="text.kind" [revision]="text.revision" [value]="text.markdown" (saved)="savedText($event)" (cancelled)="closeText()"/></section>}
@@ -110,6 +111,8 @@ export class LessonPageComponent extends DomainPage {
     // Keyboard focus follows the confirmation block: onto it when it opens, back to the trigger when it closes.
     focus(selector: string) { afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }
     isPast(lesson: LessonView) { return Date.parse(`${lesson.date}T${lesson.time}:00+03:00`) < Date.now(); }
+    // T16: after the lesson has ended without the mark, the teacher sees a gentle reminder next to the button.
+    ended(lesson: LessonView) { return lessonEnded(lesson); }
     // The teacher's explicit mark; the metadata revision guards it like any other lesson change.
     markConducted(conducted: boolean) { const l = this.lesson(); if (!this.editable() || this.busy() || !l)
         return; this.busy.set(true); this.textError.set(''); this.api.save(this.workspaceId()!, this.studentId()!, l.id, { revision: l.revision, conducted }).pipe(takeUntil(this.routeChanges), takeUntilDestroyed(this.destroyRef)).subscribe({ next: lesson => { this.busy.set(false); this.savedMetadata(lesson); }, error: e => { this.busy.set(false); this.textError.set(this.message(e)); } }); }

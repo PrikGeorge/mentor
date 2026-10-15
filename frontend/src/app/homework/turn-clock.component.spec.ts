@@ -91,6 +91,8 @@ describe('Turns on the teacher pages', () => {
         expect(element.querySelector('.queue')?.textContent).toContain('ещё работ на ревью: 1');
         expect(element.querySelector('.queue a')?.getAttribute('href')).toBe('/teacher/students/s1/lessons/l1/teacher/review');
         expect(element.querySelector('.student-card .clock .face.on')?.textContent).toContain('ход за вами');
+        // The T16 reminder reads the schedule beside the queue; this test does not look at it.
+        http.expectOne(request => request.url.startsWith('/api/v1/workspaces/w1/schedule')).flush({ from: '', to: '', items: [] });
         http.verify();
     });
     it('marks the lesson whose work waits for the teacher and offers its review first', async () => {
