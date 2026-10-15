@@ -84,9 +84,13 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('heading', { name: 'Доступ к кабинету', exact: true })).toBeVisible();
         await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(1);
-        expect(await page.locator('form input').count()).toBe(4);
+        // Four lesson fields plus the optional homework deadline (T09); an empty deadline is not sent.
+        expect(await page.locator('form input').evaluateAll(inputs => inputs.map(input => input.getAttribute('name')))).toEqual(['title', 'date', 'time', 'duration', 'dueDate', 'dueTime']);
         const title = `Новое занятие ${width}`;
         await page.getByRole('textbox', { name: 'Тема занятия' }).fill(title);
+        // Tomorrow in Moscow: the form's default «today 12:00» stops being the learner's nearest lesson after 13:00 MSK.
+        const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 86400_000));
+        await page.locator('input[name="date"]').fill(tomorrow);
         const createdResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(card(anna.id) + '/lessons'));
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
         const created = await createdResponse; expect(created.status()).toBe(201);
