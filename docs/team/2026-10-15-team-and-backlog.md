@@ -245,6 +245,7 @@
 | T16 | Напоминание «отметьте проведённым», смягчить фразу ученику | Product + Design | P2 | S |
 | T17 | Админка: имя, дата, число учеников, последний вход; единая зона времени | Product | P2 | S |
 | T18–T22 | Имя преподавателя, экспорт отчёта, поиск, единый источник маршрута, журнал админ-действий | Product | P3 | S–M |
+| T23 | Календарь занятий: месяц и ближайшие у преподавателя и ученика (спецификация `docs/superpowers/specs/2026-10-16-t23-lesson-calendar.md`, ждёт ответа владельца) | Product + Design + Frontend + Backend | P2 | M |
 | INF-24 | S3-хранилище для VPS (INF-22 снят: runner на отдельной VM) | DevOps | P3 | L |
 | UX-23 / UX-25 | Скелетоны вместо спиннера; тема Monaco из токенов | Design | P3 | S–M |
 | FE-19…FE-24 | Константы маршрутов, Monaco без `setValue`, `revokeObjectURL`, зависимости, `index.html`, README | Frontend | P3 | S |
@@ -309,6 +310,7 @@
 | T20 | Поиск по занятиям и материалам | P3 | S | `student-page`, `LessonController` |
 | T21 | Единый источник свободного текста и этапов маршрута | P3 | S | `student-form.component.ts:276`, `roadmap.component` |
 | T22 | Журнал административных действий в UI | P3 | M | `AccountAccessService`, `teachers-page` |
+| T23 | Календарь занятий: вид месяца и ближайшие занятия; ученику — только свои (добавлено 16.10.2026 по идее владельца) | P2 | M | `schedule/`, `ScheduleService`, `LessonRepository`, `app.routes.ts`, `shell.component` |
 
 ### 7.2. UX/UI-дизайнер (UX)
 
