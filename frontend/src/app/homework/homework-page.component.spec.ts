@@ -84,6 +84,19 @@ describe('Lesson-bound homework submission UI',()=>{
   expect(component.answerMode()).toBe('file');expect(component.answer()).toBe('');expect(component.format()).toBe('java');
  });
  it('never offers typed answers in the teacher preview',async () =>{const{component,http,element}=await page('TEACHER',true);component.setAnswerMode('text');component.setAnswer('class A {}');component.upload();http.expectNone(request=>request.method==='POST');expect(element.querySelector('.answer-mode')).toBeNull();expect(component.answerMode()).toBe('file');});
+ it('shows the deadline above the form and quietly marks a work sent after it',async () =>{
+  const{fixture,component,http,element}=await page();fixture.componentRef.setInput('due',{date:'2026-10-01',time:'02:00',state:'late'});fixture.detectChanges();
+  expect(element.querySelector('.homework-upload .due-line')?.textContent).toContain('Срок 01.10, 02:00 МСК · сдано после срока');
+  component.refreshHistory();TestBed.tick();http.expectOne(root+'?page=0&size=25').flush({items:[submission],page:0,size:25,total:1});await renderResources();fixture.detectChanges();
+  expect(element.querySelector('.homework-submission header')?.textContent).toContain('после срока');
+  fixture.componentRef.setInput('due',{date:'2026-10-01',time:'04:00',state:'onTime'});fixture.detectChanges();
+  expect(element.querySelector('.homework-submission header')?.textContent).not.toContain('после срока');
+ });
+ it('tells the teacher about an overdue deadline above the works',async () =>{
+  const{fixture,element}=await page('TEACHER');fixture.componentRef.setInput('due',{date:'2026-10-01',time:'02:00',state:'overdue'});fixture.detectChanges();
+  expect(element.querySelector('.homework-history .due-line')?.textContent).toContain('Срок 01.10, 02:00 МСК прошёл, работ пока нет.');
+  expect(element.querySelector('.homework-history .due-line')?.classList).toContain('overdue');
+ });
 });
 
 

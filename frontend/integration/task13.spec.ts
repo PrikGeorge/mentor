@@ -78,6 +78,31 @@ for(const width of [1280,390])test(`real upload, needs revision, resubmit and re
   await page.getByRole('button',{name:'Открыть код',exact:true}).click();await expect(page.locator('.submission-code')).toContainText('return 2 * x;');
   await logout(page);expect(errors).toEqual([]);
  });
+ // T09: the teacher sets a deadline in the lesson form; after it passes the student sees a gentle «Срок прошёл», late work is accepted and both roles read «Сдано после срока».
+ test('real homework deadline: set in the form, overdue, accepted late',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  const moscow=(ms:number)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ms));
+  const yesterday=moscow(Date.now()-86400000);const lesson=await write<Lesson>(teacher.client,'POST',card()+'/lessons',{title:'Срок сдачи',date:yesterday,time:'10:00',duration:60},201);
+  await login(page,teacher);await page.goto(`/teacher/students/${student.id}/lessons/${lesson.id}`);
+  await page.getByRole('button',{name:'Изменить занятие',exact:true}).click();
+  await page.locator('input[name="dueDate"]').fill(yesterday);await page.locator('input[name="dueTime"]').fill('09:00');
+  await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.getByText('Срок не может быть раньше начала занятия.',{exact:true})).toBeVisible();
+  await page.locator('input[name="dueTime"]').fill('11:30');
+  const saved=page.waitForResponse(response=>response.request().method()==='PATCH'&&response.url().endsWith(lessonPath(lesson)));
+  await page.getByRole('button',{name:'Сохранить',exact:true}).click();const patch=await saved;expect(patch.status()).toBe(200);
+  expect(patch.request().postDataJSON().homeworkDue).toEqual({date:yesterday,time:'11:30'});expect((await patch.json()).homeworkDue.state).toBe('overdue');
+  await page.goto(`/teacher/students/${student.id}/lessons`);
+  const teacherRow=page.getByRole('row',{name:/Срок сдачи/});await expect(teacherRow.getByText(/^Просрочено на \d+ дн\.$|^Срок прошёл$/)).toBeVisible();await expect(teacherRow).toContainText('ДЗ до '+yesterday.slice(8,10)+'.'+yesterday.slice(5,7)+', 11:30');
+  await logout(page);
+  await login(page,learner);await page.goto(`/learn/students/${student.id}/lessons`);
+  await expect(page.getByRole('row',{name:/Срок сдачи/}).getByText('Срок прошёл',{exact:true})).toBeVisible();await expect(page.getByText(/Просрочено/)).toHaveCount(0);
+  await page.goto(studentRoute(lesson));await expect(page.locator('.homework-upload .due-line')).toContainText('Сдай, когда будет готово — наставник посмотрит.');
+  await upload(page,lesson,'Late.java',Buffer.from('class Late {}'),'Поздно, но сделал');
+  await expect(page.locator('.homework-submission header')).toContainText('после срока');
+  expect((await get<Lesson>(learner.client,lessonPath(lesson))).homeworkDue?.state).toBe('late');
+  await page.goto(`/learn/students/${student.id}/lessons`);await expect(page.getByRole('row',{name:/Срок сдачи/}).getByText('Сдано после срока',{exact:true})).toBeVisible();
+  await logout(page);expect(errors).toEqual([]);
+ });
  test('real in-flight upload is cancelled on lesson navigation and account logout',async({page})=>{
   test.setTimeout(90000);const lesson=await createLesson('Отмена отправки'),other=await createLesson('Следующее занятие');
   await login(page,learner);await page.goto(studentRoute(lesson));const cdp=await page.context().newCDPSession(page);await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:50,downloadThroughput:1048576,uploadThroughput:32768});

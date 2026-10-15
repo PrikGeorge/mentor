@@ -14,6 +14,7 @@ import java.util.*;
 public class LessonService {
     private static final ZoneId ZONE = ZoneId.of("Europe/Moscow");
     private static final Set<String> FIELDS = Set.of("title", "date", "time", "duration");
+    private static final Set<String> OPTIONAL = Set.of("homeworkDue");
     private final LessonRepository repository;
     private final StudentService students;
     private final Clock clock;
@@ -55,7 +56,7 @@ public class LessonService {
         publicView(actor, audience);
         return new Page<>(
                 repository.list(w, student, page, size).stream()
-                        .map(LessonService::summaryView)
+                        .map(summary -> summaryView(summary, clock.instant()))
                         .toList(),
                 page,
                 size,
@@ -71,17 +72,22 @@ public class LessonService {
     public Map<String, Object> create(
             Actor actor, String w, String student, Map<String, Object> input) {
         students.lockTeacherCard(actor, w, student);
-        checkFields(input, FIELDS);
-        if (!input.keySet().equals(FIELDS))
+        Set<String> allowed = new HashSet<>(FIELDS);
+        allowed.addAll(OPTIONAL);
+        checkFields(input, allowed);
+        if (!input.keySet().containsAll(FIELDS))
             throw new IllegalArgumentException("Short form required.");
+        String date = date(input.get("date")), time = time(input.get("time"));
+        Instant due = dueBeforeStartCheck(date, time, homeworkDue(input.get("homeworkDue")));
         return view(
                 repository.create(
                         w,
                         student,
                         title(input.get("title")),
-                        date(input.get("date")),
-                        time(input.get("time")),
+                        date,
+                        time,
                         duration(input.get("duration")),
+                        due,
                         clock.instant()),
                 false);
     }
@@ -91,7 +97,15 @@ public class LessonService {
         lockTeacher(actor, ref);
         checkFields(
                 input,
-                Set.of("title", "date", "time", "duration", "conducted", "status", "revision"));
+                Set.of(
+                        "title",
+                        "date",
+                        "time",
+                        "duration",
+                        "conducted",
+                        "status",
+                        "homeworkDue",
+                        "revision"));
         long revision = revision(input.get("revision"));
         var old = metadata(ref);
         Object conducted = input.get("conducted");
@@ -122,8 +136,17 @@ public class LessonService {
                 time = input.containsKey("time") ? time(input.get("time")) : old.time();
         int duration =
                 input.containsKey("duration") ? duration(input.get("duration")) : old.duration();
+        // homeworkDue: an object sets the deadline, null removes it, absence keeps it; it may never
+        // precede the (possibly moved) lesson start.
+        Instant due =
+                dueBeforeStartCheck(
+                        date,
+                        time,
+                        input.containsKey("homeworkDue")
+                                ? homeworkDue(input.get("homeworkDue"))
+                                : old.homeworkDueAt());
         if (!repository.update(
-                old, title, date, time, duration, conductedAt, status, bundleId, revision))
+                old, title, date, time, duration, conductedAt, status, bundleId, due, revision))
             throw conflict();
         return view(metadata(ref), false);
     }
@@ -158,6 +181,7 @@ public class LessonService {
                 old.conductedAt(),
                 "prepared",
                 bundleId,
+                old.homeworkDueAt(),
                 old.revision())) throw conflict();
         return bundleId;
     }
@@ -229,7 +253,7 @@ public class LessonService {
                 "focus",
                 focus == null
                         ? null
-                        : Map.of("lesson", summaryView(focus), "upcoming", next.isPresent()));
+                        : Map.of("lesson", summaryView(focus, now), "upcoming", next.isPresent()));
         return result;
     }
 
@@ -246,7 +270,7 @@ public class LessonService {
         return repository.find(ref).orElseThrow(WorkspaceAccess::missing);
     }
 
-    private static Map<String, Object> metadataView(LessonRepository.Metadata m) {
+    private static Map<String, Object> metadataView(LessonRepository.Metadata m, Instant now) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", m.ref().id());
         result.put("workspaceId", m.ref().workspaceId());
@@ -262,17 +286,18 @@ public class LessonService {
         result.put("createdAt", m.createdAt().toString());
         result.put("number", m.number());
         if (m.conductedAt() != null) result.put("conductedAt", m.conductedAt().toString());
+        if (m.homeworkDueAt() != null) result.put("homeworkDue", dueView(m, now));
         return result;
     }
 
-    static Map<String, Object> summaryView(LessonRepository.Summary summary) {
-        var result = metadataView(summary.metadata());
+    static Map<String, Object> summaryView(LessonRepository.Summary summary, Instant now) {
+        var result = metadataView(summary.metadata(), now);
         result.put("hasStudentNotes", summary.hasStudentNotes());
         return result;
     }
 
     private Map<String, Object> view(LessonRepository.Metadata m, boolean publicView) {
-        var result = metadataView(m);
+        var result = metadataView(m, clock.instant());
         repository
                 .texts(m.ref())
                 .forEach(
@@ -281,6 +306,44 @@ public class LessonService {
                                 result.put(k.name(), v.markdown());
                         });
         return result;
+    }
+
+    // open: no work yet and the deadline ahead; overdue: no work and the deadline passed; onTime /
+    // late: the first work came at or before / after the deadline. Late work is always accepted.
+    static String dueState(Instant due, Instant firstWork, Instant now) {
+        if (firstWork != null) return firstWork.isAfter(due) ? "late" : "onTime";
+        return now.isAfter(due) ? "overdue" : "open";
+    }
+
+    private static Map<String, Object> dueView(LessonRepository.Metadata m, Instant now) {
+        var local = m.homeworkDueAt().atZone(ZONE);
+        Map<String, Object> due = new LinkedHashMap<>();
+        due.put("date", local.toLocalDate().toString());
+        due.put("time", String.format("%02d:%02d", local.getHour(), local.getMinute()));
+        due.put("state", dueState(m.homeworkDueAt(), m.firstWorkAt(), now));
+        return due;
+    }
+
+    // A deadline is a Moscow date and time, exactly {date, time}; null means none.
+    static Instant homeworkDue(Object value) {
+        if (value == null) return null;
+        if (!(value instanceof Map<?, ?> due) || !due.keySet().equals(Set.of("date", "time")))
+            throw new IllegalArgumentException("homeworkDue must be {date, time} or null.");
+        return LocalDate.parse(date(due.get("date")))
+                .atTime(LocalTime.parse(time(due.get("time"))))
+                .atZone(ZONE)
+                .toInstant();
+    }
+
+    private static Instant dueBeforeStartCheck(String date, String time, Instant due) {
+        if (due != null
+                && due.isBefore(
+                        LocalDate.parse(date)
+                                .atTime(LocalTime.parse(time))
+                                .atZone(ZONE)
+                                .toInstant()))
+            throw new IllegalArgumentException("The homework deadline precedes the lesson start.");
+        return due;
     }
 
     private static boolean publicView(Actor actor, String audience) {

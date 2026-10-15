@@ -28,7 +28,9 @@ public class LessonRepository {
             long revision,
             Instant createdAt,
             Instant conductedAt,
-            long number) {}
+            long number,
+            Instant homeworkDueAt,
+            Instant firstWorkAt) {}
 
     public record Summary(Metadata metadata, boolean hasStudentNotes) {}
 
@@ -50,11 +52,23 @@ public class LessonRepository {
                             r.getTimestamp("conducted_at") == null
                                     ? null
                                     : r.getTimestamp("conducted_at").toInstant(),
-                            r.getLong("number"));
+                            r.getLong("number"),
+                            instant(r.getTimestamp("homework_due_at")),
+                            instant(r.getTimestamp("first_work_at")));
     private static final RowMapper<Summary> SUMMARY_MAPPER =
             (r, n) -> new Summary(MAPPER.mapRow(r, n), r.getBoolean("has_student_notes"));
+    // T09: the first student work of a lesson with a deadline — a homework file or a submitted
+    // attempt of an active homework-placement exercise (the same moves as the turn clock).
+    private static final String FIRST_WORK =
+            "CASE WHEN lesson.homework_due_at IS NULL THEN NULL ELSE LEAST("
+                    + "(SELECT min(h.created_at) FROM homework_submission h WHERE h.workspace_id=lesson.workspace_id AND h.student_id=lesson.student_id AND h.lesson_id=lesson.id),"
+                    + "(SELECT min(t.created_at) FROM practice_attempt t JOIN practice_assignment a ON a.workspace_id=t.workspace_id AND a.id=t.assignment_id"
+                    + " WHERE a.workspace_id=lesson.workspace_id AND a.student_id=lesson.student_id AND a.lesson_id=lesson.id AND a.placement='homework' AND a.active AND t.mode='submit')"
+                    + ") END AS first_work_at";
     private static final String SELECT =
-            "SELECT lesson.*,(SELECT count(*) FROM lesson o WHERE o.workspace_id=lesson.workspace_id AND o.student_id=lesson.student_id AND (o.local_date,o.local_time,o.created_at,o.id)<=(lesson.local_date,lesson.local_time,lesson.created_at,lesson.id)) AS number FROM lesson";
+            "SELECT lesson.*,(SELECT count(*) FROM lesson o WHERE o.workspace_id=lesson.workspace_id AND o.student_id=lesson.student_id AND (o.local_date,o.local_time,o.created_at,o.id)<=(lesson.local_date,lesson.local_time,lesson.created_at,lesson.id)) AS number,"
+                    + FIRST_WORK
+                    + " FROM lesson";
     // The browser previously used String.trim(); keep the same whitespace set without transferring
     // Markdown over JDBC.
     private static final String TRIM_WHITESPACE =
@@ -63,7 +77,9 @@ public class LessonRepository {
             "SELECT lesson.*,row_number() OVER (PARTITION BY workspace_id,student_id ORDER BY local_date,local_time,created_at,id) AS number,"
                     + "EXISTS (SELECT 1 FROM lesson_text t WHERE t.workspace_id=lesson.workspace_id AND t.lesson_id=lesson.id AND t.kind='studentNotes' AND btrim(t.markdown,"
                     + TRIM_WHITESPACE
-                    + ")<>'') AS has_student_notes FROM lesson";
+                    + ")<>'') AS has_student_notes,"
+                    + FIRST_WORK
+                    + " FROM lesson";
     private static final String ORDER =
             " ORDER BY local_date DESC,local_time DESC,created_at DESC,id DESC";
 
@@ -123,7 +139,9 @@ public class LessonRepository {
         return jdbc.query(
                 "SELECT lesson.*,n.number,p.name AS student_name,EXISTS (SELECT 1 FROM lesson_text t WHERE t.workspace_id=lesson.workspace_id AND t.lesson_id=lesson.id AND t.kind='studentNotes' AND btrim(t.markdown,"
                         + TRIM_WHITESPACE
-                        + ")<>'') AS has_student_notes FROM lesson"
+                        + ")<>'') AS has_student_notes,"
+                        + FIRST_WORK
+                        + " FROM lesson"
                         + " JOIN (SELECT student_id,id,row_number() OVER (PARTITION BY student_id ORDER BY local_date,local_time,created_at,id) AS number FROM lesson WHERE workspace_id=?) n ON n.student_id=lesson.student_id AND n.id=lesson.id"
                         + " JOIN student_profile p ON p.workspace_id=lesson.workspace_id AND p.id=lesson.student_id AND p.archived_at IS NULL"
                         + " WHERE lesson.workspace_id=? AND lesson.local_date BETWEEN ? AND ?"
@@ -151,10 +169,11 @@ public class LessonRepository {
             String date,
             String time,
             int duration,
+            Instant homeworkDueAt,
             Instant now) {
         String id = UUID.randomUUID().toString();
         jdbc.update(
-                "INSERT INTO lesson(workspace_id,student_id,id,title,local_date,local_time,duration,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO lesson(workspace_id,student_id,id,title,local_date,local_time,duration,homework_due_at,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 w,
                 student,
                 id,
@@ -162,6 +181,7 @@ public class LessonRepository {
                 date,
                 time,
                 duration,
+                homeworkDueAt == null ? null : Timestamp.from(homeworkDueAt),
                 Timestamp.from(now));
         for (TextKind kind : TextKind.values())
             jdbc.update(
@@ -179,31 +199,12 @@ public class LessonRepository {
             String time,
             int duration,
             Instant conductedAt,
-            long revision) {
-        return update(
-                old,
-                title,
-                date,
-                time,
-                duration,
-                conductedAt,
-                old.status(),
-                old.bundleId(),
-                revision);
-    }
-
-    public boolean update(
-            Metadata old,
-            String title,
-            String date,
-            String time,
-            int duration,
-            Instant conductedAt,
             String status,
             String bundleId,
+            Instant homeworkDueAt,
             long revision) {
         return jdbc.update(
-                        "UPDATE lesson SET title=?,local_date=?,local_time=?,duration=?,conducted_at=?,status=?,bundle_id=?,revision=revision+1 WHERE workspace_id=? AND student_id=? AND id=? AND revision=?",
+                        "UPDATE lesson SET title=?,local_date=?,local_time=?,duration=?,conducted_at=?,status=?,bundle_id=?,homework_due_at=?,revision=revision+1 WHERE workspace_id=? AND student_id=? AND id=? AND revision=?",
                         title,
                         date,
                         time,
@@ -211,6 +212,7 @@ public class LessonRepository {
                         conductedAt == null ? null : Timestamp.from(conductedAt),
                         status,
                         bundleId,
+                        homeworkDueAt == null ? null : Timestamp.from(homeworkDueAt),
                         old.ref().workspaceId(),
                         old.ref().studentId(),
                         old.ref().id(),
@@ -252,6 +254,10 @@ public class LessonRepository {
                             ref.studentId(),
                             ref.id()));
         return out;
+    }
+
+    private static Instant instant(Timestamp value) {
+        return value == null ? null : value.toInstant();
     }
 
     public boolean delete(LessonRef ref) {

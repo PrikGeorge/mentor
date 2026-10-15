@@ -15,10 +15,12 @@ import { PaginationComponent } from '../core/pagination.component';
 import { FileSizePipe } from '../core/file-size.pipe';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, validateAnswer } from './text-answer';
+import { afterDeadline, dueLine, HomeworkDue } from './homework-due';
 @Component({ selector: 'mentor-homework-page', imports: [LessonReviewComponent, IconComponent, TurnClockComponent, GradeComponent, CodeReviewComponent, PaginationComponent, FileSizePipe, ErrorBannerComponent], template: `
 <section class="homework-page" [class.single]="!canSubmit()" [hidden]="!active()">
 @if(canSubmit()){
 <section class="homework-upload" aria-labelledby="homework-upload-title"><div class="sh"><h2 id="homework-upload-title">Сдать домашнюю работу</h2></div><p class="subtitle">Прикрепи проект или файл либо напиши ответ текстом. Ревью наставника появится под отправленной работой.</p>
+@if(due();as d){<p class="due-line" [class.overdue]="d.state==='overdue'"><mentor-icon name="clock"/>{{dueText(d,'student')}}</p>}
 <form (submit)="upload($event)" novalidate [attr.aria-busy]="busy()">
 <div class="seg answer-mode" role="group" aria-label="Способ сдачи"><button type="button" [attr.aria-pressed]="answerMode()==='file'" (click)="setAnswerMode('file')" [disabled]="busy()"><mentor-icon name="file-up"/>Файл</button><button type="button" [attr.aria-pressed]="answerMode()==='text'" (click)="setAnswerMode('text')" [disabled]="busy()"><mentor-icon name="pencil"/>Текстом</button></div>
 <label class="field" [hidden]="answerMode()!=='file'">Файл работы<input #fileInput type="file" name="homeworkFile" accept=".zip,.java,.txt,.md,.pdf" (change)="chooseFile($event)" [disabled]="busy()"><small>ZIP, Java, TXT, Markdown или PDF · непустой файл до 20 МиБ. Проекты не распаковываются и не запускаются.</small></label>
@@ -37,9 +39,10 @@ import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, vali
 }@else if(preview()){<p class="callout">Предпросмотр кабинета ученика · только для чтения. Работу отправляет ученик из своего кабинета.</p>}
 <section class="homework-history" aria-labelledby="homework-history-title">@if(latest()!==undefined){<mentor-turn-clock class="mb-16" [turn]="turn()" [viewer]="canReview()?'teacher':'student'" [name]="studentName()" [mini]="true"/>}<div class="sh"><h2 id="homework-history-title">{{mode()==='review'?'Ревью сданных работ':'Отправленные работы'}}</h2>@if(!unknown()){<button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()||busy()"><mentor-icon name="refresh"/>Обновить историю</button>}</div>
 <p class="small-muted mt-6">Ревью к файлу относится только к этой работе. Общее ревью занятия показано отдельно.</p>
+@if(canReview()&&due();as d){<p class="due-line mt-6" [class.overdue]="d.state==='overdue'"><mentor-icon name="clock"/>{{dueText(d,'teacher')}}</p>}
 @if(listError()){<mentor-error-banner class="mt-16" [message]="listError()" retryLabel="Повторить загрузку" [busy]="loading()" (retry)="refreshHistory()"/>}
 @if(loading()){<p class="loading" role="status">Загружаем историю работ…</p>}@else if(!submissions().length&&!listError()){<div class="empty-state mt-16"><h3>Работ пока нет</h3><p>По этому занятию ещё нет сданных работ.</p></div>}
-<ol class="works">@for(submission of submissions();track submission.id;let i=$index){<li class="homework-submission"><span class="n">{{total()-page()*25-i}}</span><div><header><h3>{{submission.filename}}</h3><span class="small-muted">{{date(submission.createdAt)}} · {{submission.size|fileSize}}</span><span class="tag" [class.on]="submission.status==='reviewed'" [class.danger]="submission.status==='needs_revision'"><mentor-icon [name]="submission.status==='reviewed'?'check-check':submission.status==='needs_revision'?'rotate-ccw':'clock'"/>{{labels[submission.status]}}</span></header>
+<ol class="works">@for(submission of submissions();track submission.id;let i=$index){<li class="homework-submission"><span class="n">{{total()-page()*25-i}}</span><div><header><h3>{{submission.filename}}</h3><span class="small-muted">{{date(submission.createdAt)}} · {{submission.size|fileSize}}@if(late(submission)){ · после срока}</span><span class="tag" [class.on]="submission.status==='reviewed'" [class.danger]="submission.status==='needs_revision'"><mentor-icon [name]="submission.status==='reviewed'?'check-check':submission.status==='needs_revision'?'rotate-ccw':'clock'"/>{{labels[submission.status]}}</span></header>
 @if(submission.comment){<p class="prewrap">«{{submission.comment}}»</p>}<div class="actions"><button class="btn sm text" type="button" (click)="download(submission)"><mentor-icon name="download"/>Скачать файл</button>@if(repositoryLink(submission.repositoryUrl);as url){<a class="btn sm text" [href]="url" target="_blank" rel="noopener noreferrer">Репозиторий ↗</a>}@if(isText(submission)){<button class="btn sm text" type="button" (click)="toggleCode(submission)" [attr.aria-expanded]="openCode()===submission.id"><mentor-icon name="code"/>{{openCode()===submission.id?'Скрыть код':canReview()?'Открыть код и прокомментировать':'Открыть код'}}</button>}</div>
 @if(openCode()===submission.id){<div class="submission-code">@if(code();as c){<mentor-code-review [lesson]="lesson()" targetKind="homework" [targetId]="submission.id" [files]="c" [editable]="canReview()" [preview]="preview()"/>}@else if(codeError()){<mentor-error-banner [message]="codeError()" retryLabel="Повторить загрузку" (retry)="loadCode(submission)"/>}@else{<p class="loading" role="status">Загружаем код…</p>}</div>}
 @if(downloadErrors()[submission.id]){<mentor-error-banner class="mt-16" [message]="downloadErrors()[submission.id]" retryLabel="Повторить скачивание" icon="download" (retry)="download(submission)"/>}
@@ -50,6 +53,10 @@ import { AnswerFormat, answerBytes, answerFile, answerFilename, answerSize, vali
 </section></section>` })
 export class HomeworkPageComponent {
     readonly lesson = input.required<LessonRef>(); readonly preview = input(false); readonly mode = input<'homework'|'review'>('homework'); readonly studentName = input('');
+    // T09: the lesson's homework deadline, if any; it never blocks a submission.
+    readonly due = input<HomeworkDue | null>(null);
+    dueText(due: HomeworkDue, viewer: 'teacher'|'student') { return dueLine(due, viewer); }
+    late(submission: Submission) { return afterDeadline(this.due(), submission.createdAt); }
     // The newest submission of this lesson decides whose turn it is; undefined until the first page arrives.
     readonly latest = signal<Submission | null | undefined>(undefined); readonly turn = computed(() => turnOf(this.latest()));
     // T13: the work is either a chosen file or an answer typed here; the typed answer is sent as one text file.

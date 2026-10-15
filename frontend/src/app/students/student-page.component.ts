@@ -17,6 +17,7 @@ import { catchError, of } from 'rxjs';
 import { RoadmapComponent } from '../roadmap/roadmap.component';
 import { MovesComponent } from '../journal/moves.component';
 import { lessonStatus } from '../lessons/lesson-status';
+import { dueShort, dueTag } from '../homework/homework-due';
 import { readResource } from '../core/read-resource';
 @Component({
     selector: 'mentor-student-page',
@@ -252,11 +253,19 @@ import { readResource } from '../core/read-resource';
                                                         </td>
                                                         <td class="when">
                                                             {{ l.date | date: 'dd.MM.yyyy' }}<small>{{ l.time }} МСК · {{ l.duration }} мин</small>
+                                                            @if (l.homeworkDue; as due) {
+                                                                <small class="due">ДЗ до {{ dueShort(due) }}</small>
+                                                            }
                                                         </td>
                                                         <td>
                                                             @if (status(l, learner() ? 'student' : 'teacher'); as tag) {
                                                                 <span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"
                                                                     ><mentor-icon [name]="tag.icon" />{{ tag.label }}</span
+                                                                >
+                                                            }
+                                                            @if (dueTag(l.homeworkDue, learner() ? 'student' : 'teacher', !!s.archivedAt); as due) {
+                                                                <span class="tag due-tag" [class.quiet]="due.quiet" [class.danger]="due.danger" [class.warn]="due.warn"
+                                                                    ><mentor-icon [name]="due.icon" />{{ due.label }}</span
                                                                 >
                                                             }
                                                         </td>
@@ -533,6 +542,8 @@ export class StudentPageComponent extends DomainPage {
         });
     }
     readonly status = lessonStatus;
+    readonly dueShort = dueShort;
+    readonly dueTag = dueTag;
     // Archiving keeps the card and its history; the student still reads but cannot send new work.
     readonly archiving = signal(false);
     readonly archiveBusy = signal(false);

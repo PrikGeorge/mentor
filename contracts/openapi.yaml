@@ -3107,6 +3107,43 @@ components:
           $ref: '#/components/schemas/LessonTime'
         duration:
           $ref: '#/components/schemas/LessonDuration'
+        homeworkDue:
+          $ref: '#/components/schemas/HomeworkDueInput'
+    HomeworkDueInput:
+      type: object
+      additionalProperties: false
+      description: Moscow wall-clock deadline for the lesson's homework; it may not precede the lesson start (400).
+        Late work is still accepted.
+      required:
+      - date
+      - time
+      properties:
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+    HomeworkDue:
+      type: object
+      additionalProperties: false
+      description: 'The deadline and its state at read time. The first work is a homework file or a submitted attempt
+        of an active homework-placement exercise. open: no work, deadline ahead; overdue: no work, deadline passed;
+        onTime / late: the first work came at or before / after the deadline. Omitted when no deadline is set.'
+      required:
+      - date
+      - time
+      - state
+      properties:
+        date:
+          $ref: '#/components/schemas/LessonDate'
+        time:
+          $ref: '#/components/schemas/LessonTime'
+        state:
+          type: string
+          enum:
+          - open
+          - overdue
+          - onTime
+          - late
     LessonMetadataInput:
       type: object
       additionalProperties: false
@@ -3131,6 +3168,11 @@ components:
           - prepared
           description: prepared publishes the lesson's materials to the student and mints bundleId once; planned hides
             them again while keeping the bundle. Adding the first material sets prepared automatically.
+        homeworkDue:
+          description: Sets the homework deadline; null removes it; absent keeps it.
+          oneOf:
+          - $ref: '#/components/schemas/HomeworkDueInput'
+          - type: 'null'
         revision:
           $ref: '#/components/schemas/LessonRevision'
     TextKind:
@@ -3233,6 +3275,8 @@ components:
           type: string
           format: date-time
           description: When the teacher marked the lesson as held; omitted until then.
+        homeworkDue:
+          $ref: '#/components/schemas/HomeworkDue'
         teacherNotes:
           $ref: '#/components/schemas/LessonMarkdown'
         studentNotes:
@@ -3300,6 +3344,8 @@ components:
           type: string
           format: date-time
           description: When the teacher marked the lesson as held; omitted until then.
+        homeworkDue:
+          $ref: '#/components/schemas/HomeworkDue'
         studentNotes:
           $ref: '#/components/schemas/LessonMarkdown'
         reviewNotes:
@@ -3364,6 +3410,8 @@ components:
           type: string
           format: date-time
           description: When marked as held; omitted until then.
+        homeworkDue:
+          $ref: '#/components/schemas/HomeworkDue'
         hasStudentNotes:
           type: boolean
           description: Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints.

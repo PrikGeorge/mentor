@@ -794,6 +794,16 @@ mentor-monaco-editor .small-muted { margin: 8px 16px; }
 .reminder-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 0; border-top: 1px solid var(--rule); }
 .reminder-list li > span { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 p.callout.reminder-line { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+/* T09: the homework deadline. Overdue uses the warning colour, never the private hatching. */
+.due-line { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; font: 500 15px/22px var(--font-sans); color: var(--ink); }
+.due-line mentor-icon { flex: none; margin-top: 3px; }
+.due-line.overdue { color: var(--warning); }
+.tbl .when small.due { color: var(--ink); }
+.tbl td .tag.due-tag { margin: 4px 0 0 6px; }
+.sheet .overdue dd { color: var(--warning); }
+.due-fields .due-legend { font: 600 16px/22px var(--font-sans); }
+.due-fields .due-actions { align-content: end; }
+.due-fields .due-hint { font: 400 13px/18px var(--font-sans); color: var(--muted); }
 @media (max-width: 640px) {
   .schedule-week-nav .count { order: -1; flex-basis: 100%; margin-left: 0; }
   .schedule-list > li { grid-template-columns: 44px minmax(0, 1fr); }

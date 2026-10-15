@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import ru.mentor.platform.shared.Actor;
 import ru.mentor.platform.workspaces.WorkspaceAccess;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -16,10 +17,12 @@ public class ScheduleService {
     public static final int MAXIMUM_DAYS = 31;
     private final LessonRepository repository;
     private final WorkspaceAccess access;
+    private final Clock clock;
 
-    public ScheduleService(LessonRepository repository, WorkspaceAccess access) {
+    public ScheduleService(LessonRepository repository, WorkspaceAccess access, Clock clock) {
         this.repository = repository;
         this.access = access;
+        this.clock = clock;
     }
 
     public Map<String, Object> schedule(Actor actor, String workspace, String from, String to) {
@@ -30,10 +33,11 @@ public class ScheduleService {
             throw new IllegalArgumentException(
                     "The range must be from one to " + MAXIMUM_DAYS + " days.");
         List<Map<String, Object>> items = new ArrayList<>();
+        var now = clock.instant();
         for (var entry : repository.schedule(workspace, first, last)) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("studentName", entry.studentName());
-            item.put("lesson", LessonService.summaryView(entry.summary()));
+            item.put("lesson", LessonService.summaryView(entry.summary(), now));
             items.add(item);
         }
         Map<String, Object> result = new LinkedHashMap<>();

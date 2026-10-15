@@ -23,6 +23,8 @@ class SnapshotMigrationSmokeTest {
     private static final String PRIVATE_TEXT = "Приватно: заметки наставника\nНе публиковать 🧩";
     private static final String PUBLIC_TEXT = "# Открытый план\n\nКоллекции — следующий шаг 🙂";
     private static final String GOAL = "  Цель: первая работа — Java  ";
+    // The newest Flyway version on the classpath: a populated V14 snapshot must reach it, however many migrations follow.
+    private static final int LATEST = latestMigration();
     private static final Map<String, String> INDEX_DEFINITIONS = Map.of(
         "practice_attempt_account", "CREATE INDEX practice_attempt_account ON public.practice_attempt USING btree (workspace_id, account_id)",
         "identity_invitation_issuer", "CREATE INDEX identity_invitation_issuer ON public.identity_invitation USING btree (issuer_id)",
@@ -33,7 +35,7 @@ class SnapshotMigrationSmokeTest {
 
     @TempDir Path temporary;
 
-    @Test void restoresPopulatedV14DumpIntoAnotherDatabaseAndPreservesDataThroughV15() throws Exception {
+    @Test void restoresPopulatedV14DumpIntoAnotherDatabaseAndPreservesDataThroughTheLatestMigration() throws Exception {
         try (var source = SnapshotMigrationSmoke.newDatabase()) {
             initializeSource(source, "14");
             String sourceIdentity;
@@ -52,8 +54,8 @@ class SnapshotMigrationSmokeTest {
             });
 
             assertEquals("14", report.beforeVersion());
-            assertEquals("15", report.afterVersion());
-            assertEquals(1, report.migrationsExecuted());
+            assertEquals(String.valueOf(LATEST), report.afterVersion());
+            assertEquals(LATEST - 14, report.migrationsExecuted());
             assertEquals(report.beforeCounts(), report.afterCounts());
             assertEquals(1L, report.afterCounts().get("identity_account"));
             assertEquals(2L, report.afterCounts().get("student_profile"));
@@ -69,8 +71,8 @@ class SnapshotMigrationSmokeTest {
             assertTrue(json.get("completed").asBoolean());
             var result = json.get("result");
             assertEquals("14", result.get("beforeVersion").asText());
-            assertEquals("15", result.get("afterVersion").asText());
-            assertEquals(1, result.get("migrationsExecuted").asInt());
+            assertEquals(String.valueOf(LATEST), result.get("afterVersion").asText());
+            assertEquals(LATEST - 14, result.get("migrationsExecuted").asInt());
             assertEquals(checksum, result.get("snapshotSha256").asText());
             assertEquals(result.get("beforeCounts"), result.get("afterCounts"));
             assertEquals(2, result.get("afterCounts").get("student_profile").asInt());
@@ -79,9 +81,18 @@ class SnapshotMigrationSmokeTest {
         }
     }
 
+    private static int latestMigration() {
+        try (var files = Files.list(Path.of(SnapshotMigrationSmokeTest.class.getResource("/db/migration").toURI()))) {
+            return files.map(file -> file.getFileName().toString()).filter(name -> name.matches("V\\d+__.*\\.sql"))
+                .mapToInt(name -> Integer.parseInt(name.substring(1, name.indexOf("__")))).max().orElseThrow();
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
+    }
+
     @Test void rejectsAnAlreadyCurrentPopulatedSnapshot() throws Exception {
         try (var source = SnapshotMigrationSmoke.newDatabase()) {
-            initializeSource(source, "15");
+            initializeSource(source, String.valueOf(LATEST));
             Path dump = dumpSource(source, "already-current.dump");
             var failure = assertThrows(IllegalStateException.class, () -> SnapshotMigrationSmoke.verify(
                 dump, SnapshotMigrationSmoke.sha256(dump), connection -> fail("A snapshot without pending migrations must not reach the probe")));

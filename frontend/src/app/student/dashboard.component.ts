@@ -11,6 +11,7 @@ import { Turn, TurnClockComponent, turnHeadline, turnOf } from '../homework/turn
 import { MovesComponent } from '../journal/moves.component';
 import { RoadmapApi, stageProgress } from '../roadmap/roadmap-api.service';
 import { readResource } from '../core/read-resource';
+import { dueLine, HomeworkDue } from '../homework/homework-due';
 const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 @Component({
     selector: 'mentor-dashboard',
@@ -58,6 +59,12 @@ const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/M
                                     }
                                 </dd>
                             </div>
+                            @if (focus.lesson.homeworkDue; as due) {
+                                <div class="wide" [class.overdue]="due.state === 'overdue' && !d.student.archivedAt">
+                                    <dt>Домашняя работа</dt>
+                                    <dd>{{ dueText(due, !!d.student.archivedAt) }}</dd>
+                                </div>
+                            }
                             <div>
                                 <dt>Направление</dt>
                                 <dd>{{ d.student.direction || '—' }}</dd>
@@ -252,6 +259,10 @@ export class DashboardComponent extends DomainPage {
     }
     reload() {
         this.refresh.update((v) => v + 1);
+    }
+    // T09: the deadline of the focused lesson, worded for the student (the teacher's preview shows the same screen).
+    dueText(due: HomeworkDue, archived: boolean) {
+        return dueLine(due, 'student', archived);
     }
     studentBase() {
         return (this.session.actor()?.role === 'TEACHER' ? '/teacher/students/' : '/learn/students/') + encodeURIComponent(this.view()!.student.id);

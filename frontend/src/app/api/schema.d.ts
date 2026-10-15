@@ -1166,6 +1166,19 @@ export interface components {
             date: components["schemas"]["LessonDate"];
             time: components["schemas"]["LessonTime"];
             duration: components["schemas"]["LessonDuration"];
+            homeworkDue?: components["schemas"]["HomeworkDueInput"];
+        };
+        /** @description Moscow wall-clock deadline for the lesson's homework; it may not precede the lesson start (400). Late work is still accepted. */
+        HomeworkDueInput: {
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+        };
+        /** @description The deadline and its state at read time. The first work is a homework file or a submitted attempt of an active homework-placement exercise. open: no work, deadline ahead; overdue: no work, deadline passed; onTime / late: the first work came at or before / after the deadline. Omitted when no deadline is set. */
+        HomeworkDue: {
+            date: components["schemas"]["LessonDate"];
+            time: components["schemas"]["LessonTime"];
+            /** @enum {string} */
+            state: "open" | "overdue" | "onTime" | "late";
         };
         LessonMetadataInput: {
             title?: components["schemas"]["LessonTitle"];
@@ -1179,6 +1192,8 @@ export interface components {
              * @enum {string}
              */
             status?: "planned" | "prepared";
+            /** @description Sets the homework deadline; null removes it; absent keeps it. */
+            homeworkDue?: components["schemas"]["HomeworkDueInput"] | null;
             revision: components["schemas"]["LessonRevision"];
         };
         /** @enum {string} */
@@ -1223,6 +1238,7 @@ export interface components {
              * @description When the teacher marked the lesson as held; omitted until then.
              */
             conductedAt?: string;
+            homeworkDue?: components["schemas"]["HomeworkDue"];
             teacherNotes: components["schemas"]["LessonMarkdown"];
             studentNotes: components["schemas"]["LessonMarkdown"];
             reviewNotes: components["schemas"]["LessonMarkdown"];
@@ -1256,6 +1272,7 @@ export interface components {
              * @description When the teacher marked the lesson as held; omitted until then.
              */
             conductedAt?: string;
+            homeworkDue?: components["schemas"]["HomeworkDue"];
             studentNotes: components["schemas"]["LessonMarkdown"];
             reviewNotes: components["schemas"]["LessonMarkdown"];
         };
@@ -1286,6 +1303,7 @@ export interface components {
              * @description When marked as held; omitted until then.
              */
             conductedAt?: string;
+            homeworkDue?: components["schemas"]["HomeworkDue"];
             /** @description Whether studentNotes contains any non-whitespace text; the text itself is available only from lesson detail or text endpoints. */
             hasStudentNotes: boolean;
         };
