@@ -8,9 +8,11 @@ contracts/**
 runner/**
 !runner/pom.xml
 !runner/src/
+runner/src/**
 !runner/src/main/
 !runner/src/main/**
 !runner/target/
+runner/target/**
 !runner/target/runner-*.jar
 !backend/
 backend/**

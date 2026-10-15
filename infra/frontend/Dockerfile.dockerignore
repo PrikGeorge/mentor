@@ -9,10 +9,12 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/dist/**
 !frontend/dist/mentor/
+frontend/dist/mentor/**
 !frontend/dist/mentor/browser/
 !frontend/dist/mentor/browser/**
 !frontend/dist/mentor/3rdpartylicenses.txt
 !infra/
 infra/**
 !infra/proxy/
+infra/proxy/**
 !infra/proxy/Caddyfile

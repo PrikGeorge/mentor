@@ -6,9 +6,11 @@
 backend/**
 !backend/pom.xml
 !backend/src/
+backend/src/**
 !backend/src/main/
 !backend/src/main/**
 !backend/target/
+backend/target/**
 !backend/target/backend-*.jar
 !runner/
 runner/**
