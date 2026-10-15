@@ -12,7 +12,7 @@ import { MaterialViewComponent } from '../materials/material-view.component';
 import { StudentNavigationComponent } from '../student/student-navigation.component';
 import { IconComponent } from '../core/icon.component';
 import { HomeworkApi, LessonTurn } from '../homework/homework-api.service';
-import { Turn, TurnClockComponent, turnOf } from '../homework/turn-clock.component';
+import { Turn, TurnClockComponent, turnHeadline, turnOf, turnSection } from '../homework/turn-clock.component';
 import { catchError, of } from 'rxjs';
 import { RoadmapComponent } from '../roadmap/roadmap.component';
 import { MovesComponent } from '../journal/moves.component';
@@ -26,7 +26,10 @@ import { lessonStatus } from '../lessons/lesson-status';
     }@else{
       <nav class="crumbs" aria-label="Путь"><a routerLink="/teacher/students">Мои ученики</a><span aria-hidden="true">›</span>@if(section()){<a [routerLink]="base()">{{s.name}}</a><span aria-hidden="true">›</span><span>{{title()}}</span>}@else{<span>{{s.name}}</span>}</nav>
       <div class="student-hero"><div class="who"><span class="avatar" aria-hidden="true">{{initial(s.name)}}</span><div><h1>{{s.name}}</h1><p>{{s.direction||'Направление не указано'}} · занимается с {{s.createdAt|date:'dd.MM.yyyy'}}</p></div></div>
-        @if(editable()&&!section()){<div class="card-turn">@if(cardTurn();as turn){<mentor-turn-clock [turn]="turn" viewer="teacher" [name]="s.name"/>}<div class="actions">@if(cardTurn()?.state==='submitted'){<a class="btn primary" [routerLink]="base()+'/lessons/'+cardTurn()!.lessonId+'/teacher/review'"><mentor-icon name="message"/>Открыть ревью</a>}<a class="btn text" [routerLink]="base()" [queryParams]="{preview:'student'}">Экран ученика ↗</a><button class="btn" (click)="openStudentEditor('name')"><mentor-icon name="pencil"/>Изменить карточку</button></div></div>}</div>
+        @if(editable()&&!section()){<div class="card-turn">@if(cardTurn();as turn){<mentor-turn-clock [turn]="turn" viewer="teacher" [name]="s.name"/>}<div class="actions">@if(cardTurn()?.state==='submitted'){<a class="btn primary" [routerLink]="base()+'/lessons/'+cardTurn()!.lessonId+'/teacher/'+turnSection(cardTurn()!)"><mentor-icon name="message"/>{{cardTurn()!.kind==='attempt'?'Открыть решение':'Открыть ревью'}}</a>}<a class="btn text" [routerLink]="base()" [queryParams]="{preview:'student'}">Экран ученика ↗</a><button class="btn" (click)="openStudentEditor('name')"><mentor-icon name="pencil"/>Изменить карточку</button>
+          @if(archiving()){<span class="inline-confirm" role="group" aria-label="Подтверждение архивации"><span class="small-muted">{{s.archivedAt?'Вернуть карточку в активные?':'В архив? Ученик сохранит вход и чтение, но не сможет сдавать работы.'}}</span><button class="btn sm" [class.danger]="!s.archivedAt" type="button" (click)="setArchived(!s.archivedAt)" [disabled]="archiveBusy()">{{s.archivedAt?'Вернуть':'В архив'}}</button><button class="btn sm text" type="button" (click)="archiving.set(false)" [disabled]="archiveBusy()">Отмена</button></span>}@else{<button class="btn text" type="button" (click)="archiving.set(true)" [disabled]="archiveBusy()"><mentor-icon [name]="s.archivedAt?'rotate-ccw':'archive'"/>{{s.archivedAt?'Вернуть из архива':'В архив'}}</button>}</div></div>}</div>
+      @if(s.archivedAt){<p class="callout mt-16" role="status">Карточка в архиве с {{s.archivedAt|date:'dd.MM.yyyy'}}. {{learner()?'Материалы и история открыты, новые работы не принимаются.':'Ученик читает материалы и историю, но не может сдавать работы; очередь ходов её не показывает.'}}</p>}
+      @if(archiveError()){<p class="auth-error mt-16" role="alert">{{archiveError()}}</p>}
       @if(editable()&&editStudent()){<div class="section-block mt-28"><mentor-student-form #studentForm [workspaceId]="workspaceId()!" [student]="s" (saved)="savedStudent($event)" (cancel)="editStudent.set(false)"/></div>}
       <mentor-student-navigation [selection]="tabsContext()" level="student"/>
       <div class="mt-28"></div>
@@ -52,8 +55,8 @@ import { lessonStatus } from '../lessons/lesson-status';
             <td><a class="row-title" [routerLink]="lessonLink(l)" [queryParams]="previewQuery()">{{l.title}}</a></td>
             <td class="when">{{l.date|date:'dd.MM.yyyy'}}<small>{{l.time}} МСК · {{l.duration}} мин</small></td>
             <td>@if(status(l);as tag){<span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"><mentor-icon [name]="tag.icon"/>{{tag.label}}</span>}</td>
-            @if(turns()){<td class="turn-cell">@if(turnFor(l);as turn){@if(turn.state==='submitted'){<b>Ход за вами</b><small>работа отправлена {{turn.submittedAt|date:'dd.MM, HH:mm':'+0300'}}</small>}@else{<b>Ход у ученика</b><small>{{turn.state==='needs_revision'?'доработка · ':''}}вы ответили {{turn.reviewedAt|date:'dd.MM':'+0300'}}</small>}}@else{<span class="small-muted">—</span>}</td>}
-            <td class="act">@if(turnFor(l)?.state==='submitted'){<a class="btn sm primary" [routerLink]="base()+'/lessons/'+l.id+'/teacher/review'">Ревью</a>}@else{<a class="btn sm" [routerLink]="lessonLink(l)" [queryParams]="previewQuery()">{{section()==='review'?'Открыть ревью':learner()?'Открыть задания':'Открыть'}}</a>}
+            @if(turns()){<td class="turn-cell" [class.mine]="learner()&&turnFor(l)&&turnFor(l)!.state!=='submitted'">@if(turnFor(l);as turn){<b>{{headlineFor(turn).title}}</b><small>{{headlineFor(turn).text}}</small>}@else{<span class="small-muted">—</span>}</td>}
+            <td class="act">@if(editable()&&turnFor(l)?.state==='submitted'){<a class="btn sm primary" [routerLink]="base()+'/lessons/'+l.id+'/teacher/'+turnSection(turnFor(l)!)">{{turnFor(l)!.kind==='attempt'?'Открыть решение':'Ревью'}}</a>}@else if(learner()&&turnFor(l)&&turnFor(l)!.state!=='submitted'&&turnFor(l)!.state!=='none'){<a class="btn sm primary" [routerLink]="base()+'/lessons/'+l.id+'/student/'+turnSection(turnFor(l)!)" [queryParams]="previewQuery()">{{turnFor(l)!.state==='needs_revision'?'Доработать':'Открыть отзыв'}}</a>}@else{<a class="btn sm" [routerLink]="lessonLink(l)" [queryParams]="previewQuery()">{{section()==='review'?'Открыть ревью':learner()?'Открыть задания':'Открыть'}}</a>}
               @if(editable()){<div class="lesson-shortcuts mt-6"><a [routerLink]="base()+'/lessons/'+l.id+'/teacher/guide'">{{l.bundleId?'Методичка':'Сценарий'}}</a><a [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a></div>}</td>
           </tr>}
         </tbody></table></div>}
@@ -136,17 +139,26 @@ export class StudentPageComponent extends DomainPage {
         });
         effect(onCleanup => {
             this.session.generation();
-            const w = this.workspaceId(), s = this.studentId(), section = this.section(), editable = this.editable();
+            const w = this.workspaceId(), s = this.studentId(), section = this.section(), preview = this.preview();
             this.refresh();
             this.turns.set(null);
-            if (!w || !s || section || !editable)
+            if (!w || !s || section)
                 return;
-            const sub = this.homework.lessonTurns(w, s).pipe(catchError(() => of(null))).subscribe(page => this.turns.set(page ? new Map(page.items.map(turn => [turn.lessonId, turn])) : null));
+            // The student sees the same latest exchanges in their own words; a preview asks for the student projection.
+            const sub = this.homework.lessonTurns(w, s, preview).pipe(catchError(() => of(null))).subscribe(page => this.turns.set(page ? new Map(page.items.map(turn => [turn.lessonId, turn])) : null));
             onCleanup(() => sub.unsubscribe());
         });
     }
     readonly status = lessonStatus;
+    // Archiving keeps the card and its history; the student still reads but cannot send new work.
+    readonly archiving = signal(false); readonly archiveBusy = signal(false); readonly archiveError = signal('');
+    setArchived(archived: boolean) {
+        const s = this.student(); if (!this.editable() || this.archiveBusy() || !s) return; this.archiveBusy.set(true); this.archiveError.set('');
+        this.studentsApi.save(this.workspaceId()!, s.id, { archived }, s.revision).subscribe({ next: view => { this.archiveBusy.set(false); this.archiving.set(false); this.savedStudent(view); }, error: e => { this.archiveBusy.set(false); this.archiving.set(false); this.archiveError.set(this.message(e)); } });
+    }
     turnFor(lesson: LessonView): Turn | null { const turn = this.turns()?.get(lesson.id); return turn ? turnOf(turn) : null; }
+    headlineFor(turn: Turn) { return turnHeadline(turn, this.learner() ? 'student' : 'teacher'); }
+    readonly turnSection = turnSection;
     profileSection() { return ['goal', 'roadmap', 'profile', 'projects', 'career', 'journal', 'core', 'course'].includes(this.section()); }
     title() { return ({ goal: 'Моя цель', roadmap: 'Маршрут обучения', review: 'Предыдущие отзывы', lessons: 'Мои занятия', profile: 'Навыки и наблюдения', projects: 'Учебные проекты', career: 'Карьерный маршрут', journal: 'Журнал обучения', core: 'Базовые знания', course: 'Учебный курс', materials: this.learner() ? 'Материалы' : 'Материалы ученика' } as Record<string, string>)[this.section()] ?? this.student()?.name; }
     initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }

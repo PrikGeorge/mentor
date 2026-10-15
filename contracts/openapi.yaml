@@ -420,6 +420,16 @@ paths:
           enum:
           - student
         description: Narrows teacher output to the public projection; grants no permissions.
+      - name: archived
+        in: query
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+          - all
+        description: Teacher listing filter, default false (active cards only); true lists archived cards, all lists both.
+          A student always sees only their own card.
       - name: page
         in: query
         schema:
@@ -875,6 +885,28 @@ paths:
           $ref: '#/components/responses/Problem'
         '415':
           $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteLesson
+      description: Owning TEACHER only. Removes a lesson that has no homework, materials, stored files, line comments,
+        drafts or trainer attempts, together with its texts and assignment rows; later lessons move up in number.
+        A lesson with any of those answers 409 LESSON_IN_USE and stays as history. Students and other teachers get 404.
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/WebClient'
+      - $ref: '#/components/parameters/Account'
+      responses:
+        '204':
+          description: Lesson removed
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/texts/{kind}:
     parameters:
     - $ref: '#/components/parameters/Task3WorkspaceId'
@@ -1203,6 +1235,26 @@ paths:
         '409':
           $ref: '#/components/responses/Problem'
         '413':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/practice/worker:
+    parameters:
+    - $ref: '#/components/parameters/Task3WorkspaceId'
+    get:
+      operationId: practiceWorkerStatus
+      description: Any member of the workspace. Whether the trainer executor has reported within the last 90 seconds, plus
+        queue counts, so a long-queued attempt can be explained. No job or attempt identifiers.
+      responses:
+        '200':
+          description: Executor availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerStatus'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
@@ -2740,6 +2792,9 @@ components:
           type: integer
           format: int64
           minimum: 1
+        archived:
+          type: boolean
+          description: true archives the card (keeps the first archivedAt), false restores it; combines with text fields under the same revision.
     TeacherStudentView:
       type: object
       additionalProperties: false
@@ -2800,6 +2855,10 @@ components:
           type: string
           x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
+        archivedAt:
+          type: string
+          format: date-time
+          description: Present while the card is archived. The student still reads; new work is refused with 403 ARCHIVED.
     PublicStudentView:
       type: object
       additionalProperties: false
@@ -2855,6 +2914,10 @@ components:
           type: string
           x-max-utf16-units: 20000
           description: JavaScript trim; limit in UTF-16 code units.
+        archivedAt:
+          type: string
+          format: date-time
+          description: Present while the card is archived. The student still reads; new work is refused with 403 ARCHIVED.
     StudentView:
       oneOf:
       - $ref: '#/components/schemas/TeacherStudentView'
@@ -3609,6 +3672,28 @@ components:
           $ref: '#/components/schemas/SourceFiles'
       description: Current authorized public exercise snapshot. Tests, checker definitions, target classes, methods,
         parameter/custom types, environment execution details, and commands are absent.
+    WorkerStatus:
+      type: object
+      additionalProperties: false
+      required:
+      - available
+      - lastSeenAt
+      - waiting
+      - running
+      properties:
+        available:
+          type: boolean
+        lastSeenAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        waiting:
+          type: integer
+          minimum: 0
+        running:
+          type: integer
+          minimum: 0
     PublicExercisePage:
       type: object
       additionalProperties: false
@@ -4245,6 +4330,7 @@ components:
       required:
       - lessonId
       - submissionId
+      - kind
       - filename
       - status
       - createdAt
@@ -4253,9 +4339,13 @@ components:
           type: string
         submissionId:
           type: string
+          description: The homework submission id, or the trainer attempt id when kind is attempt.
+        kind:
+          $ref: '#/components/schemas/TurnKind'
         filename:
           type: string
           x-max-utf16-units: 180
+          description: The homework filename, or the exercise title for an attempt.
         status:
           type: string
           enum:
@@ -4269,6 +4359,14 @@ components:
           type: string
           format: date-time
           description: Omitted before the first review.
+    TurnKind:
+      type: string
+      enum:
+      - homework
+      - attempt
+      description: homework is an uploaded work reviewed with status and feedback. attempt is a submitted trainer attempt
+        of an active homework-placement exercise; it is submitted until the teacher leaves the first line comment on it,
+        then reviewed with reviewedAt equal to that comment's time.
     LessonTurnPage:
       type: object
       additionalProperties: false
@@ -4302,6 +4400,7 @@ components:
       - lessonTitle
       - lessonDate
       - submissionId
+      - kind
       - filename
       - comment
       - status
@@ -4320,6 +4419,8 @@ components:
           $ref: '#/components/schemas/LessonDate'
         submissionId:
           type: string
+        kind:
+          $ref: '#/components/schemas/TurnKind'
         filename:
           type: string
           x-max-utf16-units: 180

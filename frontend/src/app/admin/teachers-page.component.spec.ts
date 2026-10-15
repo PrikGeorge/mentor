@@ -38,14 +38,14 @@ describe('Administrator account controls', () => {
   });
   it('blocks teacher and workspace independently using their server identifiers', () => {
     const fixture = open();
-    fixture.nativeElement.querySelector('[data-action="teacher-access"]').click();
+    fixture.nativeElement.querySelector('[data-action="teacher-access-ask"]').click(); fixture.detectChanges(); fixture.nativeElement.querySelector('[data-action="teacher-access"]').click();
     const account = http.expectOne('/api/v1/admin/teachers/t1/access');
     expect(account.request.body).toEqual({ disabled: true });
     account.flush(null, { status: 204, statusText: 'No Content' });
     fixture.detectChanges();
     http.match(request => request.method === 'GET').forEach(request => request.flush({ items: request.request.url.endsWith('teachers') ? [teacher] : [], page: 0, size: 25, total: 1 }));
     fixture.detectChanges();
-    fixture.nativeElement.querySelector('[data-action="workspace-access"]').click();
+    fixture.nativeElement.querySelector('[data-action="workspace-access-ask"]').click(); fixture.detectChanges(); fixture.nativeElement.querySelector('[data-action="workspace-access"]').click();
     const workspace = http.expectOne('/api/v1/admin/workspaces/w1/access');
     expect(workspace.request.body).toEqual({ disabled: true });
     workspace.flush(null, { status: 204, statusText: 'No Content' });
@@ -66,14 +66,14 @@ describe('Administrator account controls', () => {
   });
   it('restores a paused teacher account', () => {
     const fixture = open({ ...teacher, accountDisabled: true });
-    fixture.nativeElement.querySelector('[data-action="teacher-access"]').click();
+    fixture.nativeElement.querySelector('[data-action="teacher-access-ask"]').click(); fixture.detectChanges(); fixture.nativeElement.querySelector('[data-action="teacher-access"]').click();
     const request = http.expectOne('/api/v1/admin/teachers/t1/access'); expect(request.request.body).toEqual({ disabled: false });
     request.flush(null, { status: 204, statusText: 'No Content' }); fixture.detectChanges();
     http.match(request => request.method === 'GET').forEach(request => request.flush({ items: [], page: 0, size: 25, total: 0 }));
   });
   it('restores a paused workspace', () => {
     const fixture = open({ ...teacher, workspaceDisabled: true });
-    fixture.nativeElement.querySelector('[data-action="workspace-access"]').click();
+    fixture.nativeElement.querySelector('[data-action="workspace-access-ask"]').click(); fixture.detectChanges(); fixture.nativeElement.querySelector('[data-action="workspace-access"]').click();
     const request = http.expectOne('/api/v1/admin/workspaces/w1/access'); expect(request.request.body).toEqual({ disabled: false });
     request.flush(null, { status: 204, statusText: 'No Content' }); fixture.detectChanges();
     http.match(request => request.method === 'GET').forEach(request => request.flush({ items: [], page: 0, size: 25, total: 0 }));

@@ -26,6 +26,22 @@ public class LessonRepository {
     }
     public boolean update(Metadata old,String title,String date,String time,int duration,Instant conductedAt,long revision){return update(old,title,date,time,duration,conductedAt,old.status(),old.bundleId(),revision);}
     public boolean update(Metadata old,String title,String date,String time,int duration,Instant conductedAt,String status,String bundleId,long revision){return jdbc.update("UPDATE lesson SET title=?,local_date=?,local_time=?,duration=?,conducted_at=?,status=?,bundle_id=?,revision=revision+1 WHERE workspace_id=? AND student_id=? AND id=? AND revision=?",title,date,time,duration,conductedAt==null?null:Timestamp.from(conductedAt),status,bundleId,old.ref().workspaceId(),old.ref().studentId(),old.ref().id(),revision)==1;}
+    // Rows that would be orphaned or that carry student work; a lesson with any of them is not deletable.
+    public Map<String,Long> usage(LessonRef ref){
+        Map<String,Long> out=new LinkedHashMap<>();
+        for(String table:List.of("homework_submission","material","stored_blob","blob_reservation","code_comment"))
+            out.put(table,jdbc.queryForObject("SELECT count(*) FROM "+table+" WHERE workspace_id=? AND student_id=? AND lesson_id=?",Long.class,ref.workspaceId(),ref.studentId(),ref.id()));
+        // Drafts, their archives and attempts hang off the lesson's assignments.
+        for(String table:List.of("practice_attempt","practice_draft","practice_draft_archive"))
+            out.put(table,jdbc.queryForObject("SELECT count(*) FROM "+table+" t JOIN practice_assignment a ON a.workspace_id=t.workspace_id AND a.id=t.assignment_id WHERE a.workspace_id=? AND a.student_id=? AND a.lesson_id=?",Long.class,ref.workspaceId(),ref.studentId(),ref.id()));
+        return out;
+    }
+    public boolean delete(LessonRef ref){
+        jdbc.update("DELETE FROM practice_assignment WHERE workspace_id=? AND student_id=? AND lesson_id=?",ref.workspaceId(),ref.studentId(),ref.id());
+        jdbc.update("DELETE FROM practice_assignment_set WHERE workspace_id=? AND student_id=? AND lesson_id=?",ref.workspaceId(),ref.studentId(),ref.id());
+        jdbc.update("DELETE FROM lesson_text WHERE workspace_id=? AND lesson_id=?",ref.workspaceId(),ref.id());
+        return jdbc.update("DELETE FROM lesson WHERE workspace_id=? AND student_id=? AND id=?",ref.workspaceId(),ref.studentId(),ref.id())==1;
+    }
     public LessonText text(LessonRef ref,TextKind kind){return jdbc.query("SELECT markdown,revision FROM lesson_text WHERE workspace_id=? AND lesson_id=? AND kind=?",(r,n)->new LessonText(kind,r.getString(1),r.getLong(2)),ref.workspaceId(),ref.id(),kind.name()).stream().findFirst().orElseThrow(ru.mentor.platform.workspaces.WorkspaceAccess::missing);}
     public Map<TextKind,LessonText> texts(LessonRef ref){Map<TextKind,LessonText> result=new EnumMap<>(TextKind.class);jdbc.query("SELECT kind,markdown,revision FROM lesson_text WHERE workspace_id=? AND lesson_id=?",(RowCallbackHandler)r->{var kind=TextKind.valueOf(r.getString(1));result.put(kind,new LessonText(kind,r.getString(2),r.getLong(3)));},ref.workspaceId(),ref.id());return result;}
     public boolean save(LessonRef ref,TextKind kind,String markdown,long revision){return jdbc.update("UPDATE lesson_text SET markdown=?,revision=revision+1 WHERE workspace_id=? AND lesson_id=? AND kind=? AND revision=?",markdown,ref.workspaceId(),ref.id(),kind.name(),revision)==1;}

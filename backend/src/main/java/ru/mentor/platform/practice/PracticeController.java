@@ -14,8 +14,15 @@ import static ru.mentor.platform.practice.PracticeJson.text;
 @RequestMapping("/api/v1/workspaces/{workspaceId}")
 public class PracticeController {
     private final CatalogService catalog;private final AssignmentService assignments;private final DraftService drafts;private final SessionPolicy sessions;private final AttemptService attempts;
-    public PracticeController(CatalogService catalog,AssignmentService assignments,DraftService drafts,SessionPolicy sessions,AttemptService attempts){this.catalog=catalog;this.assignments=assignments;this.drafts=drafts;this.sessions=sessions;this.attempts=attempts;}
+    private final JobQueue queue;private final ru.mentor.platform.workspaces.WorkspaceAccess access;private final java.time.Clock clock;
+    public PracticeController(CatalogService catalog,AssignmentService assignments,DraftService drafts,SessionPolicy sessions,AttemptService attempts,JobQueue queue,ru.mentor.platform.workspaces.WorkspaceAccess access,java.time.Clock clock){this.catalog=catalog;this.assignments=assignments;this.drafts=drafts;this.sessions=sessions;this.attempts=attempts;this.queue=queue;this.access=access;this.clock=clock;}
     @GetMapping("/exercises") public Page<JsonNode> catalog(@PathVariable String workspaceId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,@RequestParam(required=false) String audience,HttpServletRequest r){return catalog.list(sessions.requireCurrent(r),workspaceId,page,size,audience);}
+    // Whether the executor is alive, so a long queue gets an explanation instead of an endless hourglass. Aggregates only, no job identifiers.
+    @GetMapping("/practice/worker") public org.springframework.http.ResponseEntity<Map<String,Object>> worker(@PathVariable String workspaceId,HttpServletRequest r){
+        access.requireMember(sessions.requireCurrent(r),workspaceId);var d=queue.diagnostics();var seen=d.lastWorkerSeenAt();boolean available=seen!=null&&!seen.isBefore(clock.instant().minusSeconds(90));
+        Map<String,Object> out=new LinkedHashMap<>();out.put("available",available);out.put("lastSeenAt",seen==null?null:seen.toString());out.put("waiting",d.waiting());out.put("running",d.running());
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).header("X-Content-Type-Options","nosniff").body(out);
+    }
     private static final String P="/students/{studentId}/lessons/{lessonId}/practice";
     @GetMapping(P) public AssignmentService.LessonPracticeView practice(@PathVariable String workspaceId,@PathVariable String studentId,@PathVariable String lessonId,@RequestParam(required=false) String audience,HttpServletRequest r){return assignments.read(sessions.requireCurrent(r),new LessonRef(workspaceId,studentId,lessonId),audience);}
     @PutMapping(value=P+"/assignments",consumes={"application/json","application/*+json"}) public AssignmentService.LessonPracticeView replace(@PathVariable String workspaceId,@PathVariable String studentId,@PathVariable String lessonId,@RequestBody byte[] body,HttpServletRequest r){

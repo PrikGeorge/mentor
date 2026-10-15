@@ -33,7 +33,7 @@ let next = 0;
   @if(error()){<p class="auth-error" role="alert">{{error()}}</p>}
   @if(items().length){<ol class="moves">@for(move of items();track move.kind+move.refId+move.at){<li [class.teacher]="move.side==='teacher'">
     <span class="piece" aria-hidden="true"></span>
-    <time [attr.datetime]="move.at">{{move.at|date:'dd.MM.yyyy, HH:mm'}}</time>
+    <time [attr.datetime]="move.at">{{move.at|date:'dd.MM.yyyy, HH:mm':'+0300'}}</time>
     <div class="what"><p><b>{{who(move)}}</b> · {{action(move)}}@if(move.grade){ <mentor-grade [grade]="move.grade"/>}</p>
       @if(move.subject){<p class="subject">{{move.subject}}</p>}
       @if(move.detail&&move.kind!=='attempt'){<q>{{move.detail}}</q>}

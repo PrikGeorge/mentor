@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, merge, skip, takeUntil } from 'rxjs';
 import { DomainPage } from '../students/domain-page';
@@ -14,7 +14,8 @@ import { IconComponent } from '../core/icon.component';
 @Component({ selector: 'mentor-lesson-page', imports: [RouterLink, LessonFormComponent, MarkdownEditorComponent, MaterialViewComponent, HomeworkPageComponent, IconComponent], template: `
   @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
   @if(lesson();as l){
-    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button><a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a></div>}
+    @if(editable()&&!editingText()){<div class="lesson-page-actions"><button class="btn sm" (click)="editingMetadata.set(true);closeText()"><mentor-icon name="pencil"/>Изменить занятие</button><button class="btn sm" [class.primary]="!l.conductedAt&&isPast(l)" (click)="markConducted(!l.conductedAt)" [disabled]="busy()"><mentor-icon [name]="l.conductedAt?'rotate-ccw':'check-check'"/>{{l.conductedAt?'Снять отметку «Проведено»':'Отметить проведённым'}}</button><a class="btn sm text" [routerLink]="base()+'/lessons/'+l.id+'/student/tasks'" [queryParams]="{preview:'student'}">Экран ученика ↗</a>
+      @if(deleting()){<span class="inline-confirm" role="group" aria-label="Подтверждение удаления занятия"><span class="small-muted">Удалить занятие «{{l.title}}»? Только без работ и материалов.</span><button class="btn sm danger" type="button" (click)="deleteLesson()" [disabled]="busy()">Удалить</button><button class="btn sm text" type="button" (click)="deleting.set(false)" [disabled]="busy()">Отмена</button></span>}@else{<button class="btn sm text" type="button" (click)="deleting.set(true)" [disabled]="busy()"><mentor-icon name="trash-2"/>Удалить занятие</button>}</div>}
     @if(editable()&&editingMetadata()){<div class="section-block"><mentor-lesson-form [workspaceId]="workspaceId()!" [studentId]="studentId()!" [lesson]="l" (saved)="savedMetadata($event)" (cancel)="editingMetadata.set(false)"/></div>}
     @if(editable()&&editingText();as text){<section class="section-block"><mentor-markdown-editor [lesson]="l" [kind]="text.kind" [revision]="text.revision" [value]="text.markdown" (saved)="savedText($event)" (cancelled)="closeText()"/></section>}
     @if(!section()){
@@ -75,6 +76,11 @@ export class LessonPageComponent extends DomainPage {
     // The teacher's explicit mark; the metadata revision guards it like any other lesson change.
     markConducted(conducted: boolean) { const l = this.lesson(); if (!this.editable() || this.busy() || !l)
         return; this.busy.set(true); this.textError.set(''); this.api.save(this.workspaceId()!, this.studentId()!, l.id, { revision: l.revision, conducted }).pipe(takeUntil(this.routeChanges), takeUntilDestroyed(this.destroyRef)).subscribe({ next: lesson => { this.busy.set(false); this.savedMetadata(lesson); }, error: e => { this.busy.set(false); this.textError.set(this.message(e)); } }); }
+    readonly deleting = signal(false);
+    private readonly router = inject(Router);
+    // Only an empty lesson goes; the server keeps anything with works, materials or drafts and says so.
+    deleteLesson() { const l = this.lesson(); if (!this.editable() || this.busy() || !l)
+        return; this.busy.set(true); this.textError.set(''); this.api.remove(this.workspaceId()!, this.studentId()!, l.id).pipe(takeUntil(this.routeChanges), takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.busy.set(false); this.deleting.set(false); void this.router.navigateByUrl(this.base()); }, error: e => { this.busy.set(false); this.deleting.set(false); this.textError.set(e?.status === 409 ? 'Занятие нельзя удалить: в нём есть работы, материалы или черновики. Удалите их или оставьте занятие как историю.' : this.message(e)); } }); }
     // prepared publishes the lesson's materials to the student; planned hides them again. The bundle survives either way.
     setStatus(status: 'planned' | 'prepared') { const l = this.lesson(); if (!this.editable() || this.busy() || !l)
         return; this.busy.set(true); this.textError.set(''); this.api.save(this.workspaceId()!, this.studentId()!, l.id, { revision: l.revision, status }).pipe(takeUntil(this.routeChanges), takeUntilDestroyed(this.destroyRef)).subscribe({ next: lesson => { this.busy.set(false); this.savedMetadata(lesson); }, error: e => { this.busy.set(false); this.textError.set(this.message(e)); } }); }

@@ -23,7 +23,7 @@ export class StudentNavigationComponent {
             const root = context.base + '/lessons/' + lesson.id;
             if (context.learner) return [['tasks', 'Задания'], ['practice', 'Тренажёр'], ['materials', 'Материалы'], ['homework', 'Домашняя работа'], ['review', 'Ревью']].map(([path, label]) => ({ path: root + '/student/' + path, label, exact: path !== 'practice' && path !== 'materials' }));
             const sections: Tab[] = [{ path: root, label: 'Подготовка' }];
-            if (lesson.bundleId) sections.push({ path: root + '/teacher/plan', label: 'План' });
+            if (lesson.bundleId) sections.push({ path: root + '/teacher/plan', label: 'План', private: true });
             sections.push({ path: root + '/teacher/guide', label: 'Сценарий преподавателя', private: true }, { path: root + '/teacher/practice', label: 'Тренажёр', exact: false }, { path: root + '/teacher/review', label: 'Ревью' }, { path: root + '/teacher/answers', label: 'Эталоны', private: true }, { path: root + '/teacher/materials', label: 'Материалы', exact: false });
             return sections;
         }

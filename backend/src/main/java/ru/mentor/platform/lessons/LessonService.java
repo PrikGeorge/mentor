@@ -38,6 +38,12 @@ public class LessonService {
         String title=input.containsKey("title")?title(input.get("title")):old.title(),date=input.containsKey("date")?date(input.get("date")):old.date(),time=input.containsKey("time")?time(input.get("time")):old.time();int duration=input.containsKey("duration")?duration(input.get("duration")):old.duration();
         if(!repository.update(old,title,date,time,duration,conductedAt,status,bundleId,revision))throw conflict();return view(metadata(ref),false);
     }
+    // Only a lesson without student work or stored content disappears; everything else stays as history.
+    @Transactional public void delete(Actor actor,LessonRef ref){
+        lockTeacher(actor,ref);var usage=repository.usage(ref);
+        if(usage.values().stream().anyMatch(count->count>0))throw new ApiFailure(409,"LESSON_IN_USE","The lesson has works, materials or drafts; remove them first or keep the lesson.");
+        if(!repository.delete(ref))throw WorkspaceAccess.missing();
+    }
     // Adding a material makes the lesson prepared under one bundle; call inside the material transaction after locking the card.
     public String prepare(Actor actor,LessonRef ref){
         lockTeacher(actor,ref);var old=metadata(ref);if(old.bundleId()!=null&&old.status().equals("prepared"))return old.bundleId();

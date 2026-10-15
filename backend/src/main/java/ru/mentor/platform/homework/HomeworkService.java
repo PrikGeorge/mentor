@@ -30,7 +30,7 @@ public class HomeworkService {
         this.repository=repository;this.blobs=blobs;this.lessons=lessons;this.students=students;this.access=access;this.clock=clock;this.transaction=new TransactionTemplate(manager);
     }
     private void reader(Actor actor,LessonRef lesson){lessons.requireReader(actor,lesson.workspaceId(),lesson.studentId(),lesson.id());}
-    private void student(Actor actor,LessonRef lesson){reader(actor,lesson);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can submit homework.");}
+    private void student(Actor actor,LessonRef lesson){reader(actor,lesson);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can submit homework.");students.requireActive(lesson.workspaceId(),lesson.studentId());}
     private void lock(Actor actor,LessonRef lesson){access.lockMember(actor,lesson.workspaceId());students.lockCard(lesson.workspaceId(),lesson.studentId());reader(actor,lesson);}
     public Page<Submission> list(Actor actor,LessonRef lesson,int page,int size){reader(actor,lesson);new Page<>(List.of(),page,size,0);return new Page<>(repository.list(lesson,page,size),page,size,repository.count(lesson));}
     // Whose turn it is: the latest submission per lesson of one card, readable by its teacher and its own student.

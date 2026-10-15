@@ -12,7 +12,7 @@ import java.util.Map;
 public class StudentController {
     private final StudentService students;private final SessionPolicy sessions;
     public StudentController(StudentService students,SessionPolicy sessions){this.students=students;this.sessions=sessions;}
-    @GetMapping public Page<Map<String,Object>> list(@PathVariable String workspaceId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,@RequestParam(required=false) String audience,HttpServletRequest r){return students.list(sessions.requireCurrent(r),workspaceId,page,size,audience);}
+    @GetMapping public Page<Map<String,Object>> list(@PathVariable String workspaceId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,@RequestParam(required=false) String audience,@RequestParam(required=false) String archived,HttpServletRequest r){return students.list(sessions.requireCurrent(r),workspaceId,page,size,audience,archived);}
     @PostMapping public ResponseEntity<Map<String,Object>> create(@PathVariable String workspaceId,@RequestBody Map<String,Object> input,HttpServletRequest r){return ResponseEntity.status(201).body(students.create(sessions.requireCurrent(r),workspaceId,input));}
     @GetMapping("/{studentId}") public Map<String,Object> get(@PathVariable String workspaceId,@PathVariable String studentId,@RequestParam(required=false) String audience,HttpServletRequest r){return students.get(sessions.requireCurrent(r),workspaceId,studentId,audience);}
     @PatchMapping("/{studentId}") public Map<String,Object> update(@PathVariable String workspaceId,@PathVariable String studentId,@RequestBody Map<String,Object> input,HttpServletRequest r){return students.update(sessions.requireCurrent(r),workspaceId,studentId,input);}

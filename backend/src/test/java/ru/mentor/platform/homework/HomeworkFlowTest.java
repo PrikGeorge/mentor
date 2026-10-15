@@ -175,7 +175,7 @@ class HomeworkFlowTest extends IdentityHttpTest {
         data(write(f.teacher().client(),"PATCH",f.path()+"/"+newer.get("id").asText()+"/review",Map.of("revision",1,"status","needs_revision","feedback","again")),200);
         var lessons=data(get(f.learner().client(),lessonTurns),200);assertEquals(2,lessons.get("total").asLong());var items=lessons.get("items");
         assertEquals(second,items.get(0).get("lessonId").asText());assertEquals("submitted",items.get(0).get("status").asText());
-        assertEquals(Set.of("lessonId","submissionId","filename","status","createdAt"),items.get(0).propertyNames());
+        assertEquals(Set.of("lessonId","submissionId","kind","filename","status","createdAt"),items.get(0).propertyNames());assertEquals("homework",items.get(0).get("kind").asText());
         assertEquals(f.lesson(),items.get(1).get("lessonId").asText());assertEquals(newer.get("id"),items.get(1).get("submissionId"));assertNotEquals(older.get("id"),items.get(1).get("submissionId"));
         assertEquals("needs_revision",items.get(1).get("status").asText());assertTrue(items.get(1).hasNonNull("reviewedAt"));
         assertEquals(lessons,data(get(f.teacher().client(),lessonTurns+"?audience=student"),200));

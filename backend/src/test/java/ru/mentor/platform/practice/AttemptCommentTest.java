@@ -32,4 +32,35 @@ class AttemptCommentTest extends AttemptHttpTest {
         assertEquals(0,data(get(f.learner().client(),query),200).get("items").size());
         assertEquals(404,write(f.teacher().client(),"DELETE",comments+"/"+created.get("id").asText(),null).statusCode());
     }
+
+    // Catches the executor status leaking identifiers, claiming availability without a recent heartbeat, or answering foreign workspaces.
+    @Test void workerStatusTellsWhetherTheExecutorIsAlive() throws Exception {
+        var f=fixture("worker-status");String route="/workspaces/"+f.teacher().workspace()+"/practice/worker";
+        assertEquals(Set.of("available","lastSeenAt","waiting","running"),data(get(f.learner().client(),route),200).propertyNames());
+        publish(f,source());assign(f,0,"list-task");data(enqueue(f,"status",code("class ListTask {}")),202);
+        var lease=claim();var seen=data(get(f.teacher().client(),route),200);assertTrue(seen.get("available").asBoolean());assertFalse(seen.get("lastSeenAt").isNull());assertTrue(seen.get("running").asInt()>=1);
+        assertEquals(204,complete(lease,result(lease,"accepted")).statusCode());
+        java.time.Instant lastSeen=java.time.Instant.parse(data(get(f.learner().client(),route),200).get("lastSeenAt").asText());
+        CLOCK.advance(java.time.Duration.ofMinutes(3));var stale=data(get(f.learner().client(),route),200);assertFalse(stale.get("available").asBoolean());assertEquals(lastSeen,java.time.Instant.parse(stale.get("lastSeenAt").asText()));
+        var foreign=fixture("worker-foreign");assertEquals(404,get(foreign.learner().client(),route).statusCode());assertEquals(401,get(client(),route).statusCode());
+    }
+
+    // Catches a homework-placement trainer attempt missing from whose-turn, run attempts counted as moves, and a line comment not handing the move back.
+    @Test void homeworkPlacementAttemptsDriveWhoseTurn() throws Exception {
+        var f=fixture("attempt-turns");publish(f,source());
+        data(write(f.teacher().client(),"PUT",f.path()+"/assignments",Map.of("revision",0,"assignments",List.of(Map.of("exerciseId","list-task","placement","homework")))),200);
+        String turns=card(f.teacher(),f.student())+"/homework/turns",queue="/workspaces/"+f.teacher().workspace()+"/homework/turns";
+        assertEquals(0,data(get(f.learner().client(),turns),200).get("total").asInt());assertEquals(0,data(get(f.teacher().client(),queue),200).get("total").asInt());
+        data(enqueue(f,"run-only",code("class ListTask {}")),202);
+        assertEquals(0,data(get(f.teacher().client(),turns),200).get("total").asInt());
+        String id=data(enqueue(f,"turn-1",Map.of("exerciseRevision",1,"mode","submit","files",Map.of("ListTask.java","class ListTask {\n    int x;\n}"))),202).get("id").asText();
+        var turn=data(get(f.learner().client(),turns),200);assertEquals(1,turn.get("total").asInt());var item=turn.get("items").get(0);
+        assertEquals("attempt",item.get("kind").asText());assertEquals(id,item.get("submissionId").asText());assertEquals("submitted",item.get("status").asText());assertEquals(f.lesson(),item.get("lessonId").asText());assertFalse(item.has("reviewedAt"));assertFalse(item.get("filename").asText().isBlank());
+        var row=data(get(f.teacher().client(),queue),200).get("items").get(0);assertEquals("attempt",row.get("kind").asText());assertEquals("submitted",row.get("status").asText());assertEquals(1,row.get("awaitingReview").asLong());assertEquals(f.student(),row.get("studentId").asText());assertEquals("",row.get("comment").asText());
+        data(write(f.teacher().client(),"POST",card(f.teacher(),f.student())+"/lessons/"+f.lesson()+"/code-comments",Map.of("targetKind","attempt","targetId",id,"file","ListTask.java","line",2,"body","Поле не нужно")),201);
+        item=data(get(f.learner().client(),turns),200).get("items").get(0);assertEquals("reviewed",item.get("status").asText());assertTrue(item.has("reviewedAt"));
+        row=data(get(f.teacher().client(),queue),200).get("items").get(0);assertEquals("reviewed",row.get("status").asText());assertEquals(0,row.get("awaitingReview").asLong());
+        // A later homework file in the same lesson becomes the latest exchange again.
+        assertEquals(1,data(get(f.teacher().client(),queue),200).get("total").asInt());
+    }
 }

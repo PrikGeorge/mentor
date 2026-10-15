@@ -330,7 +330,8 @@ export interface paths {
         get: operations["getLesson"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** @description Owning TEACHER only. Removes a lesson that has no homework, materials, stored files, line comments, drafts or trainer attempts, together with its texts and assignment rows; later lessons move up in number. A lesson with any of those answers 409 LESSON_IN_USE and stays as history. Students and other teachers get 404. */
+        delete: operations["deleteLesson"];
         options?: never;
         head?: never;
         /** @description Owning TEACHER only. Compare required metadata revision before writing and increment it on success. Omitted short-form fields are preserved; texts and their revisions are untouched. Account mismatch or stale metadata revision gives 409 before mutation. */
@@ -476,6 +477,25 @@ export interface paths {
         put?: never;
         /** @description Owning TEACHER only. Same form as createLessonMaterial, bound to the card itself (lessonId and bundleId null), for roadmap and profile documents. The audience query parameter is ignored. */
         post: operations["createProfileMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/practice/worker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** @description Any member of the workspace. Whether the trainer executor has reported within the last 90 seconds, plus queue counts, so a long-queued attempt can be explained. No job or attempt identifiers. */
+        get: operations["practiceWorkerStatus"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1014,6 +1034,8 @@ export interface components {
             studentReview?: string;
             /** Format: int64 */
             revision: number;
+            /** @description true archives the card (keeps the first archivedAt), false restores it; combines with text fields under the same revision. */
+            archived?: boolean;
         };
         TeacherStudentView: {
             id: string;
@@ -1037,6 +1059,11 @@ export interface components {
             studentRoadmap: string;
             /** @description JavaScript trim; limit in UTF-16 code units. */
             studentReview: string;
+            /**
+             * Format: date-time
+             * @description Present while the card is archived. The student still reads; new work is refused with 403 ARCHIVED.
+             */
+            archivedAt?: string;
         };
         PublicStudentView: {
             id: string;
@@ -1058,6 +1085,11 @@ export interface components {
             studentRoadmap: string;
             /** @description JavaScript trim; limit in UTF-16 code units. */
             studentReview: string;
+            /**
+             * Format: date-time
+             * @description Present while the card is archived. The student still reads; new work is refused with 403 ARCHIVED.
+             */
+            archivedAt?: string;
         };
         StudentView: components["schemas"]["TeacherStudentView"] | components["schemas"]["PublicStudentView"];
         StudentPage: {
@@ -1370,6 +1402,13 @@ export interface components {
             environment: components["schemas"]["PublicEnvironment"];
             starterFiles: components["schemas"]["SourceFiles"];
         };
+        WorkerStatus: {
+            available: boolean;
+            /** Format: date-time */
+            lastSeenAt: string | null;
+            waiting: number;
+            running: number;
+        };
         PublicExercisePage: {
             items: components["schemas"]["PublicExercise"][];
             page: number;
@@ -1607,7 +1646,10 @@ export interface components {
         };
         LessonTurn: {
             lessonId: string;
+            /** @description The homework submission id, or the trainer attempt id when kind is attempt. */
             submissionId: string;
+            kind: components["schemas"]["TurnKind"];
+            /** @description The homework filename, or the exercise title for an attempt. */
             filename: string;
             /** @enum {string} */
             status: "submitted" | "reviewed" | "needs_revision";
@@ -1619,6 +1661,11 @@ export interface components {
              */
             reviewedAt?: string;
         };
+        /**
+         * @description homework is an uploaded work reviewed with status and feedback. attempt is a submitted trainer attempt of an active homework-placement exercise; it is submitted until the teacher leaves the first line comment on it, then reviewed with reviewedAt equal to that comment's time.
+         * @enum {string}
+         */
+        TurnKind: "homework" | "attempt";
         LessonTurnPage: {
             items: components["schemas"]["LessonTurn"][];
             page: number;
@@ -1632,6 +1679,7 @@ export interface components {
             lessonTitle: string;
             lessonDate: components["schemas"]["LessonDate"];
             submissionId: string;
+            kind: components["schemas"]["TurnKind"];
             filename: string;
             comment: string;
             /** @enum {string} */
@@ -2302,6 +2350,8 @@ export interface operations {
             query?: {
                 /** @description Narrows teacher output to the public projection; grants no permissions. */
                 audience?: "student";
+                /** @description Teacher listing filter, default false (active cards only); true lists archived cards, all lists both. A student always sees only their own card. */
+                archived?: "false" | "true" | "all";
                 page?: number;
                 size?: number;
             };
@@ -2699,6 +2749,37 @@ export interface operations {
             401: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+        };
+    };
+    deleteLesson: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-TOKEN": components["parameters"]["CsrfToken"];
+                "X-Mentor-Client": components["parameters"]["WebClient"];
+                "X-Mentor-Account": components["parameters"]["Account"];
+            };
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+                studentId: components["parameters"]["Task3StudentId"];
+                lessonId: components["parameters"]["Task3LessonId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lesson removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
         };
     };
     updateLessonMetadata: {
@@ -3162,6 +3243,31 @@ export interface operations {
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    practiceWorkerStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["Task3WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Executor availability */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerStatus"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };

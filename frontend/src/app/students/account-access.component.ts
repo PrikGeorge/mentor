@@ -11,7 +11,7 @@ import { IconComponent } from '../core/icon.component';
   <section class="side-section account-access" [class.compact]="compact()" aria-labelledby="access-title"><div class="sh"><h2 id="access-title">Доступ к кабинету</h2></div>
     @if(data();as access){@if(access.account;as account){<div class="account-identity"><span class="small-muted">Логин</span><code>{{account.login}}</code></div>
       <p class="status-line"><span class="tag" [class.on]="!account.disabled"><mentor-icon [name]="account.disabled?'circle-pause':'check'"/>{{account.disabled?'Доступ приостановлен':'Доступ открыт'}}</span></p>
-      <div class="access-actions"><button class="btn text" (click)="resetOpen.set(true)" [disabled]="busy()"><mentor-icon name="key-round"/>Ссылка для смены пароля</button><button class="btn text" [class.danger]="!account.disabled" (click)="setDisabled(!account.disabled)" [disabled]="busy()"><mentor-icon [name]="account.disabled?'circle-play':'circle-pause'"/>{{account.disabled?'Восстановить доступ':'Приостановить доступ'}}</button></div>}
+      <div class="access-actions"><button class="btn text" (click)="resetOpen.set(true)" [disabled]="busy()"><mentor-icon name="key-round"/>Ссылка для смены пароля</button>@if(confirming()){<span class="inline-confirm" role="group" aria-label="Подтверждение"><span class="small-muted">{{account.disabled?'Восстановить доступ ученика?':'Приостановить доступ? Ученик не сможет войти, его работы сохранятся.'}}</span><button class="btn sm" [class.danger]="!account.disabled" type="button" (click)="setDisabled(!account.disabled)" [disabled]="busy()">{{account.disabled?'Да, восстановить':'Да, приостановить'}}</button><button class="btn sm text" type="button" (click)="confirming.set(false)" [disabled]="busy()">Отмена</button></span>}@else{<button class="btn text" [class.danger]="!account.disabled" type="button" (click)="confirming.set(true)" [disabled]="busy()"><mentor-icon [name]="account.disabled?'circle-play':'circle-pause'"/>{{account.disabled?'Восстановить доступ':'Приостановить доступ'}}</button>}</div>}
     @else{<p>Ученик создаст логин и пароль по вашей ссылке. Его занятия и работы сохранятся.</p>@if(access.invitation;as invitation){<p class="status-line"><span class="tag" [class.quiet]="invitation.state!=='pending'"><mentor-icon [name]="invitation.state==='pending'?'mail':invitation.state==='used'?'check':'ban'"/>{{invitationLabels[invitation.state]}}</span><span class="small-muted">до {{invitation.expiresAt|date:'dd.MM.yyyy HH:mm':'+0300'}} МСК</span></p>}
       <div class="access-actions"><button class="btn sm" (click)="invite()" [disabled]="busy()"><mentor-icon name="link"/>{{access.invitation?.state==='pending'?'Создать новое приглашение':'Создать приглашение'}}</button>@if(access.invitation?.state==='pending'){<button class="btn text danger" (click)="revoke()" [disabled]="busy()"><mentor-icon name="ban"/>Отозвать</button>}</div>}}
     @else if(!error()){<p class="loading" role="status">Загружаем доступ…</p>}
@@ -54,8 +54,10 @@ export class AccountAccessComponent {
         return; this.run(this.api.invite(this.workspaceId(), this.studentId()), true); }
     revoke() { const invitation = this.data()?.invitation; if (invitation?.state !== 'pending')
         return; this.run(this.api.revoke(this.workspaceId(), this.studentId(), invitation.id)); }
+    // Suspending access is a two-step action: the first click only opens the confirmation.
+    readonly confirming = signal(false);
     setDisabled(disabled: boolean) { if (!this.data()?.account)
-        return; this.run(this.api.changeAccess(this.workspaceId(), this.studentId(), disabled)); }
+        return; this.confirming.set(false); this.run(this.api.changeAccess(this.workspaceId(), this.studentId(), disabled)); }
     reset(event: Event) { event.preventDefault(); if (this.password.invalid || this.busy())
         return; const password = this.password.value; this.cancelReset(); this.run(this.api.reset(this.workspaceId(), this.studentId(), password), true); }
 }

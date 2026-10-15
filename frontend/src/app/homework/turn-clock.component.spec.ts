@@ -11,6 +11,11 @@ describe('Whose turn it is', () => {
         expect(turnHeadline(turnOf({ status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }), 'teacher')).toEqual({ title: 'Ход за вами', text: 'Работа отправлена 13.10, 21:40 и ждёт ревью.' });
         expect(turnHeadline(turnOf({ status: 'needs_revision', createdAt: '2026-10-13T18:40:00Z', reviewedAt: '2026-10-14T09:00:00Z' }), 'student').text).toContain('доработать');
         expect(turnHeadline(turnOf({ status: 'reviewed', createdAt: '2026-10-13T18:40:00Z', reviewedAt: '2026-10-14T09:00:00Z' }), 'teacher').text).toBe('Вы ответили 14.10.');
+        // A submitted trainer exercise placed as homework is the student's move too; the mentor answers it in the trainer.
+        const attempt = turnOf({ status: 'submitted', createdAt: '2026-10-13T18:40:00Z', kind: 'attempt' });
+        expect(turnHeadline(attempt, 'teacher')).toEqual({ title: 'Ход за вами', text: 'Решение упражнения отправлено 13.10, 21:40 и ждёт вашего комментария.' });
+        expect(turnHeadline(attempt, 'student').text).toContain('Решение упражнения отправлено');
+        expect(turnOf({ status: 'submitted', createdAt: '2026-10-13T18:40:00Z' }).kind).toBe('homework');
     });
     it('lights the side whose move it is and counts down only to the lesson, never the mentor answer', () => {
         vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-11T19:35:00Z'));

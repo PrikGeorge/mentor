@@ -11,7 +11,7 @@ public class PracticeAuthority {
     public void reader(Actor actor,LessonRef l){lessons.requireReader(actor,l.workspaceId(),l.studentId(),l.id());}
     /** Caller transaction: workspace -> card -> current authority -> practice rows. */
     public void lock(Actor actor,LessonRef l){access.lockMember(actor,l.workspaceId());students.lockCard(l.workspaceId(),l.studentId());reader(actor,l);}
-    public void student(Actor actor,LessonRef l){lock(actor,l);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can save code.");}
+    public void student(Actor actor,LessonRef l){lock(actor,l);if(actor.role()!=Actor.Role.STUDENT)throw new ApiFailure(403,"FORBIDDEN","Only the student can save code.");students.requireActive(l.workspaceId(),l.studentId());}
     public void teacher(Actor actor,LessonRef l){lock(actor,l);access.requireTeacher(actor,l.workspaceId());}
     public static void audience(String audience){if(audience!=null&&!audience.equals("student"))throw new IllegalArgumentException("Invalid audience.");}
 }

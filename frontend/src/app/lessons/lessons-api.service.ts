@@ -18,6 +18,8 @@ export class LessonsApi {
     create(workspaceId: string, studentId: string, input: LessonCreateInput) { return this.session.scope(this.api.post(list, input, { pathParams: { workspaceId, studentId } })); }
     load(workspaceId: string, studentId: string, lessonId: string, preview = false) { return this.session.scope(this.api.get(lesson, { pathParams: { workspaceId, studentId, lessonId }, query: preview ? { audience: 'student' } : {} })); }
     save(workspaceId: string, studentId: string, lessonId: string, input: LessonMetadataInput) { return this.session.scope(this.api.patch(lesson, input, { pathParams: { workspaceId, studentId, lessonId } })); }
+    // Only a lesson without works, materials or drafts can go; the server answers 409 LESSON_IN_USE otherwise.
+    remove(workspaceId: string, studentId: string, lessonId: string) { return this.session.scope(this.api.delete(lesson, { pathParams: { workspaceId, studentId, lessonId } })); }
     text(workspaceId: string, studentId: string, lessonId: string, kind: TextKind, preview = false) { return this.session.scope(this.api.get(text, { pathParams: { workspaceId, studentId, lessonId, kind }, query: preview ? { audience: 'student' } : {} })); }
     saveText(workspaceId: string, studentId: string, lessonId: string, kind: TextKind, input: components['schemas']['LessonTextInput']) { return this.session.scope(this.api.put(text, input, { pathParams: { workspaceId, studentId, lessonId, kind } })); }
 }

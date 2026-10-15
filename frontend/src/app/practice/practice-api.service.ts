@@ -27,6 +27,8 @@ export class PracticeApi {
     private params(lesson: LessonRef, id?: string) { return { workspaceId: lesson.workspaceId, studentId: lesson.studentId, lessonId: lesson.id, ...(id ? { exerciseId: id } : {}) }; }
     private options(lesson: LessonRef, id?: string, preview = false) { return { pathParams: this.params(lesson, id), query: preview ? { audience: 'student' } : undefined }; }
     catalog(workspaceId: string, preview = false, page = 0) { return this.session.scope(this.api.get('/workspaces/{workspaceId}/exercises', { pathParams: { workspaceId }, query: { page, size: 100, ...(preview ? { audience: 'student' } : {}) } })); }
+    // Executor availability for explaining a long queue; aggregates only.
+    worker(workspaceId: string) { return this.session.scope(this.api.get('/workspaces/{workspaceId}/practice/worker', { pathParams: { workspaceId } })); }
     practice(lesson: LessonRef, preview = false) { return this.session.scope(this.api.get(root, this.options(lesson, undefined, preview))); }
     assignments(lesson: LessonRef, input: components['schemas']['AssignmentsPut']) { return this.session.scope(this.api.put('/workspaces/{workspaceId}/students/{studentId}/lessons/{lessonId}/practice/assignments', input, this.options(lesson))); }
     draft(lesson: LessonRef, id: string, preview = false) { return this.session.scope(this.api.get(`${exercise}/draft`, this.options(lesson, id, preview))); }

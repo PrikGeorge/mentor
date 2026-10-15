@@ -20,7 +20,7 @@ type LinkIssue = components['schemas']['PasswordResetIssue'];
     @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
     @if (loading()) { <p class="loading" role="status">Загружаем…</p> }
     @if (issued()) {
-      <section class="issued-link section-block" aria-labelledby="issued-title"><h2 id="issued-title"><mentor-icon name="link"/> Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC. Передайте её получателю лично.</p>
+      <section class="issued-link section-block" aria-labelledby="issued-title"><h2 id="issued-title"><mentor-icon name="link"/> Ссылка для ручной передачи</h2><p>Действует до {{ issued()!.expiresAt | date:'dd.MM.yyyy, HH:mm':'+0300' }} МСК. Передайте её получателю лично.</p>
         <label class="auth-field">Одноразовая ссылка<input name="issuedLink" [value]="issued()!.link" readonly (focus)="selectLink($event)"></label>
         <div class="form-actions"><button class="btn sm" type="button" (click)="copy(issued()!.link)"><mentor-icon name="copy"/>{{ copied() ? 'Скопировано' : 'Скопировать' }}</button><button class="btn sm text" (click)="issued.set(null)">Скрыть ссылку</button></div></section>
     }
@@ -39,8 +39,10 @@ type LinkIssue = components['schemas']['PasswordResetIssue'];
             <td><span class="tag" [class.on]="!teacher.accountDisabled"><mentor-icon [name]="teacher.accountDisabled ? 'circle-pause' : 'check'"/>Аккаунт {{ teacher.accountDisabled ? 'приостановлен' : 'активен' }}</span></td>
             <td><span class="tag" [class.quiet]="teacher.workspaceDisabled"><mentor-icon [name]="teacher.workspaceDisabled ? 'circle-pause' : 'check'"/>Пространство {{ teacher.workspaceDisabled ? 'приостановлено' : 'активно' }}</span></td>
             <td class="act"><div class="actions m-0">
-              <button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>
-              <button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>
+              @if(confirming()===teacher.userId+':account'){<span class="inline-confirm" role="group" aria-label="Подтверждение"><span class="small-muted">{{ teacher.accountDisabled ? 'Восстановить аккаунт?' : 'Блокировать аккаунт? Преподаватель потеряет вход.' }}</span><button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access" (click)="teacherAccess(teacher)" [disabled]="busy()">{{ teacher.accountDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="confirming.set(null)" [disabled]="busy()">Отмена</button></span>}
+              @else{<button class="btn sm" [class.danger]="!teacher.accountDisabled" data-action="teacher-access-ask" (click)="confirming.set(teacher.userId+':account')" [disabled]="busy()">{{ teacher.accountDisabled ? 'Восстановить аккаунт' : 'Блокировать аккаунт' }}</button>}
+              @if(confirming()===teacher.userId+':workspace'){<span class="inline-confirm" role="group" aria-label="Подтверждение"><span class="small-muted">{{ teacher.workspaceDisabled ? 'Восстановить пространство?' : 'Блокировать пространство? Ученики этого преподавателя потеряют доступ.' }}</span><button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access" (click)="workspaceAccess(teacher)" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Да, восстановить' : 'Да, блокировать' }}</button><button class="btn sm text" type="button" (click)="confirming.set(null)" [disabled]="busy()">Отмена</button></span>}
+              @else{<button class="btn sm" [class.danger]="!teacher.workspaceDisabled" data-action="workspace-access-ask" (click)="confirming.set(teacher.userId+':workspace')" [disabled]="busy()">{{ teacher.workspaceDisabled ? 'Восстановить пространство' : 'Блокировать пространство' }}</button>}
               <button class="btn sm" data-action="reset" (click)="startReset(teacher)" [disabled]="busy()"><mentor-icon name="key-round"/>Восстановить пароль</button>
             </div></td></tr>
         }</tbody></table></div>
@@ -51,7 +53,7 @@ type LinkIssue = components['schemas']['PasswordResetIssue'];
       @if (invitations().length) {
         <div class="table-wrap"><table class="tbl admin-table"><thead><tr><th scope="col">Статус</th><th scope="col">Действует до</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead><tbody>
         @for (invitation of invitations(); track invitation.id) {
-          <tr class="invitation-row"><td><span class="tag" [class.quiet]="invitation.state !== 'pending'"><mentor-icon [name]="invitation.state === 'pending' ? 'mail' : invitation.state === 'used' ? 'user-check' : 'ban'"/>{{ invitationLabels[invitation.state] }}</span></td><td>{{ invitation.expiresAt | date:'dd.MM.yyyy HH:mm':'UTC' }} UTC</td>
+          <tr class="invitation-row"><td><span class="tag" [class.quiet]="invitation.state !== 'pending'"><mentor-icon [name]="invitation.state === 'pending' ? 'mail' : invitation.state === 'used' ? 'user-check' : 'ban'"/>{{ invitationLabels[invitation.state] }}</span></td><td>{{ invitation.expiresAt | date:'dd.MM.yyyy, HH:mm':'+0300' }} МСК</td>
             <td class="act">@if (invitation.state === 'pending') { <button class="btn sm danger" data-action="revoke" (click)="revoke(invitation.id)" [disabled]="busy()"><mentor-icon name="ban"/>Отозвать</button> }</td></tr>
         }</tbody></table></div>
       } @else if (!loading()) { <div class="empty-state mt-16"><h3>Приглашений пока нет</h3><p>Создайте приглашение кнопкой «Пригласить преподавателя».</p></div> }
@@ -103,8 +105,10 @@ export class TeachersPageComponent {
   }
   invite(): void { this.mutate(this.api.post('/admin/teacher-invitations', {}), issue => this.showIssue(issue)); }
   revoke(id: string): void { this.mutate(this.api.delete('/admin/teacher-invitations/{id}', { pathParams: { id } })); }
-  teacherAccess(teacher: Teacher): void { this.mutate(this.api.patch('/admin/teachers/{id}/access', { disabled: !teacher.accountDisabled }, { pathParams: { id: teacher.userId } })); }
-  workspaceAccess(teacher: Teacher): void { this.mutate(this.api.patch('/admin/workspaces/{id}/access', { disabled: !teacher.workspaceDisabled }, { pathParams: { id: teacher.workspaceId } })); }
+  // Blocking is a two-step action: the first click only opens the confirmation beside the button.
+  readonly confirming = signal<string | null>(null);
+  teacherAccess(teacher: Teacher): void { this.confirming.set(null); this.mutate(this.api.patch('/admin/teachers/{id}/access', { disabled: !teacher.accountDisabled }, { pathParams: { id: teacher.userId } })); }
+  workspaceAccess(teacher: Teacher): void { this.confirming.set(null); this.mutate(this.api.patch('/admin/workspaces/{id}/access', { disabled: !teacher.workspaceDisabled }, { pathParams: { id: teacher.workspaceId } })); }
   startReset(teacher: Teacher): void { this.currentPassword.reset(); this.resetTeacher.set(teacher); this.issued.set(null); }
   cancelReset(): void { this.resetTeacher.set(null); this.currentPassword.reset(); }
   issueReset(event: Event): void {

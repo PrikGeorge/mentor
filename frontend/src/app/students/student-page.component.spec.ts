@@ -68,7 +68,7 @@ describe('Student workspace', () => {
         fixture.detectChanges();
         http.expectOne(base + '/access').flush({ account: { userId: 'p1', login: 'anna', disabled: false }, invitation: null });
         fixture.detectChanges();
-        click(element, 'Приостановить доступ');
+        click(element, 'Приостановить доступ'); fixture.detectChanges(); click(element, 'Да, приостановить');
         const change = http.expectOne(base + '/access');
         expect(change.request.method).toBe('PATCH');
         expect(change.request.body).toEqual({ disabled: true });

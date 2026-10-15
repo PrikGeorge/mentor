@@ -28,7 +28,8 @@ const moscowToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/M
             <div><dt>Всего занятий</dt><dd>{{d.lessonCount}}</dd></div>
             @if(stage();as st){<div class="wide"><dt>Этап маршрута</dt><dd><a class="text-link" [routerLink]="studentBase()+'/roadmap'" [queryParams]="previewQuery()">{{st.position}} из {{st.total}}</a><small class="stage-title">{{st.title}}</small></dd></div>}
           </dl>
-          @if(!focus.upcoming){<p class="callout mt-20">{{focus.lesson.conductedAt?'Занятие проведено. Новое появится, когда наставник назначит дату.':'Дата занятия прошла. Факт проведения здесь не отмечен.'}}</p>}
+          @if(d.student.archivedAt){<p class="callout mt-20" role="status">Курс завершён: карточка в архиве с {{d.student.archivedAt|date:'dd.MM.yyyy'}}. Материалы и история открыты, новые работы не принимаются.</p>}
+          @else if(!focus.upcoming){<p class="callout mt-20">{{focus.lesson.conductedAt?'Занятие проведено. Новое появится, когда наставник назначит дату.':'Дата занятия прошла. Факт проведения здесь не отмечен.'}}</p>}
           <p class="home-more mt-20"><a class="text-link" [routerLink]="studentBase()+'/lessons'" [queryParams]="previewQuery()">Все занятия →</a></p>
           @defer(on idle){<mentor-moves class="mt-40" [workspaceId]="workspaceId()!" [studentId]="d.student.id" [base]="studentBase()" [learner]="true" [preview]="preview()" [size]="6" heading="Последние ходы"/>}
         </section>

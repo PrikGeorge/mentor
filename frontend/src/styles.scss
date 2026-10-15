@@ -406,7 +406,7 @@ a.student-card:hover { box-shadow: var(--shadow-hard); }
 .student-card.new-card:hover { background: var(--surface-tint); }
 .student-card.new-card h2 { margin: 0; font: 600 16px/22px var(--font-sans); }
 .student-card.new-card p { margin: 0; color: var(--muted); font-size: 14px; }
-.new-mark { display: grid; place-items: center; width: 56px; height: 56px; background: var(--hatch-fill); }
+.new-mark { display: grid; place-items: center; width: 56px; height: 56px; border: 2px dashed var(--ink); }
 .new-mark mentor-icon.icon { width: 34px; height: 34px; padding: 6px; background: var(--surface); }
 .avatar { display: grid; place-items: center; width: 64px; height: 64px; flex: none; background: var(--ink); color: var(--surface); font: 700 30px/1 var(--font-serif); }
 .student-card .avatar { width: 44px; height: 44px; font-size: 22px; }
@@ -714,7 +714,7 @@ mentor-monaco-editor .small-muted { margin: 8px 16px; }
 .attempt-result .small-muted { margin: 0; }
 .test-cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); border: 2px solid var(--ink); }
 .test-cells span { display: grid; place-items: center; height: 36px; border-right: 1px solid var(--rule); font-weight: 600; }
-.test-cells span.pass { background: var(--accent); color: var(--on-accent); border-right-color: var(--on-accent-muted); }
+.test-cells span.pass { background: var(--accent); color: var(--on-accent); border-right-color: var(--surface); }
 .test-cells span.fail { color: var(--danger); background: var(--danger-surface); }
 .test-cells span mentor-icon.icon { width: 16px; height: 16px; }
 .test-cells span mentor-icon.icon svg { stroke-width: 2.5; }
@@ -798,7 +798,7 @@ mentor-monaco-editor .small-muted { margin: 8px 16px; }
 .student-card .clock { margin: auto 18px 18px; }
 .turn-cell b { display: block; font-weight: 600; }
 .turn-cell small { display: block; font-size: 13px; line-height: 18px; color: var(--muted); }
-.tbl .num.mine { background: var(--hatch-fill); }
+.tbl .num.mine { background: var(--accent); color: var(--on-accent); }
 .tbl .num.mine span { background: var(--surface); padding: 0 6px; }
 .card-turn { display: grid; gap: 10px; justify-items: stretch; width: min(100%, 400px); }
 .card-turn .actions { margin: 0; justify-content: flex-end; }
@@ -824,7 +824,7 @@ mentor-roadmap, mentor-moves, mentor-code-review, mentor-turn-clock { display: b
 .stages .done .mark { background: var(--ink); color: var(--surface); }
 .stages .done .title { color: var(--muted); }
 .stages .current { font-weight: 600; }
-.stages .current .mark { background: var(--hatch-fill); }
+.stages .current .mark { background: var(--accent); color: var(--on-accent); }
 .stages .current .mark span { padding: 2px 4px; background: var(--surface); line-height: 1; }
 .stages .ahead .mark { border-style: dashed; border-color: var(--muted); color: var(--muted); }
 .stages .lead { border-bottom: 1px dotted var(--rule); transform: translateY(-5px); }
@@ -860,7 +860,8 @@ mentor-roadmap, mentor-moves, mentor-code-review, mentor-turn-clock { display: b
 .code-lines .ln { padding: 0 10px 0 0; text-align: right; font: 400 13px/22px var(--font-mono); color: var(--muted); user-select: none; }
 /* Long lines wrap under their own number, so a line comment never hides behind a scrollbar. */
 .code-lines code { min-width: 0; font: 400 13px/22px var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
-.code-lines .add-note { width: 26px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; opacity: .35; }
+.code-lines .add-note { width: 32px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; opacity: .6; }
+@media (hover: none) { .code-lines .add-note { opacity: 1; border-color: var(--rule); } }
 .code-lines > li:hover .add-note, .code-lines .add-note:focus-visible, .code-lines .add-note[aria-expanded="true"] { opacity: 1; border-color: var(--ink); color: var(--ink); background: var(--surface); }
 .code-lines .add-note mentor-icon.icon { width: 14px; height: 14px; }
 .line-note { grid-column: 2 / -1; margin: 6px 12px 10px 0; padding: 12px 14px; display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--ink); font: 400 15px/22px var(--font-sans); white-space: normal; }
@@ -1010,3 +1011,5 @@ mentor-roadmap, mentor-moves, mentor-code-review, mentor-turn-clock { display: b
 .material-remove { flex: 0 0 auto; color: var(--muted); }
 .material-remove:hover { color: var(--danger); }
 .material-confirm { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+/* Inline two-step confirmation for destructive actions (delete a lesson, archive a card). */
+.inline-confirm { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }

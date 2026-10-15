@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.*;
 @Service
 @EnableScheduling
 public class JobQueue {
-    /** Private operational aggregate, intentionally has no public HTTP route or payload identifiers. */
+    /** Operational aggregate without payload identifiers; GET /practice/worker publishes only availability and counts. */
     public record Diagnostics(int waiting,int running,int retryPending,int configuredSlots,Instant lastWorkerSeenAt){}
     private final AttemptRepository repository;private final Clock clock;private final TransactionTemplate transaction;private final int waiting,slots;
     public JobQueue(AttemptRepository repository,Clock clock,PlatformTransactionManager manager,@Value("${mentor.runner.waiting-capacity:4}") int waiting,@Value("${mentor.runner.slots:1}") int slots){if(waiting<1||slots<1||waiting>1024||slots>128)throw new IllegalArgumentException("Invalid queue capacity.");this.repository=repository;this.clock=clock;this.transaction=new TransactionTemplate(manager);this.waiting=waiting;this.slots=slots;}

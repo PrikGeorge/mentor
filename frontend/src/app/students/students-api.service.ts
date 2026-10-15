@@ -15,7 +15,8 @@ const student = '/workspaces/{workspaceId}/students/{studentId}' as const;
 export class StudentsApi {
     private readonly api = inject(PlatformApi);
     private readonly session = inject(SessionStore);
-    list(workspaceId: string, page = 0, preview = false): Observable<StudentPage> { return this.session.scope(this.api.get(students, { pathParams: { workspaceId }, query: { page, size: 25, ...(preview ? { audience: 'student' } : {}) } })); }
+    // archived: undefined lists active cards (the server default), 'true' only archived ones, 'all' both.
+    list(workspaceId: string, page = 0, preview = false, archived?: 'true' | 'all'): Observable<StudentPage> { return this.session.scope(this.api.get(students, { pathParams: { workspaceId }, query: { page, size: 25, ...(preview ? { audience: 'student' } : {}), ...(archived ? { archived } : {}) } })); }
     load(workspaceId: string, studentId: string, preview = false): Observable<StudentView> { return this.session.scope(this.api.get(student, { pathParams: { workspaceId, studentId }, query: preview ? { audience: 'student' } : {} })); }
     save(workspaceId: string, studentId: string | null, input: StudentInput | Omit<StudentUpdateInput, 'revision'>, revision?: number): Observable<StudentView> {
         if (this.session.actor()?.role !== 'TEACHER')

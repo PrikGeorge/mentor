@@ -4,17 +4,22 @@ type SubmissionStatus = Submission['status'];
 
 // Whose turn it is follows the latest homework exchange: a submitted work waits for the mentor, anything else is the student's move.
 export type TurnState = 'none' | SubmissionStatus;
-export interface Turn { state: TurnState; submittedAt?: string; reviewedAt?: string; lessonId?: string }
-export function turnOf(latest: { status: SubmissionStatus; createdAt: string; reviewedAt?: string; lessonId?: string } | null | undefined): Turn {
-    return latest ? { state: latest.status, submittedAt: latest.createdAt, reviewedAt: latest.reviewedAt, lessonId: latest.lessonId } : { state: 'none' };
+// kind attempt is a submitted trainer exercise placed as homework; the mentor answers it with a line comment instead of a review.
+export type TurnKind = 'homework' | 'attempt';
+export interface Turn { state: TurnState; submittedAt?: string; reviewedAt?: string; lessonId?: string; kind?: TurnKind }
+export function turnOf(latest: { status: SubmissionStatus; createdAt: string; reviewedAt?: string; lessonId?: string; kind?: TurnKind } | null | undefined): Turn {
+    return latest ? { state: latest.status, submittedAt: latest.createdAt, reviewedAt: latest.reviewedAt, lessonId: latest.lessonId, kind: latest.kind ?? 'homework' } : { state: 'none' };
 }
 export const mentorsTurn = (turn: Turn) => turn.state === 'submitted';
+// Where the mentor answers this move: the review tab for a file, the trainer for an attempt.
+export const turnSection = (turn: Turn) => turn.kind === 'attempt' ? 'practice' : 'review';
+const sentPhrase = (turn: Turn, capital: boolean) => turn.kind === 'attempt' ? (capital ? 'Решение упражнения отправлено' : 'решение отправлено') : (capital ? 'Работа отправлена' : 'работа отправлена');
 const moscow = (value: string | undefined, time: boolean) => value ? new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) }).format(new Date(value)) : '';
 export function turnHeadline(turn: Turn, viewer: 'student' | 'teacher'): { title: string; text: string } {
     if (viewer === 'teacher') return mentorsTurn(turn)
-        ? { title: 'Ход за вами', text: `Работа отправлена ${moscow(turn.submittedAt, true)} и ждёт ревью.` }
+        ? { title: 'Ход за вами', text: `${sentPhrase(turn, true)} ${moscow(turn.submittedAt, true)} и ждёт ${turn.kind === 'attempt' ? 'вашего комментария' : 'ревью'}.` }
         : { title: 'Ход у ученика', text: turn.state === 'none' ? 'Ученик ещё не сдавал работ.' : `Вы ответили ${moscow(turn.reviewedAt, false)}.` };
-    if (mentorsTurn(turn)) return { title: 'Ход у наставника', text: `Работа отправлена ${moscow(turn.submittedAt, true)}. Можно спокойно заниматься другим.` };
+    if (mentorsTurn(turn)) return { title: 'Ход у наставника', text: `${sentPhrase(turn, true)} ${moscow(turn.submittedAt, true)}. Можно спокойно заниматься другим.` };
     if (turn.state === 'needs_revision') return { title: 'Твой ход', text: 'Наставник просит доработать работу — открой ревью и отправь новую версию.' };
     if (turn.state === 'reviewed') return { title: 'Твой ход', text: `Наставник ответил ${moscow(turn.reviewedAt, false)}. Посмотри отзыв и переходи к следующим заданиям.` };
     return { title: 'Твой ход', text: 'Открой задания к занятию и сдай домашнюю работу, когда будет готово.' };
@@ -46,7 +51,7 @@ export class TurnClockComponent {
         const student = (this.name().trim().split(/\s+/)[0] || 'Ученик');
         const sent = moscow(turn.submittedAt, true), answered = moscow(turn.reviewedAt, false);
         const countdown = !teacher && !mentor ? this.countdown() : '';
-        const left: Face = mentor ? { title: student, note: `работа отправлена ${sent}` }
+        const left: Face = mentor ? { title: student, note: `${sentPhrase(turn, false)} ${sent}` }
             : { title: student, note: (teacher ? 'ход у ученика' : 'твой ход') + (turn.state === 'needs_revision' ? ' · доработка' : ''), value: countdown, caption: countdown ? 'до занятия' : undefined };
         const right: Face = teacher
             ? mentor ? { title: 'Вы', note: 'ход за вами', value: 'ждёт ревью' } : { title: 'Вы', note: turn.state === 'none' ? 'ждёте работу' : `ответили ${answered}` }

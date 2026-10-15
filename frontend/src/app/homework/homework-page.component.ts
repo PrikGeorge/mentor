@@ -97,7 +97,7 @@ export class HomeworkPageComponent {
         if (!this.active()) return; const stamp = this.sequence;
         const request = this.api.download(this.lesson(), submission.id).subscribe({ next: blob => { if (!this.active() || stamp !== this.sequence) return; const url = URL.createObjectURL(blob); this.urls.add(url); const anchor = document.createElement('a'); anchor.href = url; anchor.download = submission.filename; anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); this.urls.delete(url); }, 0); }, error: error => { if (this.active() && stamp === this.sequence) this.downloadErrors.update(errors => ({ ...errors, [submission.id]: error.error?.message ?? 'Не удалось скачать работу.' })); } }); this.downloads.push(request);
     }
-    date(value: string) { return new Date(value).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }); }
+    date(value: string) { return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
     bytes(value: number) { return value >= 1048576 ? (value/1048576).toFixed(1)+' МиБ' : value >= 1024 ? (value/1024).toFixed(1)+' КиБ' : value+' байт'; }
     repositoryLink(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null; } catch { return null; } }
 }

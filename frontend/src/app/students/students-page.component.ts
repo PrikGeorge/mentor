@@ -7,9 +7,9 @@ import { Dashboard, StudentsApi, StudentView } from './students-api.service';
 import { StudentFormComponent } from './student-form.component';
 import { IconComponent } from '../core/icon.component';
 import { HomeworkApi, StudentTurn } from '../homework/homework-api.service';
-import { Turn, TurnClockComponent, turnOf } from '../homework/turn-clock.component';
+import { Turn, TurnClockComponent, turnOf, turnSection } from '../homework/turn-clock.component';
 @Component({ selector: 'mentor-students-page', imports: [RouterLink, DatePipe, StudentFormComponent, IconComponent, TurnClockComponent], template: `
-  <div class="page-head"><div><h1>Мои ученики</h1><p class="subtitle">Выберите ученика, чтобы открыть его занятия, материалы и план обучения.@if(total()){ Учеников: {{total()}}.}</p></div><button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button></div>
+  <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
   @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
   @if(loading()){<p class="loading" role="status">Загружаем учеников…</p>}
@@ -17,7 +17,7 @@ import { Turn, TurnClockComponent, turnOf } from '../homework/turn-clock.compone
     <ol class="queue">@for(row of waiting();track row.studentId){<li><span class="avatar" aria-hidden="true">{{initial(row.studentName)}}</span><div><h3>{{row.studentName}}</h3><p>{{direction(row.studentId)}}@if(row.awaitingReview>1){ · ещё работ на ревью: {{row.awaitingReview-1}}}</p></div>
       <div class="work"><b>{{row.lessonTitle}}</b><p>Занятие {{row.lessonDate|date:'dd.MM.yyyy'}} · {{row.filename}}</p>@if(row.comment){<q>{{row.comment}}</q>}</div>
       <mentor-turn-clock [turn]="clocks()[row.studentId]" viewer="teacher" [name]="row.studentName" [mini]="true"/>
-      <a class="btn primary" [routerLink]="['/teacher/students',row.studentId,'lessons',row.lessonId,'teacher','review']"><mentor-icon name="message"/>Открыть ревью</a></li>}</ol></section>}
+      <a class="btn primary" [routerLink]="['/teacher/students',row.studentId,'lessons',row.lessonId,'teacher',turnSection(clocks()[row.studentId])]"><mentor-icon name="message"/>{{row.kind==='attempt'?'Открыть решение':'Открыть ревью'}}</a></li>}</ol></section>}
   <div class="sh"><div class="title-group"><h2>{{waiting().length?'Ход у учеников':'Ученики'}}</h2><span class="count">карточки учеников</span></div></div>
   <div class="students-grid">@for(s of students();track s.id){<a class="student-card" [routerLink]="['/teacher/students',s.id]"><div class="student-card-head"><span class="avatar" aria-hidden="true">{{initial(s.name)}}</span><div><h2>{{s.name}}</h2><p>{{s.direction||'Направление не указано'}}</p></div></div>
       <dl><div><dt>Цель</dt><dd>{{s.goal||'Цель обучения можно добавить в карточку'}}</dd></div>
@@ -44,11 +44,14 @@ export class StudentsPageComponent {
     readonly creating = signal(false);
     readonly loading = signal(false);
     readonly error = signal('');
-    constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(); this.refresh(); this.students.set([]); this.summaries.set({}); this.queue.set([]); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
-        return; this.loading.set(true); const sub = this.api.list(w, page).pipe(switchMap(view => { this.students.set(view.items); this.total.set(view.total); return view.items.length ? forkJoin({ summaries: forkJoin(view.items.map(s => this.api.dashboard(w, s.id))), turns: this.homework.studentTurns(w).pipe(catchError(() => of(null))) }) : of({ summaries: [], turns: null }); })).subscribe({ next: ({ summaries, turns }) => { this.summaries.set(Object.fromEntries(summaries.map(s => [s.student.id, s]))); this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
+    // Archived cards live on a separate screen; the review queue belongs to the active ones only.
+    readonly archive = signal(false);
+    constructor() { effect(onCleanup => { this.session.generation(); const w = this.session.actor()?.workspaceId, page = this.page(), archive = this.archive(); this.refresh(); this.students.set([]); this.summaries.set({}); this.queue.set([]); this.creating.set(false); this.error.set(''); if (!w || this.session.actor()?.role !== 'TEACHER')
+        return; this.loading.set(true); const sub = this.api.list(w, page, false, archive ? 'true' : undefined).pipe(switchMap(view => { this.students.set(view.items); this.total.set(view.total); return view.items.length ? forkJoin({ summaries: forkJoin(view.items.map(s => this.api.dashboard(w, s.id))), turns: this.homework.studentTurns(w).pipe(catchError(() => of(null))) }) : of({ summaries: [], turns: null }); })).subscribe({ next: ({ summaries, turns }) => { this.summaries.set(Object.fromEntries(summaries.map(s => [s.student.id, s]))); this.queue.set(turns?.items ?? []); this.loading.set(false); }, error: e => { this.error.set(e.error?.message ?? 'Не удалось загрузить учеников.'); this.loading.set(false); } }); onCleanup(() => sub.unsubscribe()); }); }
     reload() { this.refresh.update(v => v + 1); }
     initial(name: string) { return name.trim().slice(0, 1).toUpperCase() || '·'; }
     direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }
+    readonly turnSection = turnSection;
     waitingLabel() { const n = this.waiting().length, last = n % 10, tens = n % 100; return n + (last === 1 && tens !== 11 ? ' работа ждёт' : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? ' работы ждут' : ' работ ждут') + ' ревью'; }
     created(student: StudentView) { this.creating.set(false); void this.router.navigate(['/teacher/students', student.id]); }
 }
