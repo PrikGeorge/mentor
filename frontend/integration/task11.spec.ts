@@ -1,9 +1,8 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { signIn, signOut } from '../testing/browser-session';
 import type { components } from '../src/app/api/schema';
-// The student preview replaces the profile menu with a read-only badge, so leave it before signing out.
-async function signOut(page: Page) { if (new URL(page.url()).searchParams.get('preview')) { await page.goto('/'); await page.locator('button.menu-button:visible, button.profile-button:visible').first().waitFor(); } const menu = page.locator('button.menu-button'); if (await menu.isVisible()) { if (await menu.getAttribute('aria-expanded') !== 'true') await menu.click(); } else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); }
 test.describe.configure({ mode: 'serial' });
 type Session = components['schemas']['Session'];
 type Student = components['schemas']['TeacherStudentView'];
@@ -69,11 +68,7 @@ test.beforeAll(async ({ playwright }) => {
 });
 test.afterAll(async () => { for (const client of clients) await client.dispose(); });
 async function login(page: Page, user: User) {
-    await page.goto('/login');
-    await page.locator('[name="login"]').fill(user.login);
-    await page.locator('[name="password"]').fill(credentials.password);
-    await page.getByRole('button', { name: 'Войти', exact: true }).click();
-    await expect(page).toHaveURL(user.actor.role === 'STUDENT' ? '/learn' : '/teacher/students');
+    await signIn(page, { login: user.login, password: credentials.password }, user.actor.role === 'STUDENT' ? '/learn' : '/teacher/students');
 }
 async function logout(page: Page) {
     await signOut(page); await expect(page).toHaveURL('/login');
@@ -91,7 +86,7 @@ for (const width of [1280, 390]) {
         await expect(page.locator('form')).toHaveCount(1);
         expect(await page.locator('form input').count()).toBe(4);
         const title = `Новое занятие ${width}`;
-        await page.locator('[name="title"]').fill(title);
+        await page.getByRole('textbox', { name: 'Тема занятия' }).fill(title);
         const createdResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(card(anna.id) + '/lessons'));
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
         const created = await createdResponse; expect(created.status()).toBe(201);
@@ -102,16 +97,16 @@ for (const width of [1280, 390]) {
         const lesson = await get<Lesson>(teacher.client, card(anna.id) + `/lessons/${lessonId}`);
         await expect(page).toHaveURL(`/teacher/students/${anna.id}/lessons/${lesson.id}`);
         await expect(page.getByRole('heading', { name: 'Подготовка занятия', exact: true })).toBeVisible();
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await page.screenshot({ path: path.join(runtime, `real-preparation-${width}.png`), fullPage: true });
         // Stale revision preserves the user's form against actual server conflict.
         await page.getByRole('button', { name: 'Изменить занятие', exact: true }).click();
-        await page.locator('[name="title"]').fill('Сохранить введённое');
+        await page.getByRole('textbox', { name: 'Тема занятия' }).fill('Сохранить введённое');
         await write(teacher.client, 'PATCH', card(anna.id) + `/lessons/${lesson.id}`, { title: 'Конкурирующее изменение', revision: lesson.revision }, 200);
         const conflict = page.waitForResponse(response => response.request().method() === 'PATCH' && response.url().endsWith(`/lessons/${lesson.id}`));
         await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
         expect((await conflict).status()).toBe(409);
-        await expect(page.locator('[name="title"]')).toHaveValue('Сохранить введённое');
+        await expect(page.getByRole('textbox', { name: 'Тема занятия' })).toHaveValue('Сохранить введённое');
         await expect(page.getByRole('alert')).toBeVisible();
         await page.goto(`/teacher/students/${anna.id}/lessons/${first.id}`);
         await page.getByRole('link', { name: 'Экран ученика ↗', exact: true }).click();
@@ -119,7 +114,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
-        await expect(page.locator('footer')).toContainText('Кабинет ученика');
+        await expect(page.getByRole('contentinfo')).toContainText('Кабинет ученика');
         const session = await page.request.get('/api/v1/auth/session');
         expect((await session.json()).account.role).toBe('TEACHER');
         await page.screenshot({ path: path.join(runtime, `real-preview-${width}.png`), fullPage: true });
@@ -132,13 +127,13 @@ for (const width of [1280, 390]) {
         await expect(page.locator('body')).not.toContainText(boris.name);
         await page.goto(`/learn/students/${anna.id}/lessons/${first.id}/student/tasks`);
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         if (width === 390) await page.getByRole('button', { name: 'Меню', exact: true }).click();
         await expect(page.locator('.profile-name:visible, .mobile-me:visible b')).toContainText(anna.name);
         await expect(page.locator('.selected-student')).toHaveCount(0);
         await expect(page.getByRole('navigation', { name: 'Разделы занятия' })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
-        await expect(page.locator('footer')).not.toContainText('Кабинет наставника');
+        await expect(page.getByRole('contentinfo')).not.toContainText('Кабинет наставника');
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.screenshot({ path: path.join(runtime, `real-learner-${width}.png`), fullPage: true });
         // The open mobile menu already holds the sign-out control; the helper never toggles it twice.

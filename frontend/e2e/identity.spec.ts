@@ -1,14 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
-async function signOut(page: Page) {
-    const menu = page.getByRole('button', { name: 'Меню', exact: true });
-    if (await menu.isVisible()) await menu.click();
-    else await page.locator('.profile-button').click();
-    await page.getByRole('button', { name: 'Выйти', exact: true }).click();
-}
+import { expect, test, mockSession } from './fixtures';
+import { signOut } from '../testing/browser-session';
 
 test('390px keyboard login keeps private assets out and navigates by role', async ({ page }) => {
-    const failures: string[] = [];
-    page.on('pageerror', (error) => failures.push(error.message));
     let signedIn = false;
     const actor = { userId: 'synthetic-teacher', workspaceId: 'w1', role: 'TEACHER', authVersion: 1 };
     await page.route('**/api/v1/**', async (route) => {
@@ -43,7 +36,7 @@ test('390px keyboard login keeps private assets out and navigates by role', asyn
     await expect(page.getByRole('textbox', { name: 'Логин' })).toBeFocused();
     await page.keyboard.type('synthetic');
     await page.keyboard.press('Tab');
-    await expect(page.locator('[name="password"]')).toBeFocused();
+    await expect(page.getByLabel('Пароль', { exact: true })).toBeFocused();
     await page.keyboard.type('  synthetic password  ');
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeFocused();
@@ -60,13 +53,10 @@ test('390px keyboard login keeps private assets out and navigates by role', asyn
     await signOut(page);
     await expect(page).toHaveURL('/login');
     expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
-    expect(failures).toEqual([]);
 });
 
 test('legacy preview at 390px retains section zero and shows a read-only label', async ({ page }) => {
-    await page.route('**/api/v1/auth/session', (route) =>
-        route.fulfill({ json: { account: { userId: 'synthetic', workspaceId: 'w1', role: 'TEACHER', authVersion: 1 }, csrfToken: 'synthetic' } })
-    );
+    await mockSession(page, { userId: 'synthetic', workspaceId: 'w1', role: 'TEACHER', authVersion: 1 });
     await page.goto('/?screen=student#students/s1/lessons/l1/student/tasks/section-0');
     await expect(page).toHaveURL('/teacher/students/s1/lessons/l1/student/tasks?preview=student#section-0');
     await expect(page.getByText('Предпросмотр кабинета ученика · только чтение')).toBeVisible();
@@ -76,10 +66,6 @@ test('legacy preview at 390px retains section zero and shows a read-only label',
 test('administrator page at 390px wraps long logins and issues manual links', async ({ page }) => {
     await page.route('**/api/v1/**', async (route) => {
         const url = new URL(route.request().url());
-        if (url.pathname === '/api/v1/auth/session') {
-            await route.fulfill({ json: { account: { userId: 'synthetic-admin', workspaceId: null, role: 'ADMIN', authVersion: 1 }, csrfToken: 'synthetic' } });
-            return;
-        }
         if (url.pathname === '/api/v1/admin/teachers') {
             await route.fulfill({
                 json: {
@@ -101,6 +87,7 @@ test('administrator page at 390px wraps long logins and issues manual links', as
         }
         await route.fulfill({ status: 404 });
     });
+    await mockSession(page, { userId: 'synthetic-admin', workspaceId: null, role: 'ADMIN', authVersion: 1 });
     await page.goto('/admin/teachers');
     await expect(page.getByRole('button', { name: 'Блокировать аккаунт' })).toBeVisible();
     await page.getByRole('button', { name: 'Пригласить преподавателя' }).click();
@@ -109,14 +96,14 @@ test('administrator page at 390px wraps long logins and issues manual links', as
     await page.screenshot({ path: test.info().outputPath('admin-390.png'), fullPage: true });
     await page.getByRole('textbox', { name: 'Одноразовая ссылка' }).focus();
     expect(
-        await page.locator('[name="issuedLink"]').evaluate((input: HTMLInputElement) => input.selectionStart === 0 && input.selectionEnd === input.value.length)
+        await page.getByRole('textbox', { name: 'Одноразовая ссылка' }).evaluate((input: HTMLInputElement) => input.selectionStart === 0 && input.selectionEnd === input.value.length)
     ).toBe(true);
     expect(await page.evaluate(() => localStorage.length)).toBe(0);
 });
 
 for (const path of ['/not-found', '/unknown/synthetic-page']) {
     test(`anonymous error page stays visible at ${path} and recovers to login`, async ({ page }) => {
-        await page.route('**/api/v1/auth/session', (route) => route.fulfill({ json: { account: null, csrfToken: 'synthetic' } }));
+        await mockSession(page, null);
         await page.goto(path);
         await expect(page.getByRole('heading', { name: 'Страница не найдена' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'В кабинет', exact: true })).toBeVisible();

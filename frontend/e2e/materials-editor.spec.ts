@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, mockSession, type Page } from './fixtures';
 import type { components } from '../src/app/api/schema';
 type Material = components['schemas']['MaterialView'];
 const student: components['schemas']['TeacherStudentView'] = { id:'s1',workspaceId:'w1',userId:'learner',revision:1,createdAt:'2026-10-01T00:00:00Z',name:'Синтетическая Анна',direction:'Java',goal:'Первая работа',schedule:'',notes:'PRIVATE_PROFILE',studentRoadmap:'',studentReview:'' };
-const lesson: components['schemas']['TeacherLessonView'] = { id:'l1',workspaceId:'w1',studentId:'s1',title:'Безопасное чтение Java',date:'2026-10-02',time:'12:00',timeZone:'Europe/Moscow',duration:60,status:'prepared',bundleId:'b1',revision:1,createdAt:'2026-10-01T00:00:00Z',teacherNotes:'',studentNotes:'',reviewNotes:'' };
+const lesson: components['schemas']['TeacherLessonView'] = { id:'l1',workspaceId:'w1',studentId:'s1',number:1,title:'Безопасное чтение Java',date:'2026-10-02',time:'12:00',timeZone:'Europe/Moscow',duration:60,status:'prepared',bundleId:'b1',revision:1,createdAt:'2026-10-01T00:00:00Z',teacherNotes:'',studentNotes:'',reviewNotes:'' };
 const root='/api/v1/workspaces/w1/students/s1', lessonBase='/teacher/students/s1/lessons/l1';
 const meta={workspaceId:'w1',studentId:'s1',lessonId:'l1',bundleId:'b1',contentType:'text/markdown'};
 const materials: Material[] = [
@@ -14,11 +14,9 @@ const materials: Material[] = [
  { ...meta,id:'teacher-zip',kind:'download',audience:'teacher',contentKey:'teacher-bundle',filename:'synthetic-teacher.zip',title:'Комплект преподавателя',contentType:'application/zip',blob:{id:'blob2',size:4,sha256:'b'.repeat(64)},downloadUrl:'/api/v1/workspaces/w1/materials/teacher-zip/file' },
 ];
 async function fixture(page: Page, role:'TEACHER'|'STUDENT'='TEACHER', conflict=false) {
- let source='  исходный  \n', revision=3, fail=conflict, writes=0; const errors:string[]=[];
- page.on('pageerror',e=>errors.push(e.message));
+ let source='  исходный  \n', revision=3, fail=conflict, writes=0;
  await page.route('**/api/v1/**',async route=>{
   const request=route.request(),url=new URL(request.url()),publicView=role==='STUDENT'||url.searchParams.get('audience')==='student',path=url.pathname;
-  if(path==='/api/v1/auth/session'){await route.fulfill({json:{account:{userId:role==='TEACHER'?'teacher':'learner',workspaceId:'w1',role,authVersion:1},csrfToken:'synthetic'}});return;}
   if(path===root){const {notes,...view}=student;await route.fulfill({json:publicView?view:student});return;}
   if(path===root+'/lessons/l1'){const {teacherNotes,...view}={...lesson,teacherNotes:source};await route.fulfill({json:publicView?view:{...lesson,teacherNotes:source}});return;}
   if(path.startsWith(root+'/lessons/l1/texts/')){
@@ -38,28 +36,29 @@ async function fixture(page: Page, role:'TEACHER'|'STUDENT'='TEACHER', conflict=
   }
   await route.fulfill({status:404});
  });
- return {errors,writes:()=>writes};
+ await mockSession(page, {userId:role==='TEACHER'?'teacher':'learner',workspaceId:'w1',role,authVersion:1});
+ return {writes:()=>writes};
 }
 for(const width of [1280,390]){
  test(`exact Markdown import undo conflict and200000 units at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:900});const state=await fixture(page,'TEACHER',true);await page.goto(lessonBase);
-  await page.getByRole('button',{name:'Изменить сценарий',exact:true}).click();const textarea=page.locator('textarea[name="markdown"]');await expect(textarea).toHaveValue('  исходный  \n');
+  await page.getByRole('button',{name:'Изменить сценарий',exact:true}).click();const textarea=page.getByRole('textbox',{name:'Текст занятия',exact:true});await expect(textarea).toHaveValue('  исходный  \n');
   await textarea.fill('до');await page.locator('input[type=file]').setInputFiles({name:'source.md',mimeType:'text/markdown',buffer:Buffer.from('  новый 😀  \n')});await page.getByRole('button',{name:'Добавить в конец',exact:true}).click();await expect(textarea).toHaveValue('до\n\n  новый 😀  \n');
   await page.getByRole('button',{name:'Отменить',exact:true}).click();await expect(textarea).toHaveValue('до');await page.locator('input[type=file]').setInputFiles({name:'source.md',mimeType:'text/markdown',buffer:Buffer.from('```java\n  class A {}  \n```')});await page.getByRole('button',{name:'Заменить текст',exact:true}).click();
-  await page.getByRole('button',{name:'Рядом',exact:true}).click();await expect(page.locator('.md-preview-pane code')).toContainText('  class A {}');
+  await page.getByRole('button',{name:'Рядом',exact:true}).click();await expect(page.getByRole('region',{name:'Предварительный просмотр',exact:true}).locator('code')).toContainText('  class A {}');
   await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Ревизия устарела');await expect(textarea).toHaveValue('```java\n  class A {}  \n```');const localDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Скачать введённый .md',exact:true}).click();const local=await localDownload;expect(local.suggestedFilename()).toBe('teacherNotes-local.md');expect(readFileSync((await local.path())!,'utf8')).toBe('```java\n  class A {}  \n```');
-  const exact='😀'.repeat(100000);await textarea.fill(exact);await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('mentor-markdown-editor')).toHaveCount(0);await page.getByRole('button',{name:'Изменить сценарий',exact:true}).click();await expect(textarea).toHaveValue(exact);expect(state.writes()).toBe(2);
-  await textarea.fill('маленький текст');await page.getByRole('button',{name:'Текст',exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await page.screenshot({path:test.info().outputPath(`editor-${width}.png`),fullPage:true});expect(state.errors).toEqual([]);
+  const exact='😀'.repeat(100000);await textarea.fill(exact);await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.getByRole('region',{name:'Редактор Markdown',exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Изменить сценарий',exact:true}).click();await expect(textarea).toHaveValue(exact);expect(state.writes()).toBe(2);
+  await textarea.fill('маленький текст');await page.getByRole('button',{name:'Текст',exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await page.screenshot({path:test.info().outputPath(`editor-${width}.png`),fullPage:true});
  });
  test(`teacher/student document anchors bundles code and print at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:900});const state=await fixture(page);await page.goto(lessonBase+'/teacher/guide');await expect(page.getByRole('heading',{name:'Методичка преподавателя',exact:true})).toBeVisible();await expect(page.locator('h1')).toHaveCount(1);
-  await expect(page.getByRole('link',{name:/Открыть часть/})).toHaveCount(1);if(width===390)await page.getByText('Разделы материала',{exact:true}).click();await page.getByRole('link',{name:'Следующая часть',exact:true}).click();await expect(page).toHaveURL(/#section-1$/);await expect(page.locator('#section-1 h3')).toBeFocused();
+  await page.setViewportSize({width,height:900});await fixture(page);await page.goto(lessonBase+'/teacher/guide');await expect(page.getByRole('heading',{name:'Методичка преподавателя',exact:true})).toBeVisible();await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole('link',{name:/Открыть часть/})).toHaveCount(1);if(width===390)await page.getByText('Разделы материала',{exact:true}).click();await page.getByRole('link',{name:'Следующая часть',exact:true}).click();await expect(page).toHaveURL(/#section-1$/);await expect(page.getByRole('heading',{name:'Следующая часть',level:3,exact:true})).toBeFocused();
   const detail=page.locator('.explanation-details');expect(await detail.evaluate((e:HTMLDetailsElement)=>e.open)).toBe(false);
   await page.evaluate(()=>{(window as any).printStates=[];window.addEventListener('beforeprint',()=>{(window as any).printStates.push(['before',...Array.from(document.querySelectorAll('details')).map(e=>e.open)]);});window.addEventListener('afterprint',()=>{(window as any).printStates.push(['after',...Array.from(document.querySelectorAll('details')).map(e=>e.open)]);});});
   await page.pdf({path:test.info().outputPath(`guide-${width}.pdf`),format:'A4'});expect(await detail.evaluate((e:HTMLDetailsElement)=>e.open)).toBe(false);const states=await page.evaluate(()=>(window as any).printStates);expect(states.some((s:unknown[])=>s[0]==='before'&&s.slice(1).every(Boolean))).toBe(true);expect(states.some((s:unknown[])=>s[0]==='after'&&s.slice(1).includes(false))).toBe(true);
   await expect(page.getByRole('link',{name:'Комплект преподавателя',exact:true})).toHaveAttribute('href','/api/v1/workspaces/w1/materials/teacher-zip/file');await page.screenshot({path:test.info().outputPath(`guide-${width}.png`),fullPage:true});
   await page.getByRole('link',{name:'Открыть часть 1 ученика →',exact:true}).click();await expect(page).toHaveURL(/student\/tasks\?preview=student#section-0$/);await expect(page.getByRole('heading',{name:'Задания ученика',exact:true})).toBeVisible();await expect(page.locator('.task-code')).toContainText('class ListTask {}');await expect(page.locator('body')).not.toContainText('PRIVATE_');await expect(page.locator('body')).not.toContainText('Комплект преподавателя');await expect(page.getByRole('button',{name:/Изменить|Сохранить|Сдать/})).toHaveCount(0);
-  await expect(page.getByRole('link',{name:'Комплект ученика',exact:true})).toHaveAttribute('href','/api/v1/workspaces/w1/materials/student-zip/file?audience=student');expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await page.screenshot({path:test.info().outputPath(`public-${width}.png`),fullPage:true});expect(state.errors).toEqual([]);
+  await expect(page.getByRole('link',{name:'Комплект ученика',exact:true})).toHaveAttribute('href','/api/v1/workspaces/w1/materials/student-zip/file?audience=student');expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await page.screenshot({path:test.info().outputPath(`public-${width}.png`),fullPage:true});
  });
 }
 

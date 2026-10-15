@@ -1,8 +1,8 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, mockSession, type Page } from './fixtures';
 import type { components } from '../src/app/api/schema';
 type Summary = components['schemas']['MaterialSummary'];
 const student: components['schemas']['TeacherStudentView'] = { id: 's1', workspaceId: 'w1', userId: null, name: 'Synthetic learner', direction: 'Java', goal: '', schedule: '', notes: 'PRIVATE_CARD', studentRoadmap: '', studentReview: '', revision: 1, createdAt: '2030-01-01T00:00:00Z' };
-const lesson: components['schemas']['TeacherLessonView'] = { id: 'l1', workspaceId: 'w1', studentId: 's1', title: 'Synthetic lesson', date: '2030-01-01', time: '12:00', duration: 60, timeZone: 'Europe/Moscow', status: 'prepared', bundleId: 'b1', revision: 1, createdAt: '2030-01-01T00:00:00Z', teacherNotes: '', studentNotes: '', reviewNotes: '' };
+const lesson: components['schemas']['TeacherLessonView'] = { id: 'l1', workspaceId: 'w1', studentId: 's1', number: 1, title: 'Synthetic lesson', date: '2030-01-01', time: '12:00', duration: 60, timeZone: 'Europe/Moscow', status: 'prepared', bundleId: 'b1', revision: 1, createdAt: '2030-01-01T00:00:00Z', teacherNotes: '', studentNotes: '', reviewNotes: '' };
 const meta: Summary = { id: 'profile-id', workspaceId: 'w1', studentId: 's1', lessonId: null, bundleId: null, audience: 'teacher', kind: 'doc', contentKey: 'profile', filename: 'profile.md', contentType: 'text/markdown', title: 'Synthetic profile' };
 const profileDocs = ['profile', 'projects', 'career', 'journal', 'core', 'course', 'roadmap'].map(key => ({ ...meta, id: 'exact-' + key, contentKey: key, title: 'Synthetic ' + key }));
 const publicRoadmap = { ...meta, id: 'exact-public-roadmap', contentKey: 'student-roadmap', audience: 'student' as const }, publicGoal = { ...meta, id: 'public-profile-view', contentKey: 'arbitrary-card', audience: 'student' as const, kind: 'view' as const };
@@ -11,10 +11,6 @@ async function api(page: Page) {
     let role: 'TEACHER' | 'STUDENT' = 'TEACHER', lessonLists = 0;
     await page.route('**/api/v1/**', async (route) => {
         const u = new URL(route.request().url()), p = u.pathname, publicView = role === 'STUDENT' || u.searchParams.get('audience') === 'student';
-        if (p === '/api/v1/auth/session') {
-            await route.fulfill({ json: { account: { userId: role, workspaceId: 'w1', role, authVersion: 1 }, csrfToken: 'synthetic' } });
-            return;
-        }
         if (p === '/api/v1/workspaces/w1/students/s1') {
             const { notes, ...publicStudent } = student;
             await route.fulfill({ json: publicView ? publicStudent : student });
@@ -38,7 +34,7 @@ async function api(page: Page) {
         if (p.startsWith('/api/v1/workspaces/w1/materials/')) {
             const id = p.split('/').at(-1), row = [...profileDocs, publicRoadmap, publicGoal, teacherView, guide, answer].find(row => row.id === id && (!publicView || row.audience === 'student'));
             if (row) {
-                let detail: unknown;
+                let detail: Record<string, unknown>;
                 if (row.kind === 'doc')
                     detail = { document: { title: row.title, intro: '', raw: 'synthetic raw', html: '', sections: [{ id: 'section-0', title: 'Synthetic section', html: row.contentKey === 'profile' ? '<p>PRIVATE_PROFILE</p><a href="#core/section-0">Core by keyboard</a><a href="#projects">Projects</a>' : row.contentKey === 'student-roadmap' ? '<p>PUBLIC_ROADMAP</p>' : '<p>DOC_' + row.contentKey + '</p>' }] } };
                 else if (row.kind === 'code')
@@ -51,6 +47,7 @@ async function api(page: Page) {
         }
         await route.fulfill({ status: 404, json: { message: 'Synthetic unavailable' } });
     });
+    await mockSession(page, () => ({ userId: role, workspaceId: 'w1', role, authVersion: 1 }));
     return { role: (value: 'TEACHER' | 'STUDENT') => role = value, lessonLists: () => lessonLists };
 }
 for (const width of [1280, 390])
@@ -58,13 +55,15 @@ for (const width of [1280, 390])
         await page.setViewportSize({ width, height: 900 });
         const state = await api(page);
         await page.goto('/teacher/students/s1/profile');
-        await expect(page.locator('main .sh h2')).toHaveText('Навыки и наблюдения');
+        await expect(page.getByRole('main').getByRole('heading', { name: 'Навыки и наблюдения', exact: true })).toBeVisible();
         await expect(page.locator('.material-document')).toContainText('PRIVATE_PROFILE');
         expect(state.lessonLists()).toBe(0);
         if (width === 390)
             await page.getByRole('button', { name: 'Меню', exact: true }).click();
-        await expect(page.locator('nav[aria-label="Карточка ученика"] a[href$="/profile"]')).toBeVisible();
-        await expect(page.locator('nav[aria-label="Карточка ученика"] a[href$="/projects"]')).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Карточка ученика', exact: true }).getByRole('link', { name: /^Навыки и наблюдения/ })).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Карточка ученика', exact: true }).getByRole('link', { name: /^Учебные проекты/ })).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Карточка ученика', exact: true }).getByRole('link', { name: /^Навыки и наблюдения/ })).toHaveAttribute('href', '/teacher/students/s1/profile');
+        await expect(page.getByRole('navigation', { name: 'Карточка ученика', exact: true }).getByRole('link', { name: /^Учебные проекты/ })).toHaveAttribute('href', '/teacher/students/s1/projects');
         if (width === 390)
             await page.getByRole('button', { name: 'Закрыть меню', exact: true }).click();
         const core = page.getByRole('link', { name: 'Core by keyboard', exact: true });
@@ -88,5 +87,7 @@ for (const width of [1280, 390])
         await page.goto('/teacher/students/s1/roadmap?preview=student');
         await expect(page.locator('.material-document')).toContainText('PUBLIC_ROADMAP');
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
-        await expect(page.locator('nav[aria-label="Кабинет ученика"] a[href$="/profile"]')).toHaveCount(0);
+        const publicNavigation = page.getByRole('navigation', { name: 'Кабинет ученика', exact: true, includeHidden: true });
+        await expect(publicNavigation.getByRole('link', { name: /^Навыки и наблюдения/, includeHidden: true })).toHaveCount(0);
+        await expect(publicNavigation.locator('a[href$="/profile"]')).toHaveCount(0);
     });

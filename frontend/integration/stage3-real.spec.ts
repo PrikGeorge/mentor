@@ -2,6 +2,7 @@ import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { components } from '../src/app/api/schema';
+import { signIn, signOut as logout } from '../testing/browser-session';
 // Q-02: stage 3 of the redesign against the real backend — materials from the product, conducted mark, line comments,
 // grades, roadmap stages, the moves journal and whose turn it is, including a homework-placement trainer exercise.
 test.describe.configure({ mode: 'serial' });
@@ -52,19 +53,17 @@ test.beforeAll(async ({ playwright }) => {
     catalog = JSON.parse(readFileSync(complete, 'utf8'));
 });
 test.afterAll(async () => { for (const client of clients) await client.dispose(); });
-async function login(page: Page, user: User) { await page.goto('/login'); await page.locator('[name=login]').fill(user.login); await page.locator('[name=password]').fill(credentials.password); await page.getByRole('button', { name: 'Войти', exact: true }).click(); await expect(page).toHaveURL(user.actor.role === 'STUDENT' ? '/learn' : '/teacher/students'); }
-// The student preview replaces the profile menu with a read-only badge, so leave it before signing out.
-async function logout(page: Page) { if (new URL(page.url()).searchParams.get('preview')) { await page.goto('/'); await page.locator('button.menu-button:visible, button.profile-button:visible').first().waitFor(); } const menu = page.locator('button.menu-button'); if (await menu.isVisible()) { if (await menu.getAttribute('aria-expanded') !== 'true') await menu.click(); } else await page.locator('.profile-button').click(); await page.getByRole('button', { name: 'Выйти', exact: true }).click(); await expect(page).toHaveURL('/login'); }
+async function login(page: Page, user: User) { await signIn(page, { login: user.login, password: credentials.password }, user.actor.role === 'STUDENT' ? '/learn' : '/teacher/students'); }
 async function capture(page: Page, name: string) { await page.evaluate(() => { (document.activeElement as HTMLElement)?.blur?.(); window.scrollTo(0, 0); }); await page.screenshot({ path: path.join(runtime, name), fullPage: true }); }
 async function addMaterial(page: Page, l: Lesson, audience: 'student' | 'teacher', contentKey: string, markdown: string) {
-    const form = page.locator('mentor-material-form');
-    await form.locator('select[name=kind]').selectOption('doc'); await form.locator('select[name=audience]').selectOption(audience); await form.locator('select[name=contentKey]').selectOption(contentKey);
-    await form.locator('textarea[name=markdown]').fill(markdown);
+    const form = page.getByRole('region', { name: 'Добавить материал', exact: true });
+    await form.getByRole('combobox', { name: 'Тип', exact: true }).selectOption('doc'); await form.getByRole('combobox', { name: 'Кому', exact: true }).selectOption(audience); await form.getByRole('combobox', { name: 'Роль', exact: true }).selectOption(contentKey);
+    await form.getByRole('textbox', { name: 'Текст в Markdown' }).fill(markdown);
     const created = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(lessonPath(l) + '/materials'));
     await form.getByRole('button', { name: 'Добавить материал', exact: true }).click();
     const response = await created; expect(response.status()).toBe(201); return response.json() as Promise<components['schemas']['MaterialSummary']>;
 }
-async function openReviewForm(review: import('@playwright/test').Locator) { const details = review.locator('details.submission-review'); await expect(details).toBeVisible(); if (!await details.evaluate(element => (element as HTMLDetailsElement).open)) await review.locator('summary').click(); await expect(review.locator('textarea')).toBeVisible(); }
+async function openReviewForm(review: import('@playwright/test').Locator) { const details = review.locator('details'); await expect(details).toBeVisible(); if (!await details.evaluate(element => (element as HTMLDetailsElement).open)) await review.getByText(/^(Оставить|Изменить) ревью$/).click(); await expect(review.getByRole('textbox', { name: 'Ревью этой работы', exact: true })).toBeVisible(); }
 test('real stage 3 flow: material publishes the lesson, homework, conducted mark, line comment, grade, roadmap, journal and turns', async ({ page }) => {
     test.setTimeout(240000);
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
@@ -72,7 +71,7 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     // 1. The teacher creates a lesson in the product and adds Markdown materials; the first one makes the lesson prepared.
     await page.goto(`/teacher/students/${student.id}`);
     await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
-    await page.locator('[name=title]').fill('Коллекции и ревью');
+    await page.getByRole('textbox', { name: 'Тема занятия', exact: true }).fill('Коллекции и ревью');
     const created = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(card() + '/lessons'));
     await page.getByRole('button', { name: 'Создать занятие', exact: true }).click(); expect((await created).status()).toBe(201);
     await expect(page).toHaveURL(new RegExp(`/teacher/students/${student.id}/lessons/[^/]+$`));
@@ -84,12 +83,12 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await expect(page.getByText('Материалов пока нет. Добавьте первый документ или файл выше.', { exact: true })).toBeVisible();
     const doc = await addMaterial(page, lesson, 'student', 'student-materials', '# Материалы занятия\n\n## Списки\n\nArrayList хранит элементы по порядку.\n\n## Отображения\n\nHashMap связывает ключ и значение.');
     expect(doc.contentKey).toBe('student-materials');
-    await expect(page.locator('.material-group', { hasText: 'Видно ученику' }).locator('.material-row strong', { hasText: 'Материалы занятия' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Видно ученику', exact: true }).getByRole('link', { name: /Материалы занятия/ })).toBeVisible();
     await addMaterial(page, lesson, 'teacher', 'guide', '# Методичка\n\nPRIVATE_STAGE3_GUIDE: вопросы для разбора.');
-    await expect(page.locator('.material-group.private', { hasText: 'Только вам' }).locator('.material-row strong', { hasText: 'Методичка' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Только вам', exact: true }).getByRole('link', { name: /Методичка/ })).toBeVisible();
     // A second document with the same role is refused by the server and explained in the form.
-    const form = page.locator('mentor-material-form');
-    await form.locator('select[name=audience]').selectOption('teacher'); await form.locator('select[name=contentKey]').selectOption('guide'); await form.locator('textarea[name=markdown]').fill('# Повтор');
+    const form = page.getByRole('region', { name: 'Добавить материал', exact: true });
+    await form.getByRole('combobox', { name: 'Кому', exact: true }).selectOption('teacher'); await form.getByRole('combobox', { name: 'Роль', exact: true }).selectOption('guide'); await form.getByRole('textbox', { name: 'Текст в Markdown' }).fill('# Повтор');
     const repeat = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(lessonPath(lesson) + '/materials'));
     await form.getByRole('button', { name: 'Добавить материал', exact: true }).click(); expect((await repeat).status()).toBe(409);
     await expect(form.getByRole('alert')).toContainText('Документ с этой ролью уже есть');
@@ -97,28 +96,28 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await page.goto(teacherRoute(lesson));
     await expect(page.getByText('Подготовлено: ученик видит материалы с пометкой «Видно ученику»', { exact: true })).toBeVisible();
     await page.goto(`/teacher/students/${student.id}`);
-    const row = page.locator('tr.lesson-list-item', { hasText: 'Коллекции и ревью' });
-    await expect(row.locator('.tag')).toHaveText(/Подготовлено/);
+    const row = page.getByRole('row', { name: /Коллекции и ревью/ });
+    await expect(row.getByText('Подготовлено', { exact: true })).toBeVisible();
     await capture(page, 'real-stage3-prepared.png');
     await logout(page);
     // 2. The student reads the published material, never the teacher's, and hands in a single Java file.
     await login(page, learner);
     await page.goto(learnerRoute(lesson, 'materials'));
-    const published = page.locator('.material-row', { hasText: 'Материалы занятия' }); await expect(published).toHaveCount(1);
+    const published = page.getByRole('region', { name: 'Видно ученику', exact: true }).getByRole('link', { name: /Материалы занятия/ }); await expect(published).toHaveCount(1);
     await expect(page.locator('body')).not.toContainText('Методичка'); await expect(page.locator('body')).not.toContainText('PRIVATE_');
     await published.click();
-    await expect(page.locator('.doc-section h3', { hasText: 'Отображения' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Отображения', exact: true })).toBeVisible();
     await expect(page.locator('body')).toContainText('HashMap связывает ключ и значение.');
     await page.goto(learnerRoute(lesson, 'homework'));
-    await page.locator('[name=homeworkFile]').setInputFiles({ name: 'Main.java', mimeType: 'text/plain', buffer: Buffer.from(HOMEWORK) });
-    await page.locator('[name=comment]').fill('Первая версия');
+    await page.getByLabel('Файл работы').setInputFiles({ name: 'Main.java', mimeType: 'text/plain', buffer: Buffer.from(HOMEWORK) });
+    await page.getByRole('textbox', { name: 'Комментарий к работе' }).fill('Первая версия');
     const uploaded = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(lessonPath(lesson) + '/homework'));
     await page.getByRole('button', { name: 'Отправить на ревью', exact: true }).click(); expect((await uploaded).status()).toBe(201);
     await expect(page.getByText('Работа отправлена на ревью.', { exact: true })).toBeVisible();
     await expect(page.locator('.homework-history .clock .face.on')).toContainText('Наставник');
     await page.goto(`/learn/students/${student.id}/lessons`);
     await expect(page.getByRole('columnheader', { name: 'Чей ход' })).toBeVisible();
-    const learnerRow = page.locator('tr.lesson-list-item', { hasText: 'Коллекции и ревью' });
+    const learnerRow = page.getByRole('row', { name: /Коллекции и ревью/ });
     await expect(learnerRow.locator('.turn-cell')).toContainText('Ход у наставника');
     await expect(learnerRow.locator('.turn-cell')).toContainText('Работа отправлена');
     await logout(page);
@@ -130,37 +129,39 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await expect(page.getByRole('button', { name: 'Снять отметку «Проведено»', exact: true })).toBeVisible();
     lesson = await get<Lesson>(teacher.client, lessonPath(lesson)); expect(lesson.conductedAt).toBeTruthy();
     await page.goto(teacherRoute(lesson, '/teacher/review'));
-    const submission = page.locator('.homework-submission').first();
-    await expect(submission.locator('h3')).toHaveText('Main.java');
+    const submission = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'Main.java', level: 3, exact: true }) });
+    await expect(submission.getByRole('heading', { level: 3 })).toHaveText('Main.java');
     await expect(page.locator('.homework-history .clock .face.on')).toContainText('ход за вами');
     await submission.getByRole('button', { name: 'Открыть код и прокомментировать', exact: true }).click();
     await expect(submission.locator('.code-lines li')).toHaveCount(4);
     await submission.getByRole('button', { name: 'Комментарий к строке 2 файла Main.java', exact: true }).click();
     const note = submission.locator('.note-form');
-    await note.locator('label.check-row', { hasText: 'сомнительно' }).click();
-    await note.locator('textarea').first().fill('Назовите параметры по смыслу, а не a и b.');
-    await note.locator('textarea.mono').fill('static int sum(int left, int right) { return left + right; }');
+    await note.getByRole('radio', { name: 'сомнительно', exact: true }).check();
+    await note.getByRole('textbox', { name: 'Комментарий', exact: true }).fill('Назовите параметры по смыслу, а не a и b.');
+    await note.getByRole('textbox', { name: 'Вариант кода' }).fill('static int sum(int left, int right) { return left + right; }');
     const commented = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(lessonPath(lesson) + '/code-comments'));
     await note.getByRole('button', { name: 'Оставить комментарий', exact: true }).click(); expect((await commented).status()).toBe(201);
     const saved = submission.locator('.line-note[data-note]');
     await expect(saved).toHaveCount(1); await expect(saved).toContainText('Назовите параметры по смыслу'); await expect(saved).toContainText('сомнительно'); await expect(saved.locator('.code-view')).toContainText('int left, int right');
     await expect(submission.locator('.code-file .count')).toContainText('комментариев: 1');
     const review = submission.locator('mentor-lesson-review'); await openReviewForm(review);
-    await review.locator('textarea').fill('Работа принята, посмотри комментарий к строке 2.');
-    await review.locator('label.check-row', { hasText: 'хорошо' }).click();
-    await review.locator('select').selectOption('reviewed');
+    await review.getByRole('textbox', { name: 'Ревью этой работы', exact: true }).fill('Работа принята, посмотри комментарий к строке 2.');
+    await review.getByRole('radio', { name: 'хорошо', exact: true }).check();
+    await review.getByRole('combobox', { name: 'Результат ревью', exact: true }).selectOption('reviewed');
     const reviewed = page.waitForResponse(response => response.request().method() === 'PATCH' && response.url().endsWith('/review'));
     await review.getByRole('button', { name: 'Сохранить ревью', exact: true }).click(); expect((await reviewed).status()).toBe(200);
-    await expect(submission.locator('.pill')).toContainText('Проверено');
+    await expect(submission.locator('header').getByText('Проверено', { exact: true })).toBeVisible();
     await expect(submission.locator('.submission-feedback .grade-line')).toContainText('хорошо');
     await capture(page, 'real-stage3-review.png');
     await page.goto(`/teacher/students/${student.id}/roadmap`);
     await page.getByRole('button', { name: 'Наметить этапы', exact: true }).click();
     const editor = page.locator('.stage-editor');
     for (let i = 0; i < 2; i++) await editor.getByRole('button', { name: 'Добавить этап', exact: true }).click();
-    const stages = editor.locator('ol > li'); await expect(stages).toHaveCount(2);
-    await stages.nth(0).getByLabel('Этап 1', { exact: true }).fill('Основы Java'); await stages.nth(0).getByLabel('Статус').selectOption('done');
-    await stages.nth(1).getByLabel('Этап 2', { exact: true }).fill('Коллекции'); await stages.nth(1).getByLabel('Пометка').fill('ноябрь 2026'); await stages.nth(1).getByLabel('Статус').selectOption('current');
+    const stages = editor.getByRole('listitem'); await expect(stages).toHaveCount(2);
+    const firstStage = stages.filter({ has: page.getByRole('textbox', { name: 'Этап 1', exact: true }) });
+    const secondStage = stages.filter({ has: page.getByRole('textbox', { name: 'Этап 2', exact: true }) });
+    await firstStage.getByLabel('Этап 1', { exact: true }).fill('Основы Java'); await firstStage.getByLabel('Статус').selectOption('done');
+    await secondStage.getByLabel('Этап 2', { exact: true }).fill('Коллекции'); await secondStage.getByLabel('Пометка').fill('ноябрь 2026'); await secondStage.getByLabel('Статус').selectOption('current');
     const routed = page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith(card() + '/roadmap'));
     await editor.getByRole('button', { name: 'Сохранить маршрут', exact: true }).click(); expect((await routed).status()).toBe(200);
     await expect(page.locator('.stages li')).toHaveCount(2); await expect(page.locator('.stages li').nth(1)).toHaveAttribute('aria-current', 'step');
@@ -168,7 +169,7 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     const roadmap = await get<components['schemas']['Roadmap']>(teacher.client, card() + '/roadmap'); expect(roadmap.stages.map(stage => stage.state)).toEqual(['done', 'current']);
     // The teacher's card shows the journal and the lesson as conducted.
     await page.goto(`/teacher/students/${student.id}`);
-    await expect(row.locator('.tag')).toHaveText(/Проведено/);
+    await expect(row.getByText('Проведено', { exact: true })).toBeVisible();
     const moves = page.locator('.moves-block .moves li');
     await expect(moves).toHaveCount(3);
     const log = page.locator('.moves-block .moves');
@@ -187,7 +188,7 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await expect(page.locator('body')).not.toContainText('PRIVATE_');
     await capture(page, 'real-stage3-learner-home.png');
     await page.goto(`/learn/students/${student.id}/lessons`);
-    await expect(learnerRow.locator('.tag')).toHaveText(/Проведено/);
+    await expect(learnerRow.getByText('Проведено', { exact: true })).toBeVisible();
     await expect(learnerRow.locator('.turn-cell')).toContainText('Твой ход'); await expect(learnerRow.locator('.turn-cell')).toContainText('Наставник ответил');
     await learnerRow.getByRole('link', { name: 'Открыть отзыв', exact: true }).click();
     await expect(page).toHaveURL(learnerRoute(lesson, 'review'));
@@ -214,8 +215,9 @@ test('real homework-placement exercise: a submitted attempt is the student\'s mo
     await login(page, teacher);
     await page.goto(teacherRoute(practiceLesson, '/teacher/practice'));
     const exercise = page.locator('.assignment-list > div', { hasText: 'Список: фильтрация' });
-    await exercise.getByRole('checkbox').check();
-    await exercise.locator('.placement select').selectOption('homework');
+    const assignment = exercise.getByRole('checkbox', { name: 'Список: фильтрация без изменения исходных данных', exact: true });
+    await expect(assignment).toBeVisible(); await assignment.check();
+    await exercise.getByRole('combobox', { name: 'Размещение', exact: true }).selectOption('homework');
     const assigned = page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith(lessonPath(practiceLesson) + '/practice/assignments'));
     await page.getByRole('button', { name: 'Сохранить назначения', exact: true }).click(); expect((await assigned).status()).toBe(200);
     const practice = await get<components['schemas']['LessonPracticeView']>(teacher.client, lessonPath(practiceLesson) + '/practice');
@@ -225,7 +227,7 @@ test('real homework-placement exercise: a submitted attempt is the student\'s mo
     await login(page, learner);
     const devtools = await context.newCDPSession(page); await devtools.send('Network.enable'); await devtools.send('Network.setBlockedURLs', { urls: ['*/vendor/monaco/vs/loader.js'] });
     await page.goto(learnerRoute(practiceLesson, 'practice'));
-    const tab = page.locator('.practice-exercises button', { hasText: 'Список: фильтрация' });
+    const tab = page.getByRole('navigation', { name: 'Упражнения занятия', exact: true }).getByRole('button', { name: /Список: фильтрация/ });
     await expect(tab).toContainText('Домашняя работа'); await tab.click();
     const code = page.getByRole('textbox', { name: 'Код ListTask.java', exact: true }); await expect(code).toBeVisible();
     await code.fill(SOLUTION);
@@ -241,7 +243,7 @@ test('real homework-placement exercise: a submitted attempt is the student\'s mo
     expect(turns.items[0]).toMatchObject({ lessonId: practiceLesson.id, kind: 'attempt', status: 'submitted', submissionId: attempt.id });
     expect(turns.items[0].filename).toContain('Список');
     await page.goto(`/learn/students/${student.id}/lessons`);
-    const row = page.locator('tr.lesson-list-item', { hasText: 'Тренажёр как домашняя работа' });
+    const row = page.getByRole('row', { name: /Тренажёр как домашняя работа/ });
     await expect(row.locator('.turn-cell')).toContainText('Ход у наставника'); await expect(row.locator('.turn-cell')).toContainText('Решение упражнения отправлено');
     await page.goto('/learn');
     await expect(page.locator('.home-clock .face.on')).toContainText('Наставник');
@@ -254,11 +256,11 @@ test('real homework-placement exercise: a submitted attempt is the student\'s mo
     await expect(page.locator('.card-turn .clock .face.on')).toContainText('ход за вами');
     await page.locator('.card-turn').getByRole('link', { name: 'Открыть решение', exact: true }).click();
     await expect(page).toHaveURL(teacherRoute(practiceLesson, '/teacher/practice'));
-    await page.locator('.practice-exercises button', { hasText: 'Список: фильтрация' }).click();
-    await page.locator('.practice-history .history-row').first().click();
+    await page.getByRole('navigation', { name: 'Упражнения занятия', exact: true }).getByRole('button', { name: /Список: фильтрация/ }).click();
+    await page.getByRole('button', { name: /^Все проверки ·/ }).click();
     const result = page.locator('.attempt-result'); await expect(result.locator('.code-lines li')).toHaveCount(SOLUTION.split('\n').length - 1);
     await result.getByRole('button', { name: 'Комментарий к строке 7 файла ListTask.java', exact: true }).click();
-    await result.locator('.note-form textarea').first().fill('Хорошо, что исходный список не меняется.');
+    await result.getByRole('textbox', { name: 'Комментарий', exact: true }).fill('Хорошо, что исходный список не меняется.');
     const commented = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(lessonPath(practiceLesson) + '/code-comments'));
     await result.getByRole('button', { name: 'Оставить комментарий', exact: true }).click(); expect((await commented).status()).toBe(201);
     await expect(result.locator('.line-note[data-note]')).toContainText('исходный список не меняется');
@@ -281,7 +283,7 @@ test('real stage 3 learner screens fit a 390px phone', async ({ page }) => {
     // The phone layout stacks each row; the header is hidden, the turn cell keeps its words.
     await expect(page.locator('tr.lesson-list-item')).toHaveCount(2);
     await expect(page.locator('tr.lesson-list-item .turn-cell')).toHaveCount(2);
-    await expect(page.locator('tr.lesson-list-item', { hasText: 'Коллекции и ревью' }).locator('.turn-cell')).toContainText('Твой ход');
+    await expect(page.getByRole('row', { name: /Коллекции и ревью/ }).locator('.turn-cell')).toContainText('Твой ход');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await capture(page, 'real-stage3-lessons-390.png');
     await page.goto(learnerRoute(lesson, 'review'));

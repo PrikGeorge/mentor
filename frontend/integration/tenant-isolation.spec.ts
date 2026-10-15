@@ -1,6 +1,7 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
+import { signIn, signOut as logout } from '../testing/browser-session';
 import type {components} from '../src/app/api/schema';
 
 // Q-03: two real teacher workspaces and the admin never see each other's cards, files or screens; switching the account
@@ -28,9 +29,7 @@ async function send(actor:APIRequestContext,method:string,route:string,data?:unk
 }
 async function write(actor:APIRequestContext,route:string,data:unknown,status=200){const response=await send(actor,'POST',route,data);expect(response.status(),route).toBe(status);return response.json();}
 async function register(issue:Issue,login:string):Promise<User>{const actor=await newClient();const current=await write(actor,'/auth/register',{token:new URL(issue.link,ready.browserOrigin).searchParams.get('token'),login,password:credentials.password});return {login,client:actor,session:current};}
-async function login(page:Page,login:string,home:string){await page.goto('/login');await page.locator('[name=login]').fill(login);await page.locator('[name=password]').fill(credentials.password);await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(home);}
-// The student preview replaces the profile menu with a read-only badge, so leave it before signing out.
-async function logout(page:Page){if (new URL(page.url()).searchParams.get('preview')) { await page.goto('/'); await page.locator('button.menu-button:visible, button.profile-button:visible').first().waitFor(); } const menu = page.locator('button.menu-button'); if (await menu.isVisible()) { if (await menu.getAttribute('aria-expanded') !== 'true') await menu.click(); }else await page.locator('.profile-button').click();await page.getByRole('button',{name:'Выйти',exact:true}).click();await expect(page).toHaveURL('/login');}
+async function login(page:Page,login:string,home:string){await signIn(page,{login,password:credentials.password},home);}
 
 test('real workspace A/B/admin boundaries and concurrent invitation/homework requests',async({page})=>{
     test.setTimeout(120000);
@@ -101,8 +100,7 @@ test('real account switch in one tab cancels the previous session\'s pending req
     await login(page,learnerB.login,'/learn');
     await expect(page.getByRole('heading',{name:'Изолированный ученик B',exact:true})).toBeVisible();
     release();
-    await page.waitForTimeout(1000);
-    expect(failed.length,'the pending request of the previous account was aborted').toBe(1);
+    await expect.poll(()=>failed.length,{message:'the pending request of the previous account was aborted'}).toBe(1);
     const body=page.locator('body');
     for(const foreign of ['PRIVATE_','Изолированный ученик A','Проверка границ пространства',a.login,'isolation-teacher'])await expect(body).not.toContainText(foreign);
     expect((await (await page.request.get('/api/v1/auth/session')).json()).account).toMatchObject({role:'STUDENT',workspaceId:b.session.account!.workspaceId});

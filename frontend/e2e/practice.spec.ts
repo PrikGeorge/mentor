@@ -1,4 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
+import { openAccountMenu } from '../testing/browser-session';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { components } from '../src/app/api/schema';
@@ -22,6 +23,7 @@ const lesson: components['schemas']['PublicLessonView'] = {
     id: 'l1',
     workspaceId: 'w1',
     studentId: 's1',
+    number: 1,
     title: 'Практика коллекций',
     date: '2030-01-01',
     time: '12:00',
@@ -50,9 +52,7 @@ async function fixture(page: Page, role: 'STUDENT' | 'TEACHER' = 'STUDENT', fall
         polls = 0,
         logout = 0,
         sessionUnavailable = false;
-    const intents = new Map<string, components['schemas']['Attempt']>(),
-        errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
+    const intents = new Map<string, components['schemas']['Attempt']>();
     if (fallback) await page.route('**/vendor/monaco/vs/loader.js', (route) => route.abort());
     await page.route('**/api/v1/**', async (route) => {
         const request = route.request(),
@@ -181,7 +181,6 @@ async function fixture(page: Page, role: 'STUDENT' | 'TEACHER' = 'STUDENT', fall
     });
     return {
         failSession: () => (sessionUnavailable = true),
-        errors,
         posts: () => posts,
         polls: () => polls,
         logout: () => logout,
@@ -216,42 +215,36 @@ for (const width of [1280, 390]) {
         const runtime = path.resolve('.runtime/task14');
         mkdirSync(runtime, { recursive: true });
         await page.screenshot({ path: path.join(runtime, `fixture-practice-${width}.png`) });
-        const menu = page.getByRole('button', { name: 'Меню', exact: true });
-        const openAccount = async () => {
-            if (await page.getByRole('button', { name: 'Выйти', exact: true }).isVisible()) return;
-            if (await menu.isVisible()) await menu.click();
-            else await page.locator('.profile-button').click();
-        };
-        await openAccount();
+        await openAccountMenu(page);
         await page.getByRole('button', { name: 'Выйти', exact: true }).click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
         expect(state.logout()).toBe(0);
         await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
         await expect(dialog).toHaveCount(0);
-        await openAccount();
+        await openAccountMenu(page);
         await page.getByRole('button', { name: 'Выйти', exact: true }).click();
         const download = page.waitForEvent('download');
         await dialog.getByRole('button', { name: 'Экспортировать и выйти' }).click();
         expect((await download).suggestedFilename()).toBe('practice-source.json');
         await expect(page).toHaveURL(/login$/);
         expect(state.logout()).toBe(1);
-        expect(state.errors).toEqual([]);
     });
     test(`practice local Monaco and teacher preview read-only at${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         const state = await fixture(page, 'TEACHER');
         await page.goto('/teacher/students/s1/lessons/l1/student/practice?preview=student');
         await expect(page.locator('.monaco-editor')).toBeVisible();
-        await expect(page.locator('[data-action=run]')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^(Проверить примеры|Отправить на все проверки)$/, includeHidden: true })).toHaveCount(0);
         await expect(page.getByRole('heading', { name: 'Назначения тренажёра' })).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
         await expect(page.locator('.monaco-editor textarea')).toHaveAttribute('aria-label', /Код Task.java/);
         if (width === 390) await page.getByRole('button', { name: 'Меню', exact: true }).click();
-        await expect(page.locator('nav[aria-label="Разделы занятия"] [aria-current=page]')).toHaveCount(1);
+        const sections = page.getByRole('navigation', { name: 'Разделы занятия', exact: true });
+        await expect(sections.getByRole('link').and(page.locator('[aria-current="page"]'))).toHaveCount(1);
+        await expect(sections.getByRole('link', { name: 'Тренажёр', exact: true })).toHaveAttribute('aria-current', 'page');
         expect(state.posts()).toBe(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-        expect(state.errors).toEqual([]);
     });
 }
 

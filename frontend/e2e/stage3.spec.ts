@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, mockSession, type Page } from './fixtures';
 
 // Synthetic data only: one teacher workspace, one pupil, one held lesson with a single-file Java work.
 const student = {
@@ -36,8 +36,7 @@ const code = 'import java.util.*;\n\nclass Orders {\n    Map<String, List<String
 const page = (items: unknown[]) => ({ items, page: 0, size: 25, total: items.length });
 
 async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
-    const errors: string[] = [],
-        writes: { method: string; path: string; body: unknown }[] = [];
+    const writes: { method: string; path: string; body: unknown }[] = [];
     let lesson: Record<string, unknown> = { ...lessonBase };
     const lessonSummary = () => {
         const { teacherNotes, studentNotes, reviewNotes, ...summary } = lesson;
@@ -136,7 +135,6 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             ? [{ kind: 'conducted', side: 'teacher', at: lesson.conductedAt, lessonId: 'l1', lessonTitle: lessonBase.title, refId: 'l1' }]
             : []),
     ];
-    page_.on('pageerror', (error) => errors.push(error.message));
     await page_.route('**/api/v1/**', async (route) => {
         const request = route.request(),
             url = new URL(request.url()),
@@ -184,11 +182,6 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
             return;
         }
         const routes: Record<string, unknown> = {
-            '/api/v1/auth/session': {
-                account: { userId: role === 'TEACHER' ? 't1' : 'u1', workspaceId: 'w1', role, authVersion: 1 },
-                csrfToken: 'synthetic',
-                login: role === 'TEACHER' ? 'mentor-demo' : 'anna-demo',
-            },
             '/api/v1/workspaces/w1/students': page([own(student)]),
             [card]: own(student),
             [card + '/dashboard']: { student: own(student), lessonCount: 1, focus: { lesson: lessonSummary(), upcoming: false } },
@@ -214,7 +207,8 @@ async function fixtures(page_: Page, role: 'TEACHER' | 'STUDENT') {
         }
         await route.fulfill({ status: 404, json: { status: 404, code: 'NOT_FOUND', message: 'Synthetic', fieldErrors: {}, requestId: 'synthetic' } });
     });
-    return { errors, writes };
+    await mockSession(page_, { userId: role === 'TEACHER' ? 't1' : 'u1', workspaceId: 'w1', role, authVersion: 1 }, role === 'TEACHER' ? 'mentor-demo' : 'anna-demo');
+    return { writes };
 }
 // Also returns to the top so the hidden skip link (position: fixed) stays out of full-page screenshots.
 const fits = async (page_: Page, width: number) => {
@@ -227,10 +221,10 @@ for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
         const state = await fixtures(page, 'TEACHER');
         await page.goto('/teacher/students/s1');
-        if (width === 1280) await expect(page.locator('.profile-name').first()).toContainText('mentor-demo');
-        await expect(page.locator('.moves-block')).toContainText('Анна Соколова · сдана работа');
-        await expect(page.locator('.moves-block')).toContainText('проверка в тренажёре · тесты 5 из 5');
-        await expect(page.locator('.lesson-table')).toContainText('3');
+        if (width === 1280) await expect(page.getByRole('banner').getByRole('button', { name: 'mentor-demo', exact: true })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Ходы', exact: true })).toContainText('Анна Соколова · сдана работа');
+        await expect(page.getByRole('region', { name: 'Ходы', exact: true })).toContainText('проверка в тренажёре · тесты 5 из 5');
+        await expect(page.getByRole('table')).toContainText('3');
         await fits(page, width);
         await page.screenshot({ path: test.info().outputPath(`card-${width}.png`), fullPage: true });
 
@@ -293,7 +287,6 @@ for (const width of [1280, 390]) {
         });
         await fits(page, width);
         await page.screenshot({ path: test.info().outputPath(`roadmap-${width}.png`), fullPage: true });
-        expect(state.errors).toEqual([]);
     });
 
     test(`learner reads the grade, the line comments, the roadmap stage and the moves at ${width}px`, async ({ page }) => {
@@ -302,9 +295,9 @@ for (const width of [1280, 390]) {
         await page.goto('/learn');
         await expect(page.locator('.sheet')).toContainText('Этап маршрута');
         await expect(page.locator('.sheet')).toContainText('2 из 3');
-        await expect(page.locator('.moves-block')).toContainText('Наставник · работа принята');
-        await expect(page.locator('.moves-block')).toContainText('Ты · сдана работа');
-        await expect(page.locator('.moves-block .ev')).toContainText('хорошо');
+        await expect(page.getByRole('region', { name: 'Последние ходы', exact: true })).toContainText('Наставник · работа принята');
+        await expect(page.getByRole('region', { name: 'Последние ходы', exact: true })).toContainText('Ты · сдана работа');
+        await expect(page.getByRole('region', { name: 'Последние ходы', exact: true }).getByText('хорошо')).toBeVisible();
         await expect(page.locator('.callout')).toContainText('Занятие проведено');
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
         await fits(page, width);
@@ -324,6 +317,5 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('button', { name: 'Изменить этапы' })).toHaveCount(0);
         await fits(page, width);
         expect(state.writes).toEqual([]);
-        expect(state.errors).toEqual([]);
     });
 }

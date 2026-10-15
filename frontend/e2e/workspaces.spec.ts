@@ -1,4 +1,4 @@
-import { expect, test, Page } from '@playwright/test';
+import { expect, test, mockSession, type Page } from './fixtures';
 import type { components } from '../src/app/api/schema';
 type Student = components['schemas']['TeacherStudentView'];
 type Lesson = components['schemas']['TeacherLessonView'];
@@ -31,6 +31,7 @@ const planned: Lesson = {
     revision: 1,
     createdAt: '2026-10-01T10:00:00Z',
     teacherNotes: 'PRIVATE_SCENARIO',
+    number: 1,
     studentNotes: 'Задания только Анны',
     reviewNotes: 'Отзыв по этому занятию',
 };
@@ -47,8 +48,6 @@ function lessonSummary(l: Lesson) {
     return { ...summary, hasStudentNotes: !!studentNotes.trim() };
 }
 async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-teacher') {
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
     const actor: components['schemas']['Actor'] = {
         userId: kind,
         workspaceId: kind === 'new-teacher' ? 'w2' : 'w1',
@@ -64,10 +63,6 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
             method = request.method(),
             path = url.pathname;
         const publicView = actor.role === 'STUDENT' || url.searchParams.get('audience') === 'student';
-        if (path === '/api/v1/auth/session') {
-            await route.fulfill({ json: { account: actor, csrfToken: 'synthetic' } });
-            return;
-        }
         if (method !== 'GET') {
             expect(request.headers()['x-mentor-account']).toBe(actor.userId);
             expect(request.headers()['x-csrf-token']).toBe('synthetic');
@@ -193,20 +188,20 @@ async function fixtures(page: Page, kind: 'teacher' | 'anna' | 'boris' | 'new-te
         }
         await route.fulfill({ status: 404 });
     });
-    return errors;
+    await mockSession(page, actor);
 }
 async function learnerIdentity(page: Page) {
     // The learner's name is the profile in the header (desktop) or in the open mobile menu.
     await expect(page.locator('.profile-name:visible, .mobile-me:visible b')).toContainText(anna.name);
     await expect(page.locator('.selected-student')).toHaveCount(0);
-    await expect(page.locator('.brand')).toHaveCount(1);
-    await expect(page.locator('.site-footer')).toContainText('Кабинет ученика');
-    await expect(page.locator('.site-footer')).not.toContainText('Кабинет наставника');
+    await expect(page.getByRole('banner').getByRole('link', { name: 'Наставник', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('contentinfo')).toContainText('Кабинет ученика');
+    await expect(page.getByRole('contentinfo')).not.toContainText('Кабинет наставника');
 }
 for (const width of [1280, 390]) {
     test(`teacher creation, text conflict and public preview at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
-        const errors = await fixtures(page, 'teacher');
+        await fixtures(page, 'teacher');
         await page.goto('/teacher/students');
         await expect(page.getByRole('heading', { name: 'Тестовая Анна', exact: true })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Тестовый Борис', exact: true })).toBeVisible();
@@ -217,27 +212,27 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('heading', { name: 'Доступ к кабинету' })).toBeVisible();
         await page.getByRole('button', { name: 'Добавить занятие', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(1);
-        await page.locator('[name="title"]').fill('Ошибка формы');
+        await page.getByRole('textbox', { name: /^Тема занятия/ }).fill('Ошибка формы');
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
         await expect(page.getByRole('alert')).toContainText('Синтетическая ошибка');
-        await expect(page.locator('[name="title"]')).toHaveValue('Ошибка формы');
-        await page.locator('[name="title"]').fill('Новое занятие');
+        await expect(page.getByRole('textbox', { name: /^Тема занятия/ })).toHaveValue('Ошибка формы');
+        await page.getByRole('textbox', { name: /^Тема занятия/ }).fill('Новое занятие');
         await page.getByRole('button', { name: 'Создать занятие', exact: true }).click();
         await expect(page).toHaveURL('/teacher/students/s1/lessons/l-new');
         await expect(page.getByRole('heading', { name: 'Подготовка занятия', exact: true })).toBeVisible();
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await page.getByRole('button', { name: 'Добавить сценарий', exact: true }).click();
-        await page.locator('[name="markdown"]').fill('  только преподавателю  \n');
+        await page.getByRole('textbox', { name: 'Текст занятия', exact: true }).fill('  только преподавателю  \n');
         await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
         await expect(page.getByRole('alert')).toContainText('Ревизия устарела');
-        await expect(page.locator('[name="markdown"]')).toHaveValue('  только преподавателю  \n');
+        await expect(page.getByRole('textbox', { name: 'Текст занятия', exact: true })).toHaveValue('  только преподавателю  \n');
         await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
         await expect(page.locator('form')).toHaveCount(0);
         await page.screenshot({ path: test.info().outputPath(`preparation-${width}.png`), fullPage: true });
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.getByRole('link', { name: 'Экран ученика ↗', exact: true }).click();
         await expect(page.getByText('Предпросмотр кабинета ученика · только чтение')).toBeVisible();
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText('только преподавателю');
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
@@ -246,16 +241,15 @@ for (const width of [1280, 390]) {
         await learnerIdentity(page);
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
         await page.screenshot({ path: test.info().outputPath(`preview-${width}.png`), fullPage: true });
-        expect(errors).toEqual([]);
     });
     test(`learner name, own selected lesson and menu at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
-        const errors = await fixtures(page, 'anna');
+        await fixtures(page, 'anna');
         await page.goto('/learn');
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await expect(page.getByText('Ближайшее занятие', { exact: true })).toBeVisible();
         await page.getByRole('link', { name: 'Открыть задания', exact: true }).click();
-        await expect(page.locator('h1')).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('PRIVATE_');
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);
@@ -265,7 +259,6 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('link', { name: 'Домашняя работа', exact: true })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.screenshot({ path: test.info().outputPath(`learner-${width}.png`), fullPage: true });
-        expect(errors).toEqual([]);
     });
     test(`new teacher and second empty pupil receive no seeded materials at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
@@ -274,7 +267,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('heading', { name: 'Учеников пока нет', exact: true })).toBeVisible();
         await expect(page.locator('body')).not.toContainText('Миха');
         await page.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
-        await page.locator('[name="name"]').fill('Новый ученик теста');
+        await page.getByRole('textbox', { name: 'Имя', exact: true }).fill('Новый ученик теста');
         await page.getByRole('button', { name: 'Добавить', exact: true }).click();
         await expect(page).toHaveURL('/teacher/students/s-new');
         await expect(page.getByRole('heading', { name: 'Занятий пока нет', exact: true })).toBeVisible();
@@ -290,7 +283,7 @@ for (const width of [1280, 390]) {
         test('390px menu keeps its first recovery link clickable under a lesson header', async ({ page }) => {
             await fixtures(page, 'teacher');
             await page.goto('/teacher/students/s1/lessons/l1');
-            await expect(page.locator('h1')).toHaveCount(1);
+            await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
             await page.getByRole('button', { name: 'Меню', exact: true }).click();
             await page.getByRole('navigation', { name: 'Главное меню' }).getByRole('link', { name: 'Мои ученики', exact: true }).click({ timeout: 1500 });
             await expect(page).toHaveURL('/teacher/students');
