@@ -190,7 +190,8 @@ import { moscowDate } from '../core/format';
                 </section></ng-template
             >
         } @else if (!error()) {
-            <p class="loading" role="status">Загружаем кабинет…</p>
+            <p class="loading-line" role="status">Загружаем кабинет…</p>
+            <div class="skeleton skeleton-page" aria-hidden="true"><i class="bar-title"></i><i class="bar-mid"></i><i class="bar-block"></i><i></i><i></i><i class="bar-short"></i></div>
         }`,
 })
 export class DashboardComponent extends DomainPage {

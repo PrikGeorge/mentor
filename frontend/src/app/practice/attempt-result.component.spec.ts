@@ -5,6 +5,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { flushJournal, renderResources } from '../students/domain-test-support';
 import { AttemptResultComponent } from './attempt-result.component';
 import type { Attempt } from './practice-api.service';
+import { Motion } from '../core/motion';
 const lesson = { workspaceId: 'w1', studentId: 's1', id: 'l1' };
 const queued: Attempt = { id: 'a1', exerciseId: 'e1', exerciseRevision: 1, mode: 'submit', environmentRevision: 'synthetic', jobState: 'queued', files: { 'Task.java': 'class Task {}' }, result: null, createdAt: '2030-01-01T09:00:00Z' };
 const wrong: Attempt = { ...queued, id: 'a2', mode: 'run', environmentRevision: null, jobState: 'completed', result: { status: 'wrong_answer', passed: 1, total: 2, elapsedMs: 12, diagnostics: 'Task.java:3: expected', tests: [{ name: 'sum', status: 'accepted' }, { name: 'max', status: 'wrong_answer', expected: 3, actual: null, message: 'see max()', stdout: 'debug line' }] } };
@@ -67,6 +68,23 @@ describe('Attempt result pane', () => {
         expect(details.open).toBe(true);
         expect(details.querySelector('summary')?.textContent).toBe('Код этой попытки · комментарии по строкам');
         fixture.destroy();
+    });
+    it('deals the test cells only for an attempt that finishes on screen (UX-28 M9)', () => {
+        const animate = vi.fn((..._: unknown[]) => null);
+        TestBed.overrideProvider(Motion, { useValue: { reduced: () => false, animate } });
+        const history = setup(wrong);
+        TestBed.tick();
+        expect(animate).not.toHaveBeenCalled();
+        history.fixture.destroy();
+        const live = setup({ ...wrong, id: 'a7', jobState: 'running', result: null });
+        TestBed.tick();
+        live.fixture.componentRef.setInput('attempt', { ...wrong, id: 'a7' });
+        live.fixture.detectChanges();
+        TestBed.tick();
+        const targets = animate.mock.calls.map((call) => (call[0] as HTMLElement).className);
+        expect(targets.filter((name) => name === 'pass' || name === 'fail').length).toBeGreaterThanOrEqual(2);
+        expect(targets).toContain('check-summary');
+        live.fixture.destroy();
     });
     const http = () => TestBed.inject(HttpTestingController);
 });

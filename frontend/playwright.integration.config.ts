@@ -17,7 +17,7 @@ export default defineConfig({
     projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
     outputDir: path.join(runtime, 'browser-results'),
     reporter: [['list'], ['html', { outputFolder: path.join(runtime, 'playwright-report'), open: 'never' }]],
-    use: { baseURL: ready.browserOrigin, viewport: { width: 1280, height: 900 }, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+    use: { baseURL: ready.browserOrigin, viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
     webServer: {
         command: `"${process.execPath}" node_modules/@angular/cli/bin/ng.js serve --host 127.0.0.1 --port ${port} --proxy-config "${path.join(runtime, 'proxy.json')}"`,
         url: ready.browserOrigin,

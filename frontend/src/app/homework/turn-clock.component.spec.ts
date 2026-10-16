@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TurnClockComponent, turnHeadline, turnOf } from './turn-clock.component';
+import { Motion } from '../core/motion';
 import { renderResources, configure, open, page, base, student, lessonSummary, flushTurns, flushJournal } from '../students/domain-test-support';
 
 describe('Whose turn it is', () => {
@@ -33,7 +36,7 @@ describe('Whose turn it is', () => {
     it('lights the side whose move it is and counts down only to the lesson, never the mentor answer', () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-11T19:35:00Z'));
-        TestBed.configureTestingModule({ imports: [TurnClockComponent] });
+        TestBed.configureTestingModule({ imports: [TurnClockComponent], providers: [provideHttpClient(), provideHttpClientTesting()] });
         const fixture = TestBed.createComponent(TurnClockComponent),
             element: HTMLElement = fixture.nativeElement;
         fixture.componentRef.setInput('turn', turnOf({ status: 'reviewed', createdAt: '2026-10-10T10:00:00Z', reviewedAt: '2026-10-11T08:00:00Z' }));
@@ -126,5 +129,43 @@ describe('Turns on the teacher pages', () => {
         expect(element.querySelector('.home-clock .face.on')?.textContent).toContain('Наставник');
         flushJournal(http);
         http.verify();
+    });
+});
+
+describe('The move on the clock (UX-28 M2)', () => {
+    afterEach(() => TestBed.resetTestingModule());
+    const reviewed = turnOf({ status: 'reviewed', createdAt: '2026-10-10T10:00:00Z', reviewedAt: '2026-10-11T08:00:00Z' });
+    const submitted = turnOf({ status: 'submitted', createdAt: '2026-10-11T18:40:00Z' });
+    function setup(motionKey: string | null) {
+        const animate = vi.fn((..._: unknown[]) => null);
+        TestBed.configureTestingModule({ imports: [TurnClockComponent], providers: [provideHttpClient(), provideHttpClientTesting(), { provide: Motion, useValue: { reduced: () => false, animate } }] });
+        const fixture = TestBed.createComponent(TurnClockComponent);
+        fixture.componentRef.setInput('turn', reviewed);
+        fixture.componentRef.setInput('motionKey', motionKey);
+        fixture.detectChanges();
+        TestBed.tick();
+        const move = (changes: Record<string, unknown>) => {
+            for (const [name, value] of Object.entries(changes)) fixture.componentRef.setInput(name, value);
+            fixture.detectChanges();
+            TestBed.tick();
+        };
+        const layers = () => animate.mock.calls.map((call) => (call[2] as KeyframeAnimationOptions).pseudoElement).filter(Boolean);
+        return { animate, move, layers };
+    }
+    it('plays a move when the side changes on screen: press, both fills, rise', () => {
+        const { animate, move, layers } = setup('l1');
+        expect(animate).not.toHaveBeenCalled();
+        move({ turn: submitted });
+        expect(layers()).toEqual(['::before', '::after', '::after', '::before']);
+    });
+    it('only shows the turn without a binding key, for the same side and for another lesson', () => {
+        const unbound = setup(null);
+        unbound.move({ turn: submitted });
+        expect(unbound.animate).not.toHaveBeenCalled();
+        TestBed.resetTestingModule();
+        const bound = setup('l1');
+        bound.move({ turn: turnOf({ status: 'needs_revision', createdAt: '2026-10-10T10:00:00Z', reviewedAt: '2026-10-11T09:00:00Z' }) });
+        bound.move({ motionKey: 'l2', turn: submitted });
+        expect(bound.animate).not.toHaveBeenCalled();
     });
 });

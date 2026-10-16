@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input } from '@angular/core';
 import { Clock } from '../core/clock';
+import { Motion, animateOnChange, motionEase, motionMs } from '../core/motion';
 import type { Submission } from './homework-api.service';
 type SubmissionStatus = Submission['status'];
 
@@ -38,7 +39,15 @@ export class TurnClockComponent {
     readonly mini = input(false);
     // Lesson start (ISO). Only the time to the lesson is ever counted down, never the mentor's answer time.
     readonly start = input<string | null>(null);
+    // UX-28 M2: the parent names what the clock is bound to (a lesson); only then a turn that changes in front of the user
+    // plays as a move. Lists and cards pass nothing: there the turn is only ever shown, never seen changing.
+    readonly motionKey = input<string | null>(null);
     private readonly now = inject(Clock).watch();
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+    private readonly motion = inject(Motion);
+    constructor() {
+        animateOnChange({ value: () => mentorsTurn(this.turn()), key: () => this.motionKey(), play: () => this.playMove() });
+    }
     readonly countdown = computed(() => {
         const start = this.start(); if (!start) return '';
         const left = Date.parse(start) - this.now(); if (!Number.isFinite(left) || left <= 0) return '';
@@ -59,4 +68,31 @@ export class TurnClockComponent {
         return [{ ...left, on: !mentor }, { ...right, on: mentor }];
     });
     readonly label = computed(() => { const [left, right] = this.faces(); const on = left.on ? left : right; return `Чей ход: ${on.title} — ${on.note}` + (on.value ? `, ${on.value}` : '') + `. ${left.on ? right.title + ' — ' + right.note : left.title + ' — ' + left.note}.`; });
+    // The side that moved presses its button, the fill slides over the shared edge, the other button rises.
+    // Labels keep their previous colours until the fill is half-way, so the colour changes with a click, not a blend.
+    private playMove(): Animation[] {
+        if (this.motionKey() === null) return [];
+        const faces = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.face'));
+        const on = faces.find((face) => face.classList.contains('on'));
+        const off = faces.find((face) => face.classList.contains('off'));
+        if (!on || !off) return [];
+        const toRight = faces.indexOf(on) === 1;
+        const press = motionMs('instant'), move = motionMs('move'), rise = motionMs('quick');
+        const start = Math.round(move * 0.3);
+        const pressed = this.mini() ? 'translateY(2px) scaleY(.67)' : 'translateY(5px) scaleY(.78)';
+        const held = (face: HTMLElement, other: HTMLElement) => Array.from(face.children).map((child, index) => {
+            const twin = other.children[index];
+            if (!twin || twin.tagName !== child.tagName) return null;
+            const color = getComputedStyle(twin).color;
+            return this.motion.animate(child, [{ color }, { color }], { duration: start + move / 2 });
+        });
+        const colours = [...held(on, off), ...held(off, on)];
+        return [
+            ...colours,
+            this.motion.animate(off, [{ transform: 'none' }, { transform: pressed }], { duration: press, easing: motionEase('exit'), pseudoElement: '::before' }),
+            this.motion.animate(off, [{ clipPath: 'inset(0)' }, { clipPath: toRight ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)' }], { duration: move, delay: start, easing: motionEase('move'), fill: 'backwards', pseudoElement: '::after' }),
+            this.motion.animate(on, [{ clipPath: toRight ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)' }, { clipPath: 'inset(0)' }], { duration: move, delay: start, easing: motionEase('move'), fill: 'backwards', pseudoElement: '::after' }),
+            this.motion.animate(on, [{ transform: pressed }, { transform: 'none' }], { duration: rise, delay: move, easing: motionEase('move'), fill: 'backwards', pseudoElement: '::before' }),
+        ].filter((animation): animation is Animation => !!animation);
+    }
 }

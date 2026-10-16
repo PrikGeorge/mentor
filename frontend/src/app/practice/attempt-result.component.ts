@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import type { LessonRef } from '../editor/lesson-text-api.service';
 import { IconComponent } from '../core/icon.component';
@@ -6,6 +6,7 @@ import { CodeReviewComponent } from '../comments/code-review.component';
 import type { Attempt } from './practice-api.service';
 import type { WorkerAvailability } from './practice-session.store';
 import { isFailure, modeLabel, scalar, stateIcon, stateLabel, testLabel } from './attempt-labels';
+import { Motion, animateOnChange, motionEase, motionMs } from '../core/motion';
 // One attempt as the student sees it: state, executor availability, per-test outcome and the exact code with mentor comments.
 @Component({
     selector: 'mentor-attempt-result',
@@ -75,4 +76,29 @@ export class AttemptResultComponent {
     readonly codeSummary = computed(() => this.teacher() ? 'Код этой попытки · комментарии по строкам' : this.noted() ? 'Точный код этой попытки · комментарии наставника: ' + this.noted() : 'Точный код этой попытки · только чтение');
     readonly testLabel = testLabel;
     readonly scalar = scalar;
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+    private readonly motion = inject(Motion);
+
+    // UX-28 M9: only an attempt that finishes in front of the user deals its test cells one by one; an attempt opened
+    // from the history (or another attempt) shows them at once.
+    constructor() {
+        animateOnChange({ value: () => !!this.attempt().result, key: () => this.attempt().id, play: (had, has) => (!had && has ? this.dealCells() : null) });
+    }
+
+    private dealCells(): Animation[] {
+        const root = this.host.nativeElement;
+        const cells = Array.from(root.querySelectorAll<HTMLElement>('.attempt-result .test-cells > span'));
+        const summary = root.querySelector<HTMLElement>('.attempt-result .check-summary');
+        const count = cells.length;
+        const step = count > 24 ? 0 : Math.min(40, motionMs('stage') / Math.max(count, 1));
+        const land = motionMs('instant');
+        const blank = count ? getComputedStyle(cells[0].parentElement!).getPropertyValue('--muted').trim() || getComputedStyle(cells[0].parentElement!).color : '';
+        const animations = cells.flatMap((cell, index) => [
+            // The fill appears with a click at the cell's turn, then the cell settles.
+            index && step ? this.motion.animate(cell, [{ backgroundColor: 'transparent', color: blank }, { backgroundColor: 'transparent', color: blank }], { duration: index * step }) : null,
+            this.motion.animate(cell, [{ transform: 'scale(.85)' }, { transform: 'none' }], { duration: land, delay: index * step, easing: motionEase('move'), fill: 'backwards' }),
+        ]);
+        animations.push(this.motion.animate(summary, [{ opacity: 0 }, { opacity: 1 }], { duration: motionMs('quick'), delay: count * step, easing: motionEase('enter'), fill: 'backwards' }));
+        return animations.filter((animation): animation is Animation => !!animation);
+    }
 }

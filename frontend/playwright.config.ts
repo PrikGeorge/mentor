@@ -11,6 +11,6 @@ export default defineConfig({
     workers: 1,
     retries: process.env['CI'] ? 2 : 0,
     reporter: [['list'], ['html', { open: 'never' }]],
-    use: { baseURL: origin, viewport: { width: 390, height: 844 }, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+    use: { baseURL: origin, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
     webServer: { command: `npm run start -- --host 127.0.0.1 --port ${port}`, url: origin, reuseExistingServer: false, timeout: 60000 },
 });

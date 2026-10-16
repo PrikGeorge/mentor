@@ -336,7 +336,8 @@ import { initialOf } from '../core/format';
                                         }
                                     </div>
                                 } @else {
-                                    <p class="loading mt-20" role="status">Загружаем занятия…</p>
+                                    <p class="loading-line mt-20" role="status">Загружаем занятия…</p>
+                                    <div class="skeleton skeleton-rows" aria-hidden="true"><i class="bar-row"></i><i class="bar-row"></i><i class="bar-row"></i><i class="bar-row"></i></div>
                                 }
                                 <mentor-pagination
                                     [page]="page()"
@@ -441,7 +442,8 @@ import { initialOf } from '../core/format';
                     </div>
                 }
             } @else if (!error()) {
-                <p class="loading" role="status">Загружаем карточку…</p>
+                <p class="loading-line" role="status">Загружаем карточку…</p>
+                <div class="skeleton skeleton-page" aria-hidden="true"><i class="bar-title"></i><i class="bar-mid"></i><i class="bar-tabs"></i><i class="bar-row"></i><i class="bar-row"></i><i class="bar-row"></i></div>
             }
         }`,
 })

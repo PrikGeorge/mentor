@@ -86,10 +86,12 @@ describe('Teacher student list', () => {
         await renderResources();
         expect(element.querySelector('[role="alert"]')?.textContent).toContain('Сервис временно недоступен');
         expect(element.querySelector('[role="status"]')).toBeNull();
+        expect(element.querySelector('.skeleton-card')).toBeNull();
 
         button(element, 'Повторить загрузку').click();
         fixture.detectChanges();
         expect(element.querySelector('[role="alert"]')).toBeNull();
+        expect(element.querySelectorAll('.skeleton-card')).toHaveLength(3);
         http.expectOne(root + '/dashboards?page=0&size=25').flush({
             items: [{ student, lessonCount: 0, focus: null }],
             page: 0,
@@ -106,13 +108,64 @@ describe('Teacher student list', () => {
         expect(element.querySelector('.queue')).toBeNull();
     });
 
+    it('keeps the cards on screen while the same page refreshes (no placeholder flash)', async () => {
+        const { fixture, element } = mount();
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student]);
+        fixture.componentInstance.reload();
+        fixture.detectChanges();
+        await renderResources();
+        expect(element.querySelector('a.student-card')?.textContent).toContain(student.name);
+        expect(element.querySelector('.skeleton-card')).toBeNull();
+        expect(element.querySelector('[role="status"]')?.textContent).toContain('Загружаем учеников');
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student]);
+        expect(element.querySelectorAll('a.student-card')).toHaveLength(1);
+    });
+
+    it('drops the previous account cards at once, even with the same workspace id', async () => {
+        const { fixture, element } = mount();
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student]);
+        const session = TestBed.inject(SessionStore);
+        session.invalidate();
+        session.load().subscribe();
+        http.expectOne('/api/v1/auth/session').flush({
+            account: { userId: 'other-teacher', workspaceId: 'w1', role: 'TEACHER', authVersion: 1 },
+            csrfToken: 'synthetic',
+        });
+        fixture.detectChanges();
+        await renderResources();
+        // The old view is bound to the old generation: it drops the cards and asks for nothing (the shell recreates it).
+        expect(element.querySelector('a.student-card')).toBeNull();
+        http.expectNone((request) => request.url.includes('/dashboards'));
+        fixture.destroy();
+        const next = mount();
+        expect(next.element.querySelectorAll('.skeleton-card')).toHaveLength(3);
+        const other = { ...student, id: 's9', name: 'Другой ученик' };
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [other]);
+        expect(Array.from(next.element.querySelectorAll('a.student-card')).map((card) => card.textContent)).toEqual([expect.stringContaining('Другой ученик')]);
+    });
+
+    it('starts another page and the archive from placeholders, not from the old cards', async () => {
+        const { fixture, element } = mount();
+        await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), [student], 26);
+        button(element, 'Далее').click();
+        fixture.detectChanges();
+        await renderResources();
+        expect(element.querySelector('a.student-card')).toBeNull();
+        expect(element.querySelectorAll('.skeleton-card')).toHaveLength(3);
+        await resolveCards(http.expectOne(root + '/dashboards?page=1&size=25'), [{ ...student, id: 's2', name: 'Второй ученик' }], 26, 1);
+        expect(element.querySelector('a.student-card')?.textContent).toContain('Второй ученик');
+    });
+
     it('shows the empty list only after loading and connects creation, cancellation and navigation', async () => {
         const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
         const { fixture, element } = mount();
         expect(element.querySelector('[role="status"]')?.textContent).toContain('Загружаем учеников');
         expect(element.querySelector('.empty-state')).toBeNull();
+        // UX-28 M6: placeholder cards in the shape of the real ones, hidden from assistive technology.
+        expect(element.querySelectorAll('.skeleton-card[aria-hidden="true"]')).toHaveLength(3);
         await resolveCards(http.expectOne(root + '/dashboards?page=0&size=25'), []);
         expect(element.querySelector('.empty-state')?.textContent).toContain('Учеников пока нет');
+        expect(element.querySelector('.skeleton-card')).toBeNull();
         expect(element.querySelector('[role="status"]')).toBeNull();
 
         button(element, 'Добавить ученика').click();

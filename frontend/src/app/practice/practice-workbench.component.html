@@ -20,7 +20,8 @@
       <mentor-practice-error [message]="failure.message" [retryLabel]="failure.retryLabel" [canRetry]="!!failure.retry" (retry)="store.retryFailure()"/>
     }
     @if (loading()) {
-      <p class="loading" role="status">Загружаем упражнения…</p>
+      <p class="loading-line" role="status">Загружаем упражнения…</p>
+      <div class="skeleton skeleton-ide" aria-hidden="true"><i class="bar-tree"></i><i class="bar-editor"></i></div>
     }
     @if (view(); as practice) {
       @if (teacher()) {

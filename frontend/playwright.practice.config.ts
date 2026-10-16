@@ -20,6 +20,6 @@ export default defineConfig({
     timeout: 180000,
     outputDir: path.join(runtime, 'results'),
     reporter: [['list'], ['html', { outputFolder: path.join(runtime, 'playwright-report'), open: 'never' }]],
-    use: { baseURL: fixture.publicOrigin, viewport: { width: 1280, height: 900 }, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+    use: { baseURL: fixture.publicOrigin, viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
     webServer: { command: `"${process.execPath}" tools/practice-runtime.mjs`, url: fixture.publicOrigin, reuseExistingServer: false, timeout: 30000 },
 });

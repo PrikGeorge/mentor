@@ -19,23 +19,25 @@ import { initialOf } from '../core/format';
   <div class="page-head"><div><h1>{{archive()?'Архив учеников':'Мои ученики'}}</h1><p class="subtitle">{{archive()?'Завершившие обучение: карточки, занятия и история сохранены, новые работы не принимаются.':'Выберите ученика, чтобы открыть его занятия, материалы и план обучения.'}}@if(total()){ {{archive()?'В архиве':'Учеников'}}: {{total()}}.}</p></div><div class="form-actions">@if(!archive()){<button class="btn primary" (click)="creating.set(true)"><mentor-icon name="plus"/>Добавить ученика</button>}<button class="btn text" type="button" (click)="archive.set(!archive());page.set(0)"><mentor-icon [name]="archive()?'arrow-left':'archive'"/>{{archive()?'К активным ученикам':'Архив'}}</button></div></div>
   @if(creating()&&session.actor()?.workspaceId){<div class="section-block"><mentor-student-form [workspaceId]="session.actor()!.workspaceId!" (saved)="created($event)" (cancel)="creating.set(false)"/></div>}
   @if(error()){<div class="shell-error"><p class="auth-error" role="alert">{{error()}}</p><button class="btn" (click)="reload()"><mentor-icon name="refresh"/>Повторить загрузку</button></div>}
-  @if(loading()){<p class="loading" role="status">Загружаем учеников…</p>}
+  
   @if(!archive()&&unmarked()){<p class="callout reminder-line"><mentor-icon name="calendar"/><span>{{unmarkedLabel(unmarked())}}.</span><a class="text-link" routerLink="/teacher/schedule">Отметить →</a></p>}
   @if(waiting().length){<section aria-labelledby="queue-title"><div class="sh"><div class="title-group"><h2 id="queue-title">Ход за вами</h2><span class="count">{{waitingLabel()}}, первой — та, что отправлена раньше</span></div></div>
-    <ol class="queue">@for(row of waiting();track row.studentId){<li><span class="avatar" aria-hidden="true">{{initial(row.studentName)}}</span><div><h3>{{row.studentName}}</h3><p>{{direction(row.studentId)}}@if(row.awaitingReview>1){ · ещё работ на ревью: {{row.awaitingReview-1}}}</p></div>
+    <ol class="queue">@for(row of waiting();track row.studentId){<li [style.--i]="$index"><span class="avatar" aria-hidden="true">{{initial(row.studentName)}}</span><div><h3>{{row.studentName}}</h3><p>{{direction(row.studentId)}}@if(row.awaitingReview>1){ · ещё работ на ревью: {{row.awaitingReview-1}}}</p></div>
       <div class="work"><b>{{row.lessonTitle}}</b><p>Занятие {{row.lessonDate|date:'dd.MM.yyyy'}} · {{row.filename}}</p>@if(row.comment){<q>{{row.comment}}</q>}</div>
       <mentor-turn-clock [turn]="clocks()[row.studentId]" viewer="teacher" [name]="row.studentName" [mini]="true"/>
       <a class="btn primary" [routerLink]="['/teacher/students',row.studentId,'lessons',row.lessonId,'teacher',turnSection(clocks()[row.studentId])]"><mentor-icon name="message"/>{{row.kind==='attempt'?'Открыть решение':'Открыть ревью'}}</a></li>}</ol></section>}
-  <div class="sh"><div class="title-group"><h2>{{waiting().length?'Ход у учеников':'Ученики'}}</h2><span class="count">карточки учеников</span></div></div>
-  <div class="students-grid">@for(s of students();track s.id){<a class="student-card" [routerLink]="['/teacher/students',s.id]"><div class="student-card-head"><span class="avatar" aria-hidden="true">{{initial(s.name)}}</span><div><h2>{{s.name}}</h2><p>{{s.direction||'Направление не указано'}}</p></div></div>
+  <div class="sh"><div class="title-group"><h2>{{waiting().length?'Ход у учеников':'Ученики'}}</h2>@if(loading()){<span class="count" role="status">Загружаем учеников…</span>}@else{<span class="count">карточки учеников</span>}</div></div>
+  <div class="students-grid">@for(s of students();track s.id){<a class="student-card" [style.--i]="$index" [routerLink]="['/teacher/students',s.id]"><div class="student-card-head"><span class="avatar" aria-hidden="true">{{initial(s.name)}}</span><div><h2>{{s.name}}</h2><p>{{s.direction||'Направление не указано'}}</p></div></div>
       <dl><div><dt>Цель</dt><dd>{{s.goal||'Цель обучения можно добавить в карточку'}}</dd></div>
         @if(summaries()[s.id];as summary){<div><dt>Занятий</dt><dd>{{summary.lessonCount}}</dd></div><div><dt>{{summary.focus?.upcoming===false?'Последнее по дате':'Ближайшее занятие'}}</dt><dd>@if(summary.focus;as focus){{{focus.lesson.date|date:'dd.MM.yyyy'}} · {{focus.lesson.time}} МСК}@else{не назначено}</dd></div>}
         @else{<div><dt>Занятия</dt><dd><span class="skeleton"><i></i></span></dd></div>}</dl>
       @if(clocks()[s.id];as turn){<mentor-turn-clock [turn]="turn" viewer="teacher" [name]="s.name" [mini]="true"/>}</a>}
-    @empty{@if(!loading()){<div class="empty-state"><h2>Учеников пока нет</h2><p>Создайте отдельную карточку. Материалы других учеников сюда не переносятся.</p></div>}}
+    @empty{@if(loading()){@for(slot of skeletonCards;track slot){<div class="student-card skeleton-card" aria-hidden="true"><div class="student-card-head"><i class="bar-square"></i><span class="skeleton"><i class="bar-tall bar-mid"></i><i class="bar-short"></i></span></div><dl class="skeleton skeleton-dl"><div><i class="bar-short"></i><i class="bar-mid"></i></div><div><i class="bar-short"></i><i class="bar-short"></i></div><div><i class="bar-short"></i><i class="bar-mid"></i></div></dl></div>}}@else{<div class="empty-state"><h2>Учеников пока нет</h2><p>Создайте отдельную карточку. Материалы других учеников сюда не переносятся.</p></div>}}
     <button class="student-card new-card" (click)="creating.set(true)"><span class="new-mark" aria-hidden="true"><mentor-icon name="plus"/></span><h2>Новый ученик</h2><p>Отдельная карточка, занятия и материалы</p></button></div>
   <mentor-pagination [page]="page()" [total]="total()" [disabled]="loading()" label="Страницы учеников" (pageChange)="page.set($event)"/>` })
 export class StudentsPageComponent {
+    // UX-23 in UX-28 M6: placeholder cards in the shape of the real ones while the first page loads.
+    readonly skeletonCards = [0, 1, 2];
     readonly session = inject(SessionStore);
     private readonly api = inject(StudentsApi);
     private readonly homework = inject(HomeworkApi);
@@ -86,11 +88,17 @@ export class StudentsPageComponent {
     });
     readonly unmarked = computed(() => { const state = this.reminderResource.state(); return state.status === 'resolved' && state.value ? unmarkedLessons(state.value.items, Date.now()).length : 0; });
     readonly unmarkedLabel = unmarkedLabel;
+    private shownKey = '';
     constructor() {
         effect(() => { this.session.generation(); this.studentsParams(); this.creating.set(false); });
         effect(() => {
             const state = this.studentsResource.state();
             untracked(() => {
+                // UX-28 M6: a refresh of the page already on screen keeps its cards (no skeleton flash); another page,
+                // the archive or another account start from the placeholders.
+                const key = state.status === 'idle' ? '' : [this.session.generation(), state.params.workspace, state.params.page, state.params.archive].join('|');
+                if (state.status === 'loading' && key === this.shownKey && this.students().length) return;
+                this.shownKey = state.status === 'resolved' ? key : '';
                 this.students.set(state.status === 'resolved' ? state.value.items.map(item => item.student) : []);
                 this.summaries.set(state.status === 'resolved' ? Object.fromEntries(state.value.items.map(item => [item.student.id, item])) : {});
                 if (state.status === 'resolved') this.total.set(state.value.total);
