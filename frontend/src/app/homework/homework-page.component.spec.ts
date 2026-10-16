@@ -20,7 +20,7 @@ describe('Lesson-bound homework submission UI',()=>{
   const{component,http,fixture,element}=await page();component.file.set(new File(['code'],'work.java'));component.setComment('Мой комментарий');component.upload();const first=http.expectOne(root);const key=first.request.headers.get('Idempotency-Key');expect(key).toMatch(/^[A-Za-z0-9._:-]{1,128}$/);first.error(new ProgressEvent('error'));fixture.detectChanges();expect(component.unknown()).toBe(true);expect(element.textContent).toContain('Повторить отправку');expect(element.textContent).toContain('Обновить историю');expect(component.comment()).toBe('Мой комментарий');
   component.upload();const retry=http.expectOne(root);expect(retry.request.headers.get('Idempotency-Key')).toBe(key);retry.flush(submission,{status:201,statusText:'Created'});TestBed.tick();http.expectOne(root+'?page=0&size=25').flush({items:[submission],page:0,size:25,total:1});await renderResources();fixture.detectChanges();
   expect(component.unknown()).toBe(false);expect(component.succeeded()).toBe(true);expect(component.file()).toBeNull();expect(component.comment()).toBe('');expect(component.repositoryUrl()).toBe('');expect(element.querySelector<HTMLInputElement>('input[type=file]')!.value).toBe('');
-  component.upload();http.expectNone(request=>request.method==='POST');expect(component.error()).toBe('Выберите файл работы.');
+  component.upload();http.expectNone(request=>request.method==='POST');expect(component.error()).toBe('Выбери файл работы.');
  });
  it('refreshes history without discarding the pending submission form', async () => {
   const {component,http,fixture}=await page(); const file=new File(['new code'],'new.java');

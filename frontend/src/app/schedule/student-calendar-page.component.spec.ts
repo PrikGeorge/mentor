@@ -93,7 +93,7 @@ describe('Student calendar', () => {
             http.expectOne(upcoming).flush({ from: '2026-10-15', to: '2026-10-28', items: [] });
             await renderResources();
             fixture.detectChanges();
-            expect(element.querySelector('mentor-error-banner')?.textContent).toContain('Сервис временно недоступен');
+            expect(element.querySelector('mentor-error-banner')?.textContent).toContain('Сервер временно недоступен');
             expect(element.querySelector('.month-grid')).toBeNull();
             [...element.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Повторить загрузку')!.click();
             fixture.detectChanges();

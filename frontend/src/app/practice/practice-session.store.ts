@@ -112,7 +112,7 @@ export class PracticeSessionStore implements OnDestroy {
         this.stopWatching();
         this.poll = this.poller.watch(lesson, exercise, id, scope.preview()).pipe(this.untilSelectionChange()).subscribe({
             next: attempt => { if (scope.valid(exercise, key)) this.record(attempt, lesson.workspaceId); },
-            error: () => { if (scope.valid(exercise, key)) this.fail('Не удалось прочитать попытку. Обновите историю.', () => this.watch(id)); },
+            error: () => { if (scope.valid(exercise, key)) this.fail('Не удалось загрузить попытку.', () => this.watch(id)); },
         });
     }
     showArchive(id: string) {

@@ -94,7 +94,7 @@ export class PracticeDraft {
         this.recovery.saveIntent(this.key, this.currentIntent);
     }
     catch {
-        this.error.set('Браузер не сохранил попытку. Повтор в этой вкладке использует прежний ключ; экспортируйте код перед выходом.');
+        this.error.set('Браузер не запомнил отправку. Повтор из этой вкладки не создаст лишнюю попытку, но перед выходом скачай код.');
     } }
     async reset(template: boolean): Promise<boolean> {
         this.clearTimer();
@@ -128,7 +128,7 @@ export class PracticeDraft {
         }
         catch {
             if (stamp === this.stamp && this.active())
-                this.error.set('Переход не подтверждён. Ваш код остаётся в редакторе.');
+                this.error.set('Не удалось перейти на новую версию упражнения. Код остался в редакторе.');
             return false;
         }
         finally {
@@ -152,7 +152,7 @@ export class PracticeDraft {
         this.recovery.save(this.key, this.files());
     }
     catch {
-        this.error.set('Браузер не сохранил резервную копию. Код остаётся в редакторе; сохраните или выгрузите его.');
+        this.error.set('Браузер не сохранил резервную копию. Код остался в редакторе: сохрани или скачай его.');
     } }
     private schedule() { this.clearTimer(); if (this.active() && !this.paused() && !this.conflict() && this.compatible())
         this.timer = setTimeout(() => { void this.save(); }, 1200); }
@@ -165,7 +165,7 @@ export class PracticeDraft {
         if (!this.dirty())
             return true;
         if (!this.compatible()) {
-            this.error.set('Упражнение обновилось. Сохраните копию кода и явно выберите переход на новую ревизию.');
+            this.error.set('Упражнение обновилось. Скачай копию кода и выбери, как перейти на новую версию.');
             return false;
         }
         const failure = filesError(this.files(), Object.keys(this.exercise()!.starterFiles));
@@ -196,7 +196,7 @@ export class PracticeDraft {
                     status?: number;
                 }).status;
                 this.conflict.set(status === 409);
-                this.error.set(status === 409 ? 'Черновик или упражнение изменились. Ваш код сохранён локально; обновите данные перед повтором.' : 'Сохранение не подтверждено. Код остаётся в редакторе; повторите сохранение.');
+                this.error.set(status === 409 ? 'Черновик или упражнение успели измениться. Твой код сохранён в браузере. Выбери ниже, как продолжить.' : 'Черновик не сохранился. Код остался в редакторе: сохрани его ещё раз.');
             }
             return false;
         }

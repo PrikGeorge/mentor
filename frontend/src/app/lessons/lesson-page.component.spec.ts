@@ -128,12 +128,32 @@ describe('Lesson page', () => {
             http.expectNone((request) => request.method === 'DELETE');
             click(element, 'Удалить');
             http.expectOne((request) => request.url === base + '/lessons/l1' && request.method === 'DELETE').flush(
-                { status: 409, code: 'CONFLICT', message: 'The change conflicts with existing data.' },
+                { status: 409, code: 'LESSON_IN_USE', message: 'The lesson has works, materials or drafts.' },
                 { status: 409, statusText: 'Conflict' }
             );
             fixture.detectChanges();
             expect(element.querySelector('.inline-confirm')).toBeNull();
-            expect(element.textContent).toContain('Занятие нельзя удалить');
+            expect(element.textContent).toContain('Занятие нельзя удалить: в нём есть работы, материалы или черновики.');
+            expect(element.textContent).not.toContain('Удалите их');
+            http.verify();
+        } finally {
+            fixture.destroy();
+        }
+    });
+
+    it('shows the shared conflict text when the delete loses a race', async () => {
+        const { fixture, http, element } = await teacherPage();
+        try {
+            click(element, 'Удалить занятие');
+            fixture.detectChanges();
+            click(element, 'Удалить');
+            http.expectOne((request) => request.url === base + '/lessons/l1' && request.method === 'DELETE').flush(
+                { status: 409, code: 'CONFLICT', message: 'The change conflicts with existing data.' },
+                { status: 409, statusText: 'Conflict' }
+            );
+            fixture.detectChanges();
+            expect(element.textContent).toContain('Такие данные уже есть или успели измениться. Нужно обновить страницу и повторить.');
+            expect(element.textContent).not.toContain('Занятие нельзя удалить');
             http.verify();
         } finally {
             fixture.destroy();
@@ -279,7 +299,7 @@ describe('Lesson page', () => {
             await renderResources();
             fixture.detectChanges();
             expect(element.querySelector('.lesson-page-actions')).toBeNull();
-            expect(element.textContent).toContain('Не найдено: запись удалена или недоступна.');
+            expect(element.textContent).toContain('Не найдено. Возможно, это удалили или закрыли доступ.');
             expect(element.textContent).not.toContain('Resource unavailable.');
             http.verify();
         } finally {

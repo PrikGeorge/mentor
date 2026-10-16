@@ -13,7 +13,7 @@
       </div>
       <div class="actions">
         <button class="btn sm theme-toggle" type="button" (click)="toggleTheme()" [attr.aria-pressed]="dark()"><mentor-icon [name]="dark() ? 'sun' : 'moon'"/>{{ dark() ? 'Светлая тема' : 'Тёмная тема' }}</button>
-        <button class="btn sm" (click)="refreshCatalog()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить задания</button>
+        <button class="btn sm" (click)="refreshCatalog()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить упражнения</button>
       </div>
     </div>
     @if (store.failure(); as failure) {
@@ -58,10 +58,10 @@
           }
           @if (store.resetChoice(); as choice) {
             <section class="reset-confirm" role="region" aria-label="Подтверждение перехода">
-              <h3>Перейти на новую ревизию?</h3>
-              <p>{{ choice === 'template' ? 'Новые заготовки заменят код только после подтверждённого сохранения.' : 'Твои файлы будут сохранены в новой ревизии, если их имена соответствуют объявленным файлам.' }}</p>
+              <h3>Перейти на новую версию упражнения?</h3>
+              <p>{{ choice === 'template' ? 'Новые заготовки заменят твой код, когда сервер сохранит переход.' : 'Твои файлы перейдут в новую версию, если их имена совпадают с именами файлов упражнения.' }}</p>
               <div class="actions">
-                <button class="btn sm" (click)="exportFiles()"><mentor-icon name="download"/>Сначала экспортировать код</button>
+                <button class="btn sm" (click)="exportFiles()"><mentor-icon name="download"/>Сначала скачать код</button>
                 <button class="btn sm primary" [disabled]="store.resetting()" (click)="reset()">Подтвердить переход</button>
                 <button class="btn sm text" [disabled]="store.resetting()" (click)="chooseReset(null)">Отмена</button>
               </div>
@@ -114,7 +114,7 @@
                 @case ('archive') {
                   @if (store.archive(); as item) {
                     <section class="archive-view" aria-label="Архивный черновик">
-                      <p class="small-muted">Архивный черновик · ревизия {{ item.exerciseRevision }} · только чтение</p>
+                      <p class="small-muted">Архивный черновик · версия {{ item.exerciseRevision }} · только чтение</p>
                       @for (name of archiveNames(); track name) {
                         <h4>{{ name }}</h4>
                         <pre class="code-view"><code>{{ item.files[name] }}</code></pre>

@@ -86,7 +86,7 @@ import { moscowDate } from '../core/format';
                         </dl>
                         @if (d.student.archivedAt) {
                             <p class="callout mt-20" role="status">
-                                Курс завершён: карточка в архиве с {{ d.student.archivedAt | date: 'dd.MM.yyyy' }}. Материалы и история открыты, новые работы не
+                                Курс завершён {{ d.student.archivedAt | date: 'dd.MM.yyyy' }}. Материалы и история остаются открытыми, новые работы не
                                 принимаются.
                             </p>
                         } @else if (!focus.upcoming) {
@@ -175,7 +175,7 @@ import { moscowDate } from '../core/format';
                 ><section class="goal-box" aria-labelledby="goal-title">
                     <div>
                         <h2 id="goal-title">Моя цель</h2>
-                        <p class="goal">{{ d.student.goal || 'Цель обучения ещё предстоит определить' }}</p>
+                        <p class="goal">{{ d.student.goal || 'Цель пока не записана. Её добавит наставник.' }}</p>
                     </div>
                     <dl class="facts">
                         <div>

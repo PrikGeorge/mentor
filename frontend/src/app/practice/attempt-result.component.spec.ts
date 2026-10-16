@@ -24,7 +24,7 @@ describe('Attempt result pane', () => {
         const { fixture, element } = setup(queued, { worker: { available: false, lastSeenAt: '2030-01-01T08:30:00Z' } });
         expect(element.querySelector('.attempt-result h3')?.textContent?.trim()).toBe('В очереди');
         expect(element.textContent).toContain('Все проверки');
-        expect(element.querySelector('.warning-banner')?.textContent).toContain('последний отклик 01.01, 11:30');
+        expect(element.querySelector('.warning-banner')?.textContent).toContain('был на связи 01.01, 11:30');
         expect(element.querySelector<HTMLDetailsElement>('details.attempt-code')?.open).toBe(false);
         fixture.componentRef.setInput('attempt', { ...queued, jobState: 'running' });
         fixture.detectChanges();

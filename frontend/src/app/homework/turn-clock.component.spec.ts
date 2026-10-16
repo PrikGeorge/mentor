@@ -20,7 +20,7 @@ describe('Whose turn it is', () => {
         });
         expect(
             turnHeadline(turnOf({ status: 'needs_revision', createdAt: '2026-10-13T18:40:00Z', reviewedAt: '2026-10-14T09:00:00Z' }), 'student').text
-        ).toContain('доработать');
+        ).toContain('кое-что исправить');
         expect(turnHeadline(turnOf({ status: 'reviewed', createdAt: '2026-10-13T18:40:00Z', reviewedAt: '2026-10-14T09:00:00Z' }), 'teacher').text).toBe(
             'Вы ответили 14.10.'
         );

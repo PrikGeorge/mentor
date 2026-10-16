@@ -113,7 +113,7 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('textbox', { name: 'Тема занятия' })).toHaveValue('Сохранить введённое');
         await expect(page.getByRole('alert')).toBeVisible();
         await page.goto(`/teacher/students/${anna.id}/lessons/${first.id}`);
-        await page.getByRole('link', { name: 'Экран ученика ↗', exact: true }).click();
+        await page.getByRole('link', { name: 'Кабинет ученика ↗', exact: true }).click();
         await expect(page.getByText('Предпросмотр кабинета ученика · только чтение')).toBeVisible();
         await expect(page.getByText('Задания только Анны', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);

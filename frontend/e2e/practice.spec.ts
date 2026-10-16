@@ -197,7 +197,7 @@ for (const width of [1280, 390]) {
         await expect(textarea).toBeVisible();
         await textarea.fill('  unsaved student source\n');
         await page.getByRole('button', { name: 'Проверить примеры', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText('Ответ не получен');
+        await expect(page.getByRole('alert')).toContainText('Не удалось отправить код');
         await page.getByRole('button', { name: 'Проверить примеры', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'Все проверки пройдены' })).toBeVisible();
         expect(state.posts()).toBe(2);
@@ -206,8 +206,8 @@ for (const width of [1280, 390]) {
         expect(state.posts()).toBe(2);
         await expect(textarea).toHaveValue('  unsaved student source\n');
         state.publish();
-        await page.getByRole('button', { name: 'Обновить задания' }).click();
-        await expect(page.getByText('Упражнение обновилось.', { exact: false })).toBeVisible();
+        await page.getByRole('button', { name: 'Обновить упражнения' }).click();
+        await expect(page.getByText('Упражнение обновилось, а твой код остался на прежней версии.', { exact: false })).toBeVisible();
         await expect(textarea).toHaveValue('  unsaved student source\n');
         await expect(page.getByRole('button', { name: 'Отправить на все проверки' })).toBeDisabled();
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -225,7 +225,7 @@ for (const width of [1280, 390]) {
         await openAccountMenu(page);
         await page.getByRole('button', { name: 'Выйти', exact: true }).click();
         const download = page.waitForEvent('download');
-        await dialog.getByRole('button', { name: 'Экспортировать и выйти' }).click();
+        await dialog.getByRole('button', { name: 'Скачать и выйти' }).click();
         expect((await download).suggestedFilename()).toBe('practice-source.json');
         await expect(page).toHaveURL(/login$/);
         expect(state.logout()).toBe(1);

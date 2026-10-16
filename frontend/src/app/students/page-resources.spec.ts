@@ -85,7 +85,7 @@ describe('Page resource ownership and optional reads', () => {
         http.expectOne('/api/v1/workspaces/w1/students/dashboards?page=1&size=25').flush({ message: 'Page unavailable' }, { status: 503, statusText: 'Unavailable' });
         await renderResources();
         expect(fixture.componentInstance.loading()).toBe(false);
-        expect(fixture.componentInstance.error()).toBe('Не удалось загрузить учеников. Сервис временно недоступен. Повторите позже.');
+        expect(fixture.componentInstance.error()).toBe('Не удалось загрузить учеников. Сервер временно недоступен. Можно повторить чуть позже.');
         expect(fixture.componentInstance.queue()).toEqual([]);
     });
 
@@ -134,7 +134,7 @@ describe('Page resource ownership and optional reads', () => {
         teachers.flush({ message: 'List unavailable' }, { status: 503, statusText: 'Unavailable' });
         await renderResources();
         expect(invitations.cancelled).toBe(true);
-        expect(fixture.componentInstance.error()).toBe('Не удалось загрузить список. Сервис временно недоступен. Повторите позже.');
+        expect(fixture.componentInstance.error()).toBe('Не удалось загрузить список. Сервер временно недоступен. Можно повторить чуть позже.');
         fixture.componentInstance.teacherPage.set(1);
         fixture.detectChanges();
         expect(fixture.componentInstance.error()).toBe('');
@@ -149,6 +149,6 @@ describe('Page resource ownership and optional reads', () => {
         http.expectOne('/api/v1/admin/teachers?page=1&size=25').flush(page([]));
         http.expectOne('/api/v1/admin/teacher-invitations?page=1&size=25').flush(page([]));
         await renderResources();
-        expect(fixture.componentInstance.error()).toBe('Данные уже изменились. Обновите страницу и повторите.');
+        expect(fixture.componentInstance.error()).toBe('Данные успели измениться. Нужно обновить страницу и повторить.');
     });
 });

@@ -43,9 +43,9 @@ describe('Editor panel', () => {
         component.runRequested.subscribe(mode => runs.push(mode));
         component.resetChosen.subscribe(kind => resets.push(kind));
         expect(element.querySelector('.draft-state')?.textContent).toBe('Есть несохранённые изменения');
-        expect(element.textContent).toContain('Упражнение обновилось.');
+        expect(element.textContent).toContain('Упражнение обновилось, а твой код остался на прежней версии.');
         expect(button(element, 'Сохранить код')?.disabled).toBe(true);
-        button(element, 'Экспортировать код')!.click();
+        button(element, 'Скачать код')!.click();
         element.querySelector<HTMLButtonElement>('[data-action=run]')!.click();
         element.querySelector<HTMLButtonElement>('[data-action=submit]')!.click();
         button(element, 'Перенести мой код')!.click();
@@ -68,13 +68,13 @@ describe('Editor panel', () => {
         expect(element.querySelector('[data-action=run]')).toBeNull();
         expect(element.querySelector('[data-action=submit]')).toBeNull();
         expect(button(element, 'Сохранить код')).toBeUndefined();
-        expect(button(element, 'Экспортировать код')).toBeUndefined();
+        expect(button(element, 'Скачать код')).toBeUndefined();
         expect(element.textContent).toContain('только чтение');
         expect(element.querySelector('.practice-editor .auth-error')?.textContent).toBe('Черновик или упражнение изменились.');
         expect(element.querySelector('textarea')?.readOnly).toBe(true);
         fixture.componentRef.setInput('exportable', true);
         fixture.detectChanges();
-        expect(button(element, 'Экспортировать код')).toBeDefined();
+        expect(button(element, 'Скачать код')).toBeDefined();
         fixture.destroy();
     });
     it('names the open file instead of tabs when the trainer tree lists the files', async () => {

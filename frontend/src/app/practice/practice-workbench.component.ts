@@ -157,7 +157,7 @@ export class PracticeWorkbench {
                 const preferred = untracked(this.initialExercise);
                 const known = preferred && (state.value.view.exercises.some(row => row.exercise.id === preferred) || state.value.history.some(row => row.exerciseId === preferred));
                 this.selectedId.set(known ? preferred : state.value.view.exercises[0]?.exercise.id ?? state.value.history[0]?.exerciseId ?? '');
-            } else if (state.status === 'error') this.store.fail('Не удалось загрузить тренажёр. Обновите страницу.', () => this.reload());
+            } else if (state.status === 'error') this.store.fail('Не удалось загрузить тренажёр.', () => this.reload());
         });
         effect(() => {
             const state = this.referenceReading.state();
@@ -263,7 +263,7 @@ export class PracticeWorkbench {
                 this.view.set(view);
                 if (!this.selectedId()) this.selectedId.set(view.exercises[0]?.exercise.id ?? '');
             },
-            error: () => { if (this.owned()) this.store.fail('Не удалось обновить задания. Твой код не изменён.', () => this.refreshCatalog()); },
+            error: () => { if (this.owned()) this.store.fail('Не удалось обновить упражнения. Код в редакторе не изменился.', () => this.refreshCatalog()); },
         });
     }
     run(mode: Mode) {
@@ -293,9 +293,9 @@ export class PracticeWorkbench {
             error: error => {
                 if (!this.validSelection(id, key)) return;
                 this.store.sending.set(false);
-                if (error.status === 409) this.store.fail('Задание изменилось. Твой код сохранён; обновите задания и явно выберите переход.', () => this.refreshCatalog(), 'Обновить задания');
-                else if (error.status === 429) this.store.fail('Очередь заполнена. Повтор использует тот же ключ попытки.', () => this.recoverAttempt());
-                else this.store.fail('Ответ не получен. Повтор этой проверки использует тот же ключ и точный код.', () => this.recoverAttempt());
+                if (error.status === 409) this.store.fail('Упражнение обновилось. Код остался в редакторе. Обнови упражнения и выбери, как перейти на новую версию.', () => this.refreshCatalog(), 'Обновить упражнения');
+                else if (error.status === 429) this.store.fail('Очередь проверки заполнена. Повтори отправку чуть позже: лишней попытки не будет.', () => this.recoverAttempt());
+                else this.store.fail('Не удалось отправить код. Повтори отправку: проверится тот же код, лишней попытки не будет.', () => this.recoverAttempt());
             },
         });
     }
@@ -323,7 +323,7 @@ export class PracticeWorkbench {
                 if (!this.validSelection(id, key)) return;
                 this.store.resetting.set(false);
                 this.draft.pause(false);
-                this.store.fail('Не удалось обновить ревизию черновика. Код сохранён в редакторе.', () => this.reset());
+                this.store.fail('Не удалось перейти на новую версию упражнения. Код остался в редакторе.', () => this.reset());
             },
         });
     }
@@ -334,7 +334,7 @@ export class PracticeWorkbench {
             saveBlob(new Blob([payload], { type: 'application/json' }), 'practice-source.json');
             return true;
         } catch {
-            this.store.fail('Экспорт недоступен. Скопируйте файлы перед выходом.');
+            this.store.fail('Не получилось скачать код. Скопируй файлы вручную перед выходом.');
             return false;
         }
     }

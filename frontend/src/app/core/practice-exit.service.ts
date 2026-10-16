@@ -55,11 +55,11 @@ export class PracticeExit {
             if (allowed)
                 this.finish(true);
             else
-                this.error.set('Выход ещё не подтверждён. Повторите сохранение, экспортируйте код или отмените выход.');
+                this.error.set('Код не сохранён и не скачан. Попробуй ещё раз или нажми «Отмена».');
         }
         catch {
             if (this.participant === participant && participant.valid())
-                this.error.set('Не удалось сохранить или экспортировать код. Он остаётся в редакторе.');
+                this.error.set('Не удалось сохранить или скачать код. Он остался в редакторе.');
         }
         finally {
             this.busy.set(false);

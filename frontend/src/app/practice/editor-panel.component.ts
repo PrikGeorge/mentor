@@ -28,12 +28,12 @@ export type ResetKind = 'keep' | 'template';
                 <button class="btn text sm" (click)="saveRequested.emit()" [disabled]="busy() || !compatible()"><mentor-icon name="save"/>Сохранить код</button>
               }
               @if (writable() || exportable()) {
-                <button class="btn text sm" (click)="exportRequested.emit()"><mentor-icon name="download"/>Экспортировать код</button>
+                <button class="btn text sm" (click)="exportRequested.emit()"><mentor-icon name="download"/>Скачать код</button>
               }
             </div>
           </header>
           @if (!compatible()) {
-            <p class="warning-banner">Упражнение обновилось. Твой код остался на прежней ревизии. Экспортируй его перед переходом.</p>
+            <p class="warning-banner">Упражнение обновилось, а твой код остался на прежней версии. Скачай его перед переходом.</p>
           }
           @if (draftError()) {
             <p class="auth-error" role="alert">{{ draftError() }}</p>
@@ -50,7 +50,7 @@ export type ResetKind = 'keep' | 'template';
             </div>
             @if (!compatible() || conflict()) {
               <div class="callout reset-choice">
-                <p>Переход выполняется только по твоему выбору. Сервер сохранит архив прежнего сохранённого черновика.</p>
+                <p>Перейти на новую версию можно только по твоему выбору. Последний сохранённый черновик попадёт в архив.</p>
                 <div class="actions">
                   <button class="btn sm" (click)="resetChosen.emit('keep')">Перенести мой код</button>
                   <button class="btn sm" (click)="resetChosen.emit('template')">Взять новые заготовки</button>

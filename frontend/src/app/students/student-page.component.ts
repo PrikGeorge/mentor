@@ -88,7 +88,7 @@ import { initialOf } from '../core/format';
                                             ><mentor-icon name="message" />{{ cardTurn()!.kind === 'attempt' ? 'Открыть решение' : 'Открыть ревью' }}</a
                                         >
                                     }
-                                    <a class="btn text" [routerLink]="base()" [queryParams]="{ preview: 'student' }">Экран ученика ↗</a
+                                    <a class="btn text" [routerLink]="base()" [queryParams]="{ preview: 'student' }">Кабинет ученика ↗</a
                                     ><button class="btn" (click)="openStudentEditor('name')"><mentor-icon name="pencil" />Изменить карточку</button>
                                     @if (archiving()) {
                                         <span class="inline-confirm" role="group" aria-label="Подтверждение архивации"
@@ -206,7 +206,7 @@ import { initialOf } from '../core/format';
                         <div>
                             @if (s.studentReview && section() !== 'review' && !learner()) {
                                 <a class="review-archive text-link" [routerLink]="base() + '/review'" [queryParams]="previewQuery()"
-                                    >Предыдущие отзывы без привязки к занятию →</a
+                                    >Ревью без привязки к занятию →</a
                                 >
                             }
                             <section class="lesson-section" aria-labelledby="lessons-title">
@@ -296,7 +296,7 @@ import { initialOf } from '../core/format';
                                                                     class="btn sm primary"
                                                                     [routerLink]="base() + '/lessons/' + l.id + '/student/' + turnSection(turnFor(l)!)"
                                                                     [queryParams]="previewQuery()"
-                                                                    >{{ turnFor(l)!.state === 'needs_revision' ? 'Доработать' : 'Открыть отзыв' }}</a
+                                                                    >{{ turnFor(l)!.state === 'needs_revision' ? 'Доработать' : 'Открыть ревью' }}</a
                                                                 >
                                                             } @else {
                                                                 <a class="btn sm" [routerLink]="lessonLink(l)" [queryParams]="previewQuery()">{{
@@ -311,7 +311,7 @@ import { initialOf } from '../core/format';
                                                                     ><a
                                                                         [routerLink]="base() + '/lessons/' + l.id + '/student/tasks'"
                                                                         [queryParams]="{ preview: 'student' }"
-                                                                        >Экран ученика ↗</a
+                                                                        >Кабинет ученика ↗</a
                                                                     >
                                                                 </div>
                                                             }
@@ -349,7 +349,7 @@ import { initialOf } from '../core/format';
                             </section>
                             @if (section() === 'review' && s.studentReview) {
                                 <section class="section-block mt-40">
-                                    <div class="sh mb-16"><h2>Предыдущий отзыв без привязки к занятию</h2></div>
+                                    <div class="sh mb-16"><h2>Ревью без привязки к занятию</h2></div>
                                     <p class="plain-note">{{ s.studentReview }}</p>
                                 </section>
                             }
@@ -584,7 +584,7 @@ export class StudentPageComponent extends DomainPage {
                 {
                     goal: 'Моя цель',
                     roadmap: 'Маршрут обучения',
-                    review: 'Предыдущие отзывы',
+                    review: 'Ревью',
                     lessons: 'Мои занятия',
                     profile: 'Навыки и наблюдения',
                     projects: 'Учебные проекты',
