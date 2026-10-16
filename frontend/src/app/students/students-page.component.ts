@@ -108,6 +108,6 @@ export class StudentsPageComponent {
     readonly initial = initialOf;
     direction(id: string) { return this.students().find(s => s.id === id)?.direction || 'Ученик'; }
     readonly turnSection = turnSection;
-    waitingLabel() { const n = this.waiting().length, last = n % 10, tens = n % 100; return n + (last === 1 && tens !== 11 ? ' работа ждёт' : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? ' работы ждут' : ' работ ждут') + ' ревью'; }
+    readonly waitingLabel = computed(() => { const n = this.waiting().length, last = n % 10, tens = n % 100; return n + (last === 1 && tens !== 11 ? ' работа ждёт' : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? ' работы ждут' : ' работ ждут') + ' ревью'; });
     created(student: StudentView) { this.creating.set(false); void this.router.navigate(['/teacher/students', student.id]); }
 }

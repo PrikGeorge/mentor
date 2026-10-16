@@ -39,11 +39,11 @@ import { focusAfterRender } from '../core/focus';
         </ol>
         <p class="prep-foot"><a class="text-link" [routerLink]="base()+'/lessons/'+l.id+'/'+(learner()?'student':'teacher')+'/review'" [queryParams]="previewQuery()">Ревью занятия →</a></p></section>
     }@else if(l.bundleId && l.status==='prepared' && section()!=='practice'){
-      @if(['guide','plan','tasks','review'].includes(section())&&(currentText()||editable())){<section class="section-block text-section"><div class="sh mb-16"><div class="title-group"><h2>{{additionTitle()}}</h2></div>@if(visibility();as v){<span class="vis" [class.private]="v==='private'" [class.public]="v==='public'"><mentor-icon [name]="v==='private'?'eye-off':'eye'"/>{{v==='private'?'Только вам':'Видно ученику'}}</span>}</div>
+      @if(textSection()&&(currentText()||editable())){<section class="section-block text-section"><div class="sh mb-16"><div class="title-group"><h2>{{additionTitle()}}</h2></div>@if(visibility();as v){<span class="vis" [class.private]="v==='private'" [class.public]="v==='public'"><mentor-icon [name]="v==='private'?'eye-off':'eye'"/>{{v==='private'?'Только вам':'Видно ученику'}}</span>}</div>
         @if(currentText()){<div class="markdown-body lesson-source" [innerHTML]="currentHtml()"></div>}@else{<p class="small-muted">Дополнений пока нет.</p>}
         @if(editable()){<div class="actions"><button class="btn sm" (click)="openText(currentKind())" [disabled]="busy()"><mentor-icon [name]="currentText()?'pencil':'plus'"/>{{currentText()?'Изменить дополнения':'Добавить '+additionTitle().toLowerCase()}}</button></div>}</section>}
       <mentor-material-view [workspaceId]="workspaceId()!" [studentId]="studentId()!" [lessonId]="l.id" [section]="section()" [detail]="detail()" [base]="base()+'/lessons/'+l.id" [preview]="preview()" [learner]="learner()" [editable]="editable()" (changed)="reload()"/>}
-    @else if(['guide','plan','tasks','review'].includes(section())){
+    @else if(textSection()){
       <section class="section-block text-section"><div class="sh mb-16"><div class="title-group"><h2>{{section()==='review'?'Ревью занятия':learner()?'Задания на занятие':'Сценарий преподавателя'}}</h2></div>@if(visibility();as v){<span class="vis" [class.private]="v==='private'" [class.public]="v==='public'"><mentor-icon [name]="v==='private'?'eye-off':'eye'"/>{{v==='private'?'Только вам':'Видно ученику'}}</span>}</div>
         @if(section()==='review'){<p class="subtitle mb-16">Ревью относится к этому занятию и его домашней работе.</p>}
         @if(currentText()){<div class="markdown-body lesson-source" [innerHTML]="currentHtml()"></div>
@@ -114,6 +114,7 @@ export class LessonPageComponent extends DomainPage {
     readonly currentKind = computed<TextKind>(() => this.section() === 'review' ? 'reviewNotes' : this.learner() ? 'studentNotes' : 'teacherNotes');
     readonly currentText = computed(() => this.currentKind() === 'teacherNotes' ? this.teacherNotes() : this.lesson()?.[this.currentKind() as 'studentNotes' | 'reviewNotes']);
     readonly currentHtml = computed(() => { const text = this.currentText(); return text ? this.renderer.render(text) : ''; });
+    readonly textSection = computed(() => ['guide', 'plan', 'tasks', 'review'].includes(this.section()));
     readonly additionTitle = computed(() => this.section() === 'review' ? 'Дополнения к ревью' : this.learner() ? 'Дополнения к заданиям' : 'Дополнения к сценарию');
     readonly visibility = computed<'private' | 'public' | null>(() => { const section = this.section(); return section === 'guide' || section === 'plan' || section === 'answers' ? 'private' : section === 'tasks' || section === 'review' ? 'public' : null; });
     readonly emptyText = computed(() => this.section() === 'review' ? 'Общее ревью пока не добавлено: здесь появятся итоги занятия и следующие шаги.' : this.learner() ? 'Задания и материалы этого занятия ещё не добавлены.' : 'Сценарий этого занятия ещё не добавлен. Опишите ход занятия, вопросы и подсказки — ученик этот текст не увидит.');

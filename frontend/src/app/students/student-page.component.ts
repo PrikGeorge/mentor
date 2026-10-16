@@ -596,14 +596,15 @@ export class StudentPageComponent extends DomainPage {
         );
     }
     readonly initial = initialOf;
-    teacherNotes() {
+    // FE-09: derived once per card change instead of on every check of the long template.
+    readonly teacherNotes = computed(() => {
         const s = this.student();
         return s && 'notes' in s ? s.notes : '';
-    }
-    longNotes() {
+    });
+    readonly longNotes = computed(() => {
         const notes = this.teacherNotes();
         return notes.length > 240 || notes.split('\n').length > 6;
-    }
+    });
     openStudentEditor(field: 'name' | 'goal' | 'notes') {
         if (!this.editable()) return;
         this.editStudent.set(true);
