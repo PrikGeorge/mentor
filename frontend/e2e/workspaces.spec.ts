@@ -230,7 +230,7 @@ for (const width of [1280, 390]) {
         await expect(page.locator('form')).toHaveCount(0);
         await page.screenshot({ path: test.info().outputPath(`preparation-${width}.png`), fullPage: true });
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-        await page.getByRole('link', { name: 'Экран ученика ↗', exact: true }).click();
+        await page.getByRole('link', { name: 'Кабинет ученика ↗', exact: true }).click();
         await expect(page.getByText('Предпросмотр кабинета ученика · только чтение')).toBeVisible();
         await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await expect(page.getByRole('button', { name: /Изменить|Сохранить|Сдать/ })).toHaveCount(0);

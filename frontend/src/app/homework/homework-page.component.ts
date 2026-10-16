@@ -31,12 +31,12 @@ import { saveBlob } from '../core/download';
 <small id="homework-answer-hint">Сохранится как файл <span class="mono">{{answerName()}}</span> — наставник сможет прокомментировать строки.</small>@if(answerError();as text){<small class="error" role="alert">{{text}}</small>}</div>}
 <label class="field">Репозиторий <span class="label-note">· необязательно</span><input type="url" name="repositoryUrl" maxlength="2000" placeholder="https://github.com/…" [value]="repositoryUrl()" (input)="setRepositoryUrl($any($event.target).value)" [readOnly]="busy()"><small>HTTPS-адрес без логина и пароля. Ссылка не загружается сервером.</small></label>
 <label class="field">Комментарий к работе <span class="label-note">· необязательно</span><textarea name="comment" rows="3" maxlength="10000" [value]="comment()" (input)="setComment($any($event.target).value)" [readOnly]="busy()"></textarea><small class="counter">{{comment().length}} / 10 000</small></label>
-@if(busy()){<div class="upload-progress" role="status" aria-live="polite">{{progress()===null?'Передаём файл…':progress()===100?'Файл передан. Ожидаем подтверждение сохранения…':'Передаём файл: '+progress()+'%'}}@if(progress()!==null){<progress max="100" [value]="progress()" aria-label="Передача файла"></progress>}</div>}
+@if(busy()){<div class="upload-progress" role="status" aria-live="polite">{{progress()===null?'Передаём файл…':progress()===100?'Файл передан. Сервер сохраняет работу…':'Передаём файл: '+progress()+'%'}}@if(progress()!==null){<progress max="100" [value]="progress()" aria-label="Передача файла"></progress>}</div>}
 <div class="form-actions"><button class="btn primary" type="submit" [disabled]="busy()||loading()">@if(busy()){<mentor-icon class="spin" name="loader"/>}@else{<mentor-icon name="send"/>}{{unknown()?'Повторить отправку':'Отправить на ревью'}}</button></div>
 </form>
 @if(succeeded()){<p class="success-banner mt-20" role="status">Работа отправлена на ревью.</p>}
 @if(error()){<mentor-error-banner class="mt-20" [message]="error()"/>}
-@if(unknown()){<div class="warning-banner mt-20"><p>Результат отправки неизвестен. Ответ сервера не дошёл. Повторить безопасно: сервер узнает ту же работу и не создаст дубликат. Можно и сначала обновить историю.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
+@if(unknown()){<div class="warning-banner mt-20"><p>Ответ сервера не дошёл, поэтому неясно, сохранилась ли работа. Отправь ещё раз: повтор не создаст копию. Или сначала обнови историю и проверь.</p><button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()"><mentor-icon name="refresh"/>Обновить историю</button></div>}
 </section>
 }@else if(preview()){<p class="callout">Предпросмотр кабинета ученика · только чтение. Работу отправляет ученик из своего кабинета.</p>}
 <section class="homework-history" aria-labelledby="homework-history-title">@if(latest()!==undefined){<mentor-turn-clock class="mb-16" [turn]="turn()" [viewer]="canReview()?'teacher':'student'" [name]="studentName()" [mini]="true" [motionKey]="lesson().id"/>}<div class="sh"><h2 id="homework-history-title">{{mode()==='review'?'Ревью сданных работ':'Отправленные работы'}}</h2>@if(!unknown()){<button class="btn sm" type="button" (click)="refreshHistory()" [disabled]="loading()||busy()"><mentor-icon name="refresh"/>Обновить историю</button>}</div>
@@ -134,7 +134,7 @@ export class HomeworkPageComponent {
     }
     loadCode(submission: Submission) {
         this.codeRequest?.unsubscribe(); this.code.set(null); this.codeError.set(''); const stamp = this.sequence;
-        this.codeRequest = this.scope.track(this.api.text(this.lesson(), submission.id)).subscribe({ next: text => { if (this.active() && stamp === this.sequence) this.code.set({ [text.filename]: text.text }); }, error: error => { if (this.active() && stamp === this.sequence) this.codeError.set(error.status === 415 ? 'Этот файл нельзя показать как текст. Скачайте его.' : 'Не удалось загрузить код работы.'); } });
+        this.codeRequest = this.scope.track(this.api.text(this.lesson(), submission.id)).subscribe({ next: text => { if (this.active() && stamp === this.sequence) this.code.set({ [text.filename]: text.text }); }, error: error => { if (this.active() && stamp === this.sequence) this.codeError.set(error.status === 415 ? 'Этот файл нельзя показать как текст, его можно только скачать.' : 'Не удалось загрузить код работы.'); } });
     }
     download(submission: Submission) {
         if (!this.active()) return; const stamp = this.sequence; this.downloadErrors.update(errors => Object.fromEntries(Object.entries(errors).filter(([id]) => id !== submission.id)));

@@ -29,7 +29,7 @@ export class DraftRecovery {
         localStorage.removeItem(key + suffix);
     }
     catch {
-        this.storageError.set('Локальное хранилище недоступно.');
+        this.storageError.set('Резервная копия в браузере недоступна.');
     } }
     saveIntent(key: string, intent: AttemptIntent) { if (this.owned(key))
         this.write(key + ':intent', { ...intent, savedAt: Date.now() }); }
@@ -54,7 +54,7 @@ export class DraftRecovery {
         return record(value) ? value : null;
     }
     catch {
-        this.storageError.set('Локальное восстановление недоступно. Код остаётся в редакторе.');
+        this.storageError.set('Резервная копия в браузере недоступна. Код остался в редакторе.');
         return null;
     } }
     private write(key: string, value: unknown) { try {
@@ -62,7 +62,7 @@ export class DraftRecovery {
         this.storageError.set('');
     }
     catch {
-        this.storageError.set('Локальное сохранение недоступно. Экспортируйте код перед выходом.');
+        this.storageError.set('Браузер не сохраняет резервную копию. Скачай код перед выходом.');
         throw new Error(this.storageError());
     } }
 }

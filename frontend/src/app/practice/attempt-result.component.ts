@@ -18,7 +18,7 @@ import { Motion, animateOnChange, motionEase, motionMs } from '../core/motion';
           <p class="small-muted">Попытка · {{ mode() }} · {{ attempt().createdAt | date:'dd.MM.yyyy, HH:mm':'+0300' }}</p>
           <h3 class="attempt-state" [class.ok]="accepted()" [class.bad]="failed()"><mentor-icon [class.spin]="attempt().jobState === 'running'" [name]="icon()"/>{{ label() }}</h3>
           @if (workerSilent()) {
-            <p class="warning-banner" role="status">Исполнитель заданий сейчас не отвечает@if (worker()?.lastSeenAt; as seen) { · последний отклик {{ seen | date:'dd.MM, HH:mm':'+0300' }}}. Попытка сохранена и выполнится, когда он вернётся.</p>
+            <p class="warning-banner" role="status">Сервер проверки сейчас не отвечает@if (worker()?.lastSeenAt; as seen) { · был на связи {{ seen | date:'dd.MM, HH:mm':'+0300' }}}. Попытка сохранена и проверится, когда он вернётся.</p>
           }
           @if (attempt().environmentRevision === null) {
             <p class="small-muted">Версия окружения не сохранена</p>

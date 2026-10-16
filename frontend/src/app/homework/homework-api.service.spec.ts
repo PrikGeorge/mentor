@@ -15,7 +15,7 @@ describe('Homework multipart transport',()=>{
   const {http,api:service}=api();let error:Error|undefined;
   service.submit(lesson,new File(['code'],name),'','').subscribe({error:failure=>error=failure});
   http.expectNone('/api/v1/workspaces/w1/students/s1/lessons/l1/homework');
-  expect(error?.message).toBe('Недопустимое имя файла.');
+  expect(error?.message).toBe('Недопустимое имя файла. Переименуй его.');
  });
  it('uses one browser-boundary multipart file and emits success only for the final response',()=>{
   const{http,api:service}=api(),file=new File(['code'],'work.java');let result:Submission|undefined;service.submit(lesson,file,' comment ',' https://example.com/project ').subscribe(value=>result=value);

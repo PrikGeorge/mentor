@@ -104,7 +104,7 @@ describe('Lesson creation and preparation', () => {
         await renderResources(); fixture.detectChanges();
         http.expectOne(base + '/lessons/l1/homework?page=0&size=25').flush({items:[],page:0,size:25,total:0});
         await renderResources(); fixture.detectChanges();
-        click(element, 'Изменить отзыв');
+        click(element, 'Изменить ревью');
         fixture.detectChanges();
         http.expectOne(base + '/lessons/l1/texts/reviewNotes').flush({ kind: 'reviewNotes', markdown: 'old', revision: 3 });
         await renderResources(); fixture.detectChanges();

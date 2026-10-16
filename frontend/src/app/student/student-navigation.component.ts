@@ -51,7 +51,7 @@ export class StudentNavigationComponent {
             { path: context.base + '/projects', label: 'Учебные проекты', private: true },
             { path: context.base + '/roadmap', label: 'Маршрут обучения' },
             { path: context.base + '/materials', label: 'Материалы ученика', exact: false },
-            { path: context.base + '/review', label: 'Предыдущие отзывы' },
+            { path: context.base + '/review', label: 'Ревью' },
         ];
     });
 

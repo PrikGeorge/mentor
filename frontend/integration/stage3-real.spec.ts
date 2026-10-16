@@ -190,7 +190,7 @@ test('real stage 3 flow: material publishes the lesson, homework, conducted mark
     await page.goto(`/learn/students/${student.id}/lessons`);
     await expect(learnerRow.getByText('Проведено', { exact: true })).toBeVisible();
     await expect(learnerRow.locator('.turn-cell')).toContainText('Твой ход'); await expect(learnerRow.locator('.turn-cell')).toContainText('Наставник ответил');
-    await learnerRow.getByRole('link', { name: 'Открыть отзыв', exact: true }).click();
+    await learnerRow.getByRole('link', { name: 'Открыть ревью', exact: true }).click();
     await expect(page).toHaveURL(learnerRoute(lesson, 'review'));
     await expect(page.locator('.submission-feedback')).toContainText('Работа принята, посмотри комментарий к строке 2.');
     await expect(page.locator('.submission-feedback .grade-line')).toContainText('хорошо');
