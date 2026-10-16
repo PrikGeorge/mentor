@@ -84,7 +84,7 @@ describe('Teacher student list', () => {
         const { fixture, element } = mount();
         http.expectOne(root + '/dashboards?page=0&size=25').flush({ message: 'Список временно недоступен' }, { status: 503, statusText: 'Unavailable' });
         await renderResources();
-        expect(element.querySelector('[role="alert"]')?.textContent).toContain('Сервис временно недоступен');
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain('Сервер временно недоступен');
         expect(element.querySelector('[role="status"]')).toBeNull();
         expect(element.querySelector('.skeleton-card')).toBeNull();
 

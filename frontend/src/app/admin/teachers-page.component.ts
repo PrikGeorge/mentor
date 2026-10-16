@@ -154,7 +154,7 @@ export class TeachersPageComponent {
     this.busy.set(true); this.actionError.set('');
     this.session.scope(action).pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.busy.set(false))).subscribe({
       next: value => { done?.(value); if (reload) this.refresh.update(count => count + 1); },
-      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.actionError.set(errorMessage(failure, 'Действие не выполнено. Попробуйте ещё раз.', { INVALID_CREDENTIALS: 'Текущий пароль неверный.' })); },
+      error: (failure: HttpErrorResponse) => { this.currentPassword.reset(); this.actionError.set(errorMessage(failure, 'Действие не выполнено.', { INVALID_CREDENTIALS: 'Текущий пароль неверный.' })); },
     });
   }
 }

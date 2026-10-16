@@ -110,7 +110,7 @@ export class AuthPageComponent {
         const home = this.session.actor()?.role === 'ADMIN' ? '/admin/teachers' : this.session.actor()?.role === 'TEACHER' ? '/teacher/students' : '/learn';
         void this.router.navigateByUrl(returnUrl && !/^\/(login|register|reset-password)(?:[/?#]|$)/.test(returnUrl) ? returnUrl : home, { replaceUrl: true });
       },
-      error: (failure: HttpErrorResponse) => { this.submitted.set(false); this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(errorMessage(failure, 'Не удалось выполнить действие. Попробуйте ещё раз.', this.mode === 'password' ? { INVALID_CREDENTIALS: 'Текущий пароль неверный.' } : {})); },
+      error: (failure: HttpErrorResponse) => { this.submitted.set(false); this.form.controls.password.reset(); this.form.controls.confirmation.reset(); this.form.controls.currentPassword.reset(); this.error.set(errorMessage(failure, 'Не удалось выполнить действие.', this.mode === 'password' ? { INVALID_CREDENTIALS: 'Текущий пароль неверный.' } : {})); },
     });
   }
 }

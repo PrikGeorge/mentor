@@ -26,5 +26,5 @@ export abstract class DomainPage {
     readonly base = computed(() => `${this.session.actor()?.role === 'STUDENT' ? '/learn/students' : '/teacher/students'}/${encodeURIComponent(this.studentId() ?? '')}`);
     readonly previewQuery = computed(() => this.preview() ? { preview: 'student' } : {});
     constructor() { this.destroyRef.onDestroy(() => this.context.clear(this)); }
-    protected message(error: unknown): string { return errorMessage(error, 'Не удалось сохранить или загрузить данные. Попробуйте ещё раз.'); }
+    protected message(error: unknown): string { return errorMessage(error, 'Не удалось загрузить или сохранить данные.'); }
 }
