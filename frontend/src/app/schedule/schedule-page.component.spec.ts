@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { SessionStore } from '../core/session.store';
 import { sessionInterceptor } from '../core/session.interceptor';
@@ -228,5 +228,88 @@ describe('Teacher schedule', () => {
         await flush('2026-10-12', '2026-10-18', [], harness);
         expect(element.querySelector('.conducted-reminder')).toBeNull();
         expect(element.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    // T23: the month view next to «Сегодня» and «Неделя».
+    async function flushUpcoming(items: ScheduleItem[], harness: RouterTestingHarness) {
+        http.expectOne(`${root}?from=2026-10-15&to=2026-10-28`).flush({ from: '2026-10-15', to: '2026-10-28', items });
+        await renderResources();
+        harness.detectChanges();
+    }
+
+    it('shows the month of every active student with the upcoming lessons beside it', async () => {
+        signIn();
+        const { harness, element } = await open('/teacher/schedule?view=month');
+        const lessons = [
+            item('a', 'Анна Петрова', '2026-10-05', '10:00', { conductedAt: '2026-10-05T08:00:00Z' }),
+            item('b', 'Борис Иванов', '2026-10-15', '15:00'),
+            item('c', 'Анна Петрова', '2026-10-20', '18:00', { studentId: 's-a' }),
+        ];
+        await flush('2026-10-01', '2026-10-31', lessons, harness);
+        await flushUpcoming(lessons.slice(1), harness);
+        expect(button(element, 'Месяц').getAttribute('aria-pressed')).toBe('true');
+        expect(element.querySelector('.month-label')?.textContent).toBe('Октябрь 2026');
+        expect(element.querySelector('caption')?.textContent?.trim()).toBe('Октябрь 2026');
+        expect(button(element, 'Этот месяц')).toBeUndefined();
+        const links = [...element.querySelectorAll<HTMLAnchorElement>('.month-grid .day-lessons a')];
+        expect(links.map((link) => link.textContent?.trim())).toEqual(['10:00 · Анна', '15:00 · Борис', '18:00 · Анна']);
+        expect(links[0].getAttribute('href')).toBe('/teacher/students/s-a/lessons/a');
+        expect(element.querySelector('.month-grid .day-lessons .tag.quiet')?.textContent).toBe('Проведено');
+        const upcoming = element.querySelector('.upcoming')!;
+        expect(upcoming.querySelector('h2')?.textContent).toBe('Ближайшие занятия');
+        expect([...upcoming.querySelectorAll('li')].map((li) => li.querySelector('time')?.textContent?.trim())).toEqual([
+            'Чт, 15 октября · 15:00–16:00',
+            'Вт, 20 октября · 18:00–19:00',
+        ]);
+        expect(upcoming.querySelector('li')?.textContent).toContain('Идёт сейчас');
+        expect(element.querySelector('.conducted-reminder')).toBeNull();
+        expect([...element.querySelectorAll<HTMLOptionElement>('.calendar-filter option')].map((option) => option.textContent)).toEqual([
+            'Все ученики',
+            'Анна Петрова',
+            'Борис Иванов',
+        ]);
+    });
+
+    it('opens a linked student filter selected and asks only for the next month when paging', async () => {
+        signIn();
+        const { harness, element } = await open('/teacher/schedule?view=month&student=s-b');
+        await flush('2026-10-01', '2026-10-31', [item('a', 'Анна Петрова', '2026-10-05', '10:00'), item('b', 'Борис Иванов', '2026-10-20', '18:00')], harness);
+        await flushUpcoming([], harness);
+        const select = element.querySelector<HTMLSelectElement>('.calendar-filter select')!;
+        expect(select.value).toBe('s-b');
+        expect([...element.querySelectorAll('.month-grid .day-lessons a')].map((link) => link.textContent?.trim())).toEqual(['18:00 · Борис']);
+        button(element, 'Следующий').click();
+        await settle(harness);
+        await flush('2026-11-01', '2026-11-30', [item('c', 'Борис Иванов', '2026-11-03', '18:00', { studentId: 's-b' })], harness);
+        http.expectNone((request) => request.url.includes('from=2026-10-15'));
+        expect(element.querySelector<HTMLSelectElement>('.calendar-filter select')!.value).toBe('s-b');
+    });
+
+    it('drops the month when the account changes', async () => {
+        signIn();
+        await open('/teacher/schedule?view=month');
+        const pending = http.expectOne(`${root}?from=2026-10-01&to=2026-10-31`);
+        TestBed.inject(SessionStore).invalidate();
+        expect(pending.cancelled).toBe(true);
+        http.match(() => true);
+    });
+
+    it('pages months, keeps the student filter and explains a month without that student', async () => {
+        signIn();
+        const { harness, element } = await open('/teacher/schedule?view=month&month=2026-11&student=s-b');
+        await flush('2026-11-01', '2026-11-30', [item('a', 'Анна Петрова', '2026-11-03', '10:00', { studentId: 's-a' })], harness);
+        await flushUpcoming([], harness);
+        expect(element.querySelector('.month-grid .day-lessons')).toBeNull();
+        expect(element.querySelector('.calendar-empty')?.textContent).toContain('У этого ученика в этом месяце занятий нет.');
+        expect(element.querySelector('.upcoming')?.textContent).toContain('На ближайшие две недели занятий нет.');
+        button(element, 'Следующий').click();
+        await settle(harness);
+        expect(TestBed.inject(Router).url).toBe('/teacher/schedule?view=month&month=2026-12&student=s-b');
+        await flush('2026-12-01', '2026-12-31', [], harness);
+        expect(element.querySelector('.calendar-empty')?.textContent).toContain('В этом месяце занятий нет.');
+        button(element, 'Этот месяц').click();
+        await settle(harness);
+        expect(TestBed.inject(Router).url).toBe('/teacher/schedule?view=month&student=s-b');
+        await flush('2026-10-01', '2026-10-31', [], harness);
     });
 });

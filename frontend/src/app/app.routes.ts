@@ -10,13 +10,14 @@ const studentPage = () => import('./students/student-page.component').then(modul
 const dashboardPage = () => import('./student/dashboard.component').then(module => module.DashboardComponent);
 const teachersPage = () => import('./admin/teachers-page.component').then(module => module.TeachersPageComponent);
 const schedulePage = () => import('./schedule/schedule-page.component').then(module => module.SchedulePageComponent);
+const calendarPage = () => import('./schedule/student-calendar-page.component').then(module => module.StudentCalendarPageComponent);
 const lessonRoutes: Routes = [
     ...[':studentId/lessons/:lessonId/:audience/practice/:detail', ':studentId/lessons/:lessonId/:audience/practice'].map(path => ({ path, loadComponent: () => import('./practice/practice-page.component').then(module => module.PracticePageComponent), canDeactivate: [() => inject(PracticeExit).ask()] })),
     { path: ':studentId/lessons/:lessonId/:audience/:section/:detail', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
     { path: ':studentId/lessons/:lessonId/:audience/:section', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
     { path: ':studentId/lessons/:lessonId', loadComponent: () => import('./lessons/lesson-page.component').then(module => module.LessonPageComponent) },
 ];
-const profileRoutes: Routes = [{ path: ':studentId/materials/:detail', loadComponent: studentPage, data: { section: 'materials' } }, ...['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal', 'core', 'course', 'materials'].map(section => ({ path: ':studentId/' + section, loadComponent: studentPage, data: { section } }))];
+const profileRoutes: Routes = [{ path: ':studentId/calendar', loadComponent: calendarPage }, { path: ':studentId/materials/:detail', loadComponent: studentPage, data: { section: 'materials' } }, ...['lessons', 'goal', 'roadmap', 'review', 'profile', 'projects', 'career', 'journal', 'core', 'course', 'materials'].map(section => ({ path: ':studentId/' + section, loadComponent: studentPage, data: { section } }))];
 export const routes: Routes = [
     { path: '', pathMatch: 'full', component: NavigationPageComponent, canActivate: [homeGuard] },
     { path: 'login', component: AuthPageComponent },

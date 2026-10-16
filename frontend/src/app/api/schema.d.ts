@@ -231,6 +231,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/students/{studentId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description T23. The lessons of one card whose Moscow date lies in the inclusive window from..to (one to 31 days), for the student's calendar. Readable by the student of this card (also when the card is archived) and by the teacher of the workspace (preview); another student, another teacher and administrators receive 404. Ordered by date, time, createdAt and id; lesson numbers are counted over the card's whole calendar. Metadata only, as in the lesson list. Not paginated because the window is bounded. */
+        get: operations["getStudentSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/students/dashboards": {
         parameters: {
             query?: never;
@@ -1321,6 +1338,11 @@ export interface components {
         ScheduleItem: {
             studentName: string;
             lesson: components["schemas"]["LessonSummary"];
+        };
+        StudentSchedule: {
+            from: components["schemas"]["LessonDate"];
+            to: components["schemas"]["LessonDate"];
+            items: components["schemas"]["LessonSummary"][];
         };
         LessonPage: {
             items: components["schemas"]["LessonSummary"][];
@@ -2539,6 +2561,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    getStudentSchedule: {
+        parameters: {
+            query: {
+                from: components["schemas"]["LessonDate"];
+                to: components["schemas"]["LessonDate"];
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lessons of the card in the window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentSchedule"];
                 };
             };
             400: components["responses"]["Problem"];

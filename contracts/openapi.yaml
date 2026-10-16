@@ -530,6 +530,48 @@ paths:
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
+  /workspaces/{workspaceId}/students/{studentId}/schedule:
+    get:
+      operationId: getStudentSchedule
+      description: T23. The lessons of one card whose Moscow date lies in the inclusive window from..to (one to 31
+        days), for the student's calendar. Readable by the student of this card (also when the card is archived) and
+        by the teacher of the workspace (preview); another student, another teacher and administrators receive 404.
+        Ordered by date, time, createdAt and id; lesson numbers are counted over the card's whole calendar. Metadata
+        only, as in the lesson list. Not paginated because the window is bounded.
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/LessonDate'
+      - name: to
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/LessonDate'
+      responses:
+        '200':
+          description: Lessons of the card in the window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentSchedule'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
   /workspaces/{workspaceId}/students/dashboards:
     get:
       operationId: listStudentDashboards
@@ -3461,6 +3503,22 @@ components:
           type: string
         lesson:
           $ref: '#/components/schemas/LessonSummary'
+    StudentSchedule:
+      type: object
+      additionalProperties: false
+      required:
+      - from
+      - to
+      - items
+      properties:
+        from:
+          $ref: '#/components/schemas/LessonDate'
+        to:
+          $ref: '#/components/schemas/LessonDate'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonSummary'
     LessonPage:
       type: object
       additionalProperties: false

@@ -1,5 +1,5 @@
-import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { afterNextRender, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, signal, viewChild } from '@angular/core';
+import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
 import { DatePipe } from '@angular/common';
@@ -10,6 +10,7 @@ import { PracticeExit } from '../core/practice-exit.service';
 import { PracticeExitDialog } from '../core/practice-exit-dialog.component';
 import { IconComponent } from '../core/icon.component';
 import { lessonStatus } from '../lessons/lesson-status';
+import { Motion, animateOnChange, motionEase, motionMs } from '../core/motion';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 type NavItem = { label: string; link: string; query: Record<string, string>; active: boolean };
 
@@ -54,7 +55,7 @@ type NavItem = { label: string; link: string; query: Record<string, string>; act
       <div class="context-head">
         <nav class="crumbs" aria-label="Путь">@if (context.learner) { <a [routerLink]="context.base + '/lessons'" [queryParams]="learnerQuery()">Мои занятия</a> } @else { <a routerLink="/teacher/students">Мои ученики</a><span aria-hidden="true">›</span><a [routerLink]="context.base">{{ context.student.name }}</a> }<span aria-hidden="true">›</span><span>Занятие {{ lesson.number }}</span></nav>
         <div class="context-title"><div>
-          <p class="kick"><a class="backlink" [routerLink]="context.learner ? context.base + '/lessons' : context.base" [queryParams]="learnerQuery()"><mentor-icon name="arrow-left"/>Все занятия</a><span aria-hidden="true">·</span><span>Занятие {{ lesson.number }}</span>@if (status(lesson, context.learner ? 'student' : 'teacher'); as tag) {<span class="tag" [class.on]="tag.on" [class.quiet]="tag.quiet"><mentor-icon [name]="tag.icon"/>{{ tag.label }}</span>}</p>
+          <p class="kick"><a class="backlink" [routerLink]="context.learner ? context.base + '/lessons' : context.base" [queryParams]="learnerQuery()"><mentor-icon name="arrow-left"/>Все занятия</a><span aria-hidden="true">·</span><span>Занятие {{ lesson.number }}</span>@if (status(lesson, context.learner ? 'student' : 'teacher'); as tag) {<span class="tag lesson-tag" [class.on]="tag.on" [class.quiet]="tag.quiet"><mentor-icon [name]="tag.icon"/>{{ tag.label }}</span>}</p>
           <h1>{{ lesson.title }}</h1>
           <p class="meta">@if (!context.learner) { <b>{{ context.student.name }}</b> · }{{ lesson.date | date:'dd.MM.yyyy' }} · {{ lesson.time }} МСК · {{ lesson.duration }} мин</p>
         </div></div>
@@ -73,6 +74,9 @@ export class ShellComponent {
   readonly selection = inject(WorkspaceContext);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly motion = inject(Motion);
   private readonly profile = viewChild<ElementRef<HTMLElement>>('profile');
   private readonly url = toSignal(this.router.events.pipe(filter(event => event instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url });
   readonly menuOpen = signal(false);
@@ -130,6 +134,7 @@ export class ShellComponent {
     return [
       { label: 'Главная', link: base, query, active: path === base || path === '/learn' || path === base + '/goal' },
       { label: 'Занятия', link: base + '/lessons', query, active: path.startsWith(base + '/lessons') },
+      { label: 'Календарь', link: base + '/calendar', query, active: path === base + '/calendar' },
       { label: 'Маршрут обучения', link: base + '/roadmap', query, active: path === base + '/roadmap' },
       { label: 'Материалы', link: base + '/materials', query, active: path.startsWith(base + '/materials') },
     ];
@@ -146,6 +151,25 @@ export class ShellComponent {
       this.publicRoute.set(activeRoute.data['missing'] === true || /^\/(login|register|reset-password|account\/password)(?:[/?#]|$)/.test(this.router.url));
       this.closeMenus();
     });
+    // UX-28: the header underline slides to the new section; the lesson tag is stamped when the lesson is marked held.
+    let navFrom: { rect: DOMRect; generation: number } | null = null;
+    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) { const link = this.activeNav(); navFrom = link ? { rect: link.getBoundingClientRect(), generation: this.session.generation() } : null; }
+      else if (event instanceof NavigationEnd && navFrom) { const from = navFrom; navFrom = null; afterNextRender(() => this.slideNav(from), { injector: this.injector }); }
+    });
+    animateOnChange({
+      value: () => !!this.selection.current()?.lesson?.conductedAt,
+      key: () => this.selection.current()?.lesson?.id ?? null,
+      play: (was, held) => !was && held ? this.motion.animate(this.host.nativeElement.querySelector('.context-head .lesson-tag'), [{ transform: 'scale(1.14) rotate(-4deg)' }, { transform: 'none' }], { duration: motionMs('move'), easing: motionEase('move') }) : null,
+    });
+  }
+  private activeNav(): HTMLElement | null { return this.host.nativeElement.querySelector<HTMLElement>('.primary-nav a.active'); }
+  private slideNav(from: { rect: DOMRect; generation: number }): void {
+    const link = this.activeNav();
+    if (!link || from.generation !== this.session.generation()) return;
+    const rect = link.getBoundingClientRect();
+    if (!rect.width || !from.rect.width || (rect.left === from.rect.left && rect.width === from.rect.width)) return;
+    this.motion.animate(link, [{ transform: `translateX(${from.rect.left - rect.left}px) scaleX(${from.rect.width / rect.width})` }, { transform: 'none' }], { duration: motionMs('move'), easing: motionEase('move'), pseudoElement: '::after' });
   }
   readonly status = lessonStatus;
   closeMenus(): void { this.menuOpen.set(false); this.profileOpen.set(false); }

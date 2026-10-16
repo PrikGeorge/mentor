@@ -45,3 +45,43 @@ export function endTime(lesson: { time: string; duration: number }) {
     const minutes = (h * 60 + m + lesson.duration) % 1440;
     return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
 }
+
+// T23: the month view. A month is «YYYY-MM»; its grid runs Monday to Sunday over whole weeks (four to six).
+const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const shortWeekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+export function monthOf(date: string) {
+    return date.slice(0, 7);
+}
+export function isMonth(value: string | null | undefined): value is string {
+    return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+export function addMonths(month: string, count: number) {
+    const [year, index] = month.split('-').map(Number);
+    const total = year * 12 + index - 1 + count;
+    return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+// The inclusive date window of a month, at most 31 days, as the schedule API takes it.
+export function monthRange(month: string) {
+    return { from: month + '-01', to: addDays(addMonths(month, 1) + '-01', -1) };
+}
+export function monthWeeks(month: string) {
+    const { from, to } = monthRange(month);
+    const weeks: string[][] = [];
+    for (let monday = mondayOf(from); monday <= to; monday = addDays(monday, 7)) weeks.push(weekDays(monday));
+    return weeks;
+}
+// «Октябрь 2026».
+export function monthLabel(month: string) {
+    const [year, index] = month.split('-').map(Number);
+    return `${monthNames[index - 1]} ${year}`;
+}
+// «Пт, 17 октября».
+export function shortDayLabel(date: string) {
+    const d = new Date(utc(date));
+    return `${shortWeekdays[d.getUTCDay()]}, ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+}
+// «20 октября».
+export function dayOfMonthLabel(date: string) {
+    const d = new Date(utc(date));
+    return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+}

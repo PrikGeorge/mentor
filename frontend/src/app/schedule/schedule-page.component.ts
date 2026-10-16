@@ -13,12 +13,33 @@ import { IconComponent } from '../core/icon.component';
 import { ErrorBannerComponent } from '../core/error-banner.component';
 import { lessonStatus } from '../lessons/lesson-status';
 import { Schedule, ScheduleApi, ScheduleItem } from './schedule-api.service';
-import { addDays, dayLabel, endTime, isCalendarDate, lessonEnd, lessonStart, mondayOf, weekDays, weekLabel } from './schedule-dates';
+import {
+    addDays,
+    addMonths,
+    dayLabel,
+    endTime,
+    isCalendarDate,
+    isMonth,
+    lessonEnd,
+    lessonStart,
+    mondayOf,
+    monthLabel,
+    monthOf,
+    monthRange,
+    weekDays,
+    weekLabel,
+} from './schedule-dates';
+import { CalendarEntry, upcomingWindow } from './calendar';
+import { CALENDAR_PAGE_STYLES } from './calendar-styles';
+import { MonthCalendarComponent } from './month-calendar.component';
+import { UpcomingLessonsComponent } from './upcoming-lessons.component';
+import { focusAfterRender } from '../core/focus';
 import { initialOf, moscowDate } from '../core/format';
-// T04: the teacher's lessons of all active cards for today or one week, by Moscow time.
+// T04: the teacher's lessons of all active cards for today or one week, by Moscow time; T23 adds the month.
 @Component({
     selector: 'mentor-schedule-page',
-    imports: [RouterLink, NgTemplateOutlet, IconComponent, ErrorBannerComponent],
+    imports: [RouterLink, NgTemplateOutlet, IconComponent, ErrorBannerComponent, MonthCalendarComponent, UpcomingLessonsComponent],
+    styles: [CALENDAR_PAGE_STYLES],
     template: `
         <div class="page-head">
             <div>
@@ -29,7 +50,8 @@ import { initialOf, moscowDate } from '../core/format';
         <div class="schedule-toolbar">
             <div class="seg" role="group" aria-label="Период">
                 <button type="button" [attr.aria-pressed]="view() === 'today'" (click)="show('today')">Сегодня</button
-                ><button type="button" [attr.aria-pressed]="view() === 'week'" (click)="show('week')">Неделя</button>
+                ><button type="button" [attr.aria-pressed]="view() === 'week'" (click)="show('week')">Неделя</button
+                ><button type="button" [attr.aria-pressed]="view() === 'month'" (click)="show('month')">Месяц</button>
             </div>
             @if (view() === 'week') {
                 <nav class="schedule-week-nav" aria-label="Недели">
@@ -40,6 +62,27 @@ import { initialOf, moscowDate } from '../core/format';
                     <button class="btn sm text" type="button" (click)="shiftWeek(7)">Следующая<mentor-icon name="arrow-right" /></button>
                     <span class="count" aria-live="polite">{{ weekLabel(monday()) }}</span>
                 </nav>
+            }
+            @if (view() === 'month') {
+                <nav class="schedule-week-nav" aria-label="Месяцы">
+                    <button class="btn sm text" type="button" (click)="shiftMonth(-1)"><mentor-icon name="arrow-left" />Прошлый месяц</button>
+                    @if (month() !== monthOf(today())) {
+                        <button class="btn sm text" type="button" (click)="thisMonth()">Этот месяц</button>
+                    }
+                    <button class="btn sm text" type="button" (click)="shiftMonth(1)">Следующий<mentor-icon name="arrow-right" /></button>
+                    <span class="count month-label" tabindex="-1" aria-live="polite">{{ monthLabel(month()) }}</span>
+                </nav>
+                @if (monthStudents().length) {
+                    <label class="field calendar-filter"
+                        >Ученик
+                        <select aria-label="Ученик" (change)="filterStudent($any($event.target).value)">
+                            <option value="" [selected]="!studentFilter()">Все ученики</option>
+                            @for (student of monthStudents(); track student.id) {
+                                <option [value]="student.id" [selected]="student.id === studentFilter()">{{ student.name }}</option>
+                            }
+                        </select>
+                    </label>
+                }
             }
         </div>
         @if (view() === 'today' && unmarked().length) {
@@ -88,7 +131,33 @@ import { initialOf, moscowDate } from '../core/format';
         @if (error()) {
             <mentor-error-banner [message]="error()" retryLabel="Повторить загрузку" (retry)="reload()" />
         }
-        @if (schedule(); as s) {
+        @if (view() === 'month') {
+            <div class="calendar-layout">
+                <div class="calendar-main">
+                    @if (schedule()) {
+                        <mentor-month-calendar [month]="month()" [today]="today()" [now]="now()" [entries]="monthEntries()" viewer="teacher" />
+                        @if (!schedule()!.items.length) {
+                            <p class="small-muted calendar-empty">В этом месяце занятий нет.</p>
+                        } @else if (studentFilter() && !monthEntries().length) {
+                            <p class="small-muted calendar-empty">
+                                У этого ученика в этом месяце занятий нет.
+                                <button class="btn sm text" type="button" (click)="filterStudent('')">Все ученики</button>
+                            </p>
+                        }
+                    } @else if (!error()) {
+                        <p class="loading" role="status">Загружаем расписание…</p>
+                    }
+                </div>
+                <mentor-upcoming-lessons
+                    [entries]="upcomingEntries()"
+                    [now]="now()"
+                    [loaded]="upcomingLoaded()"
+                    [failed]="upcomingFailed()"
+                    (retry)="reload()"
+                    viewer="teacher"
+                />
+            </div>
+        } @else if (schedule(); as s) {
             @if (view() === 'today') {
                 <section class="schedule-day" aria-labelledby="schedule-today">
                     <div class="sh">
@@ -174,7 +243,16 @@ export class SchedulePageComponent {
     // The shared 30-second clock (FE-17) moves «today» and «Идёт сейчас».
     readonly now = inject(Clock).watch();
     readonly today = computed(() => moscowDate(this.now()));
-    readonly view = computed<'today' | 'week'>(() => (this.query().get('view') === 'week' ? 'week' : 'today'));
+    readonly view = computed<'today' | 'week' | 'month'>(() => {
+        const view = this.query().get('view');
+        return view === 'week' || view === 'month' ? view : 'today';
+    });
+    // T23: the month shown (?month=YYYY-MM, otherwise the current one) and the optional single student (?student=).
+    readonly month = computed(() => {
+        const month = this.query().get('month');
+        return isMonth(month) ? month : monthOf(this.today());
+    });
+    readonly studentFilter = computed(() => this.query().get('student') || null);
     // The week shown: the Monday of ?from when it is a real date, otherwise the current week.
     readonly monday = computed(() => {
         const from = this.query().get('from');
@@ -185,8 +263,10 @@ export class SchedulePageComponent {
         params: () => {
             const actor = this.session.actor();
             if (actor?.role !== 'TEACHER' || !actor.workspaceId) return undefined;
-            const from = this.view() === 'week' ? this.monday() : this.today();
-            return { workspace: actor.workspaceId, from, to: this.view() === 'week' ? addDays(from, 6) : from, refresh: this.refresh() };
+            const view = this.view();
+            if (view === 'month') return { workspace: actor.workspaceId, ...monthRange(this.month()), refresh: this.refresh() };
+            const from = view === 'week' ? this.monday() : this.today();
+            return { workspace: actor.workspaceId, from, to: view === 'week' ? addDays(from, 6) : from, refresh: this.refresh() };
         },
         load: ({ workspace, from, to }) => this.api.get(workspace, from, to),
     });
@@ -196,6 +276,38 @@ export class SchedulePageComponent {
         const items = this.schedule()?.items ?? [];
         return weekDays(this.monday()).map((date) => ({ date, items: items.filter((item) => item.lesson.date === date) }));
     });
+    private readonly upcomingResource = readResource({
+        params: () => {
+            const actor = this.session.actor();
+            if (actor?.role !== 'TEACHER' || !actor.workspaceId || this.view() !== 'month') return undefined;
+            return { workspace: actor.workspaceId, ...upcomingWindow(this.today()), refresh: this.refresh() };
+        },
+        load: ({ workspace, from, to }) => this.api.get(workspace, from, to),
+    });
+    readonly upcomingFailed = computed(() => this.upcomingResource.state().status === 'error');
+    readonly upcomingLoaded = computed(() => this.upcomingResource.state().status === 'resolved');
+    private entry(item: ScheduleItem): CalendarEntry {
+        return { lesson: item.lesson, studentName: item.studentName, link: this.lessonLink(item), query: {} };
+    }
+    readonly monthEntries = computed(() => {
+        const student = this.studentFilter();
+        return (this.schedule()?.items ?? []).filter((item) => !student || item.lesson.studentId === student).map((item) => this.entry(item));
+    });
+    readonly upcomingEntries = computed(() => {
+        const state = this.upcomingResource.state();
+        return state.status === 'resolved' && state.value ? state.value.items.map((item) => this.entry(item)) : [];
+    });
+    // The filter offers the students who have lessons in the month shown; the list needs no extra request.
+    readonly monthStudents = computed(() => {
+        const seen = new Map<string, string>();
+        for (const item of this.schedule()?.items ?? []) seen.set(item.lesson.studentId, item.studentName);
+        const students = [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        const chosen = this.studentFilter();
+        return chosen && !seen.has(chosen) && students.length ? [...students, { id: chosen, name: 'Выбранный ученик' }] : students;
+    });
+    readonly monthLabel = monthLabel;
+    readonly monthOf = monthOf;
+    private readonly focusLater = focusAfterRender();
     readonly status = lessonStatus;
     readonly dayLabel = dayLabel;
     readonly weekLabel = weekLabel;
@@ -267,10 +379,26 @@ export class SchedulePageComponent {
     shortDate(date: string) {
         return date.slice(8, 10) + '.' + date.slice(5, 7);
     }
-    show(view: 'today' | 'week') {
+    show(view: 'today' | 'week' | 'month') {
         this.notice.set('');
         this.markError.set('');
-        void this.router.navigate([], { relativeTo: this.route, queryParams: view === 'week' ? { view } : {} });
+        void this.router.navigate([], { relativeTo: this.route, queryParams: view === 'today' ? {} : { view } });
+    }
+    shiftMonth(count: number) {
+        const student = this.studentFilter();
+        void this.router.navigate([], {
+            relativeTo: this.route,
+            queryParams: { view: 'month', month: addMonths(this.month(), count), ...(student ? { student } : {}) },
+        });
+    }
+    // «Этот месяц» disappears once pressed, so the focus moves to the month's name.
+    thisMonth() {
+        const student = this.studentFilter();
+        void this.router.navigate([], { relativeTo: this.route, queryParams: { view: 'month', ...(student ? { student } : {}) } });
+        this.focusLater('.month-label');
+    }
+    filterStudent(student: string) {
+        void this.router.navigate([], { relativeTo: this.route, queryParams: { view: 'month', month: this.month(), ...(student ? { student } : {}) } });
     }
     shiftWeek(days: number) {
         void this.router.navigate([], { relativeTo: this.route, queryParams: { view: 'week', from: addDays(this.monday(), days) } });

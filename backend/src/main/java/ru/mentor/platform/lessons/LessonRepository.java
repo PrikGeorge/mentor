@@ -154,6 +154,27 @@ public class LessonRepository {
                 to);
     }
 
+    // T23: one card's calendar for the student's month view, archived cards included (the student
+    // still reads them); numbers are counted over the card's whole calendar before the window.
+    public List<Summary> studentSchedule(String w, String student, String from, String to) {
+        return jdbc.query(
+                "SELECT lesson.*,n.number,EXISTS (SELECT 1 FROM lesson_text t WHERE t.workspace_id=lesson.workspace_id AND t.lesson_id=lesson.id AND t.kind='studentNotes' AND btrim(t.markdown,"
+                        + TRIM_WHITESPACE
+                        + ")<>'') AS has_student_notes,"
+                        + FIRST_WORK
+                        + " FROM lesson"
+                        + " JOIN (SELECT id,row_number() OVER (ORDER BY local_date,local_time,created_at,id) AS number FROM lesson WHERE workspace_id=? AND student_id=?) n ON n.id=lesson.id"
+                        + " WHERE lesson.workspace_id=? AND lesson.student_id=? AND lesson.local_date BETWEEN ? AND ?"
+                        + " ORDER BY lesson.local_date,lesson.local_time,lesson.created_at,lesson.id",
+                SUMMARY_MAPPER,
+                w,
+                student,
+                w,
+                student,
+                from,
+                to);
+    }
+
     public long count(String w, String student) {
         return jdbc.queryForObject(
                 "SELECT count(*) FROM lesson WHERE workspace_id=? AND student_id=?",
