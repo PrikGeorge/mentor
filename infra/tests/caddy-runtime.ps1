@@ -105,6 +105,25 @@ if (mode === 'serve') {
     assert.equal(home.headers['referrer-policy'], 'no-referrer');
     assert.match(home.headers['permissions-policy'], /camera=\(\)/);
     pass('root/deep SPA content and security headers');
+    assert.equal(home.headers['cache-control'], 'no-cache'); assert.equal(deep.headers['cache-control'], 'no-cache');
+    const built = home.body.toString().match(/src="(main-[A-Za-z0-9_-]{8,}\.js)"/);
+    assert.ok(built, 'Expected the hashed main bundle');
+    const hashed = await web('/' + built[1]);
+    assert.equal(hashed.status, 200); assert.equal(hashed.headers['cache-control'], 'public, max-age=31536000, immutable');
+    const missing = await web('/chunk-MISSING1.js');
+    assert.equal(missing.status, 404); assert.equal(missing.headers['cache-control'], 'no-store'); assert.doesNotMatch(missing.body.toString(), /<html/);
+    const styles = home.body.toString().match(/href="(styles-[A-Za-z0-9_-]{8,}\.css)"/);
+    assert.ok(styles, 'Expected the hashed stylesheet');
+    const font = (await web('/' + styles[1])).body.toString().match(/url\("?(?:\.\/)?(media\/[^)"']+\.woff2)"?\)/);
+    assert.ok(font, 'Expected a bundled font');
+    const fontFile = await web('/' + font[1]);
+    assert.equal(fontFile.status, 200); assert.equal(fontFile.headers['cache-control'], 'public, max-age=31536000, immutable');
+    const worker = await web('/vendor/monaco/0.52.2/worker-bootstrap.js');
+    assert.equal(worker.status, 200); assert.equal(worker.headers['cache-control'], 'public, max-age=31536000, immutable');
+    assert.match(worker.headers['content-security-policy'], /default-src 'self'/);
+    const unversioned = await web('/vendor/monaco/vs/loader.js');
+    assert.equal(unversioned.status, 404); assert.equal(unversioned.headers['cache-control'], 'no-store');
+    pass('FE-13 cache: hashed assets and versioned Monaco immutable, app shell revalidated, stale paths 404');
     const probe = await web('/api/v1/auth/session', {headers: {Host: `synthetic.mentor.invalid:${webPort}`,
       Forwarded: 'for=198.51.100.9;proto=https', 'X-Forwarded-Host': 'forged.invalid', 'X-Mentor-Client-Proto': 'forged'}});
     assert.equal(probe.status, 200);
@@ -221,7 +240,7 @@ try {
     & $nodeCommand $nodeScript check $fixture $webPort $jobsPort
     Require ($LASTEXITCODE -eq 0) 'Caddy HTTP/TLS assertions failed.'
     $httpResult = Get-Content -LiteralPath (Join-Path $fixture 'http-result.json') -Raw | ConvertFrom-Json
-    Require ($httpResult.completed -eq $true -and @($httpResult.checks).Count -eq 7) 'Incomplete HTTP/TLS smoke result.'
+    Require ($httpResult.completed -eq $true -and @($httpResult.checks).Count -eq 8) 'Incomplete HTTP/TLS smoke result.'
     $health = (Invoke-MentorDocker @('exec',$webId,'wget','-qO-','http://127.0.0.1:8080/healthz') | Out-String).Trim()
     Require ($health -ceq 'ok') 'Internal readiness failed.'
     Write-Output 'PASS internal loopback readiness'

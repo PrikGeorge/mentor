@@ -225,7 +225,7 @@ test('real homework-placement exercise: a submitted attempt is the student\'s mo
     await logout(page);
     // The student solves it in the fallback editor (Monaco blocked at the network) and submits all checks.
     await login(page, learner);
-    const devtools = await context.newCDPSession(page); await devtools.send('Network.enable'); await devtools.send('Network.setBlockedURLs', { urls: ['*/vendor/monaco/vs/loader.js'] });
+    const devtools = await context.newCDPSession(page); await devtools.send('Network.enable'); await devtools.send('Network.setBlockedURLs', { urls: ['*/vendor/monaco/*/vs/loader.js'] });
     await page.goto(learnerRoute(practiceLesson, 'practice'));
     const tab = page.getByRole('navigation', { name: 'Упражнения занятия', exact: true }).getByRole('button', { name: /Список: фильтрация/ });
     await expect(tab).toContainText('Домашняя работа'); await tab.click();

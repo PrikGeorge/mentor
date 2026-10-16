@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+// FE-13: the bundled Monaco lives under its version, so the server may cache it for good; bump both together.
+export const MONACO_BASE = '/vendor/monaco/0.52.2';
 export interface CodeEditor {
     getValue(): string;
     setValue(value: string): void;
@@ -50,13 +52,13 @@ export class MonacoLoader {
             const start = () => { if (!host.require) {
                 fail(new Error('Local AMD loader unavailable'));
                 return;
-            } host.MonacoEnvironment = { getWorkerUrl: () => new URL('/vendor/monaco/worker-bootstrap.js', location.origin).href }; host.require.config({ paths: { vs: new URL('/vendor/monaco/vs', location.origin).href } }); host.require(['vs/editor/editor.main'], api => { clearTimeout(timer); resolve(host.monaco ?? api); }, fail); };
+            } host.MonacoEnvironment = { getWorkerUrl: () => new URL(MONACO_BASE + '/worker-bootstrap.js', location.origin).href }; host.require.config({ paths: { vs: new URL(MONACO_BASE + '/vs', location.origin).href } }); host.require(['vs/editor/editor.main'], api => { clearTimeout(timer); resolve(host.monaco ?? api); }, fail); };
             if (host.require) {
                 start();
                 return;
             }
             const script = document.createElement('script');
-            script.src = '/vendor/monaco/vs/loader.js';
+            script.src = MONACO_BASE + '/vs/loader.js';
             script.onload = start;
             script.onerror = () => { script.remove(); fail(new Error('Local Monaco assets unavailable')); };
             document.head.append(script);
